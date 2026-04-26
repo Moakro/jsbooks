@@ -1,0 +1,32 @@
+---
+import Base from "../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import { buildCardManifest } from "../../lib/manifest";
+import { renderMarkdownBody } from "../../lib/wikilink";
+
+const all = await getCollection("scripture");
+const preface = all.find((e) => e.id === "00_서");
+if (!preface) throw new Error("00_서.md not found");
+
+const manifest = await buildCardManifest();
+const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
+---
+
+<Base title="서(序) — 천지개벽경">
+  <p class="meta"><a href="/scripture/">← 천지개벽경</a></p>
+  <h1>천지개벽경 서(序)</h1>
+  <p class="meta">{preface.data.date_lunar}</p>
+  <article class="prose-body" set:html={bodyHTML} />
+
+  <p style="text-align: right; margin-top: 3rem;">
+    포교 87년 병술 4월 27일<br />
+    <strong>이중성(李重盛) 序</strong>
+  </p>
+</Base>
+
+<style>
+  .prose-body :global(h1),
+  .prose-body :global(p) {
+    line-height: 1.85;
+  }
+</style>

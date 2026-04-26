@@ -1,0 +1,92 @@
+---
+import Base from "../../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import { buildCardManifest } from "../../../lib/manifest";
+import { renderWikilinks } from "../../../lib/wikilink";
+
+export async function getStaticPaths() {
+  const all = await getCollection("scripture");
+  return all
+    .filter((e) => e.data.권 && e.data.장)
+    .map((e) => ({
+      params: { vol: String(e.data.권), chap: String(e.data.장) },
+      props: { entry: e },
+    }));
+}
+
+const { entry } = Astro.props;
+const { 권, 권_이름, 권_이름_한자, 장, 연도, 연도_간지 } = entry.data;
+const manifest = await buildCardManifest();
+
+// Parse body into verses by ## N절 ^X-Y-Z headings
+type Verse = { num: number; id: string; html: string };
+const body = entry.body ?? "";
+const versePattern = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
+const verses: Verse[] = [];
+let m: RegExpExecArray | null;
+while ((m = versePattern.exec(body)) !== null) {
+  const num = parseInt(m[1], 10);
+  const id = m[2];
+  const raw = m[3].trim();
+  // Convert paragraph breaks: keep newlines as <br> for poetry, paragraphs separated by blank line
+  const paragraphs = raw.split(/\n\s*\n/).filter(Boolean);
+  const inner = paragraphs
+    .map((p) => renderWikilinks(p.replaceAll("\n", "\n"), manifest))
+    .join("\n\n");
+  verses.push({ num, id, html: inner });
+}
+
+// Find prev/next chapters within the same volume
+const all = await getCollection("scripture");
+const sameVol = all
+  .filter((e) => e.data.권 === 권 && e.data.장)
+  .sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
+const idx = sameVol.findIndex((e) => e.id === entry.id);
+const prev = sameVol[idx - 1];
+const next = sameVol[idx + 1];
+---
+
+<Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`}>
+  <p class="meta">
+    <a href="/scripture/">천지개벽경</a> · 권 {권} · {권_이름} ({권_이름_한자}) ·
+    {연도_간지} {연도}
+  </p>
+  <h1
+    data-pagefind-body
+    data-pagefind-filter="kind:경전"
+    data-pagefind-meta={`title:권${권} ${권_이름} ${장}장`}
+  >{장}장</h1>
+
+  {verses.map((v) => (
+    <section class="verse" id={v.id}>
+      <div class="verse-label">
+        <a href={`#${v.id}`}>{v.num}절</a>
+        <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
+      </div>
+      <div class="verse-body" set:html={v.html} />
+    </section>
+  ))}
+
+  <nav class="chapter-nav">
+    {prev && (
+      <a href={`/scripture/${권}/${prev.data.장}/`}>← {prev.data.장}장</a>
+    )}
+    <span style="flex: 1" />
+    {next && (
+      <a href={`/scripture/${권}/${next.data.장}/`}>{next.data.장}장 →</a>
+    )}
+  </nav>
+</Base>
+
+<style>
+  .chapter-nav {
+    display: flex;
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    gap: 1rem;
+  }
+  .verse-body :global(p) {
+    margin: 0.5rem 0;
+  }
+</style>

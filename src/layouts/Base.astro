@@ -1,0 +1,195 @@
+---
+import SideCard from "../components/SideCard.svelte";
+import SearchBox from "../components/SearchBox.svelte";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const { title, description = "증산계열 경전 디지털 라이브러리" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header>
+      <a href="/" class="brand">jsbooks</a>
+      <nav>
+        <a href="/scripture/">경전</a>
+        <a href="/people/">인물</a>
+        <a href="/places/">지명</a>
+        <a href="/dosu/">도수</a>
+        <a href="/terms/">용어</a>
+        <a href="/dates/">시기</a>
+      </nav>
+      <span style="flex: 1"></span>
+      <SearchBox client:load />
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer>
+      <small>증산계열 경전 디지털 라이브러리 · 학술 친화 자료</small>
+    </footer>
+    <SideCard client:load />
+    <style is:global>
+      :root {
+        --bg: #fafaf7;
+        --fg: #222;
+        --muted: #888;
+        --link: #2563eb;
+        --hanja: #555;
+        --rule: #e5e5e0;
+        --accent: #b91c1c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #181816;
+          --fg: #e5e5e0;
+          --muted: #888;
+          --link: #60a5fa;
+          --hanja: #aaa;
+          --rule: #2a2a26;
+          --accent: #f87171;
+        }
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+          "Pretendard Variable", Pretendard, "Noto Sans KR", "맑은 고딕",
+          sans-serif;
+        font-size: 17px;
+        line-height: 1.7;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 1rem 2rem;
+        border-bottom: 1px solid var(--rule);
+        background: var(--bg);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      header .brand {
+        font-weight: 700;
+        font-size: 1.1rem;
+        text-decoration: none;
+        color: var(--accent);
+      }
+      header nav {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      header nav a {
+        text-decoration: none;
+        color: var(--fg);
+        font-size: 0.95rem;
+      }
+      header nav a:hover {
+        color: var(--link);
+      }
+      main {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+        transition: margin 0.22s ease, max-width 0.22s ease;
+      }
+      /* Desktop: when sidecard is open, push main to the left of it */
+      @media (min-width: 1024px) {
+        body[data-sidecard="open"] main {
+          margin-left: max(2rem, calc((100vw - 800px - 420px) / 2));
+          margin-right: 460px;
+        }
+        body[data-sidecard="open"] header {
+          padding-right: 440px;
+        }
+      }
+      /* Mobile: bottom sheet — leave footer space so it isn't hidden */
+      @media (max-width: 1023px) {
+        body[data-sidecard="open"] main {
+          padding-bottom: 70vh;
+        }
+      }
+      footer {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 3rem;
+        color: var(--muted);
+        border-top: 1px solid var(--rule);
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.3;
+      }
+      h1 {
+        font-size: 1.7rem;
+        margin-top: 0;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin-top: 2rem;
+        color: var(--accent);
+      }
+      a {
+        color: var(--link);
+      }
+      a.wikilink {
+        text-decoration: none;
+        border-bottom: 1px dotted var(--link);
+      }
+      a.wikilink:hover {
+        background: rgba(37, 99, 235, 0.08);
+      }
+      .wikilink-missing {
+        color: var(--muted);
+        text-decoration: line-through;
+        text-decoration-color: var(--muted);
+      }
+      .verse {
+        margin: 1.4rem 0;
+        padding-left: 0.75rem;
+        border-left: 2px solid var(--rule);
+      }
+      .verse-label {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 0.3rem;
+      }
+      .verse-body {
+        white-space: pre-line;
+      }
+      .index-list {
+        list-style: none;
+        padding: 0;
+      }
+      .index-list li {
+        padding: 0.4rem 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </body>
+</html>

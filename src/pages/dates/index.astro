@@ -1,0 +1,26 @@
+---
+import Base from "../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+
+const entries = (await getCollection("dates")).sort((a, b) => {
+  const ay = a.data.year ?? Number.POSITIVE_INFINITY;
+  const by = b.data.year ?? Number.POSITIVE_INFINITY;
+  if (ay !== by) return ay - by;
+  return a.id.localeCompare(b.id, "ko");
+});
+---
+
+<Base title="시기 — jsbooks">
+  <h1>시기</h1>
+  <p class="meta">{entries.length}건</p>
+  <ul class="index-list">
+    {entries.map((e) => (
+      <li>
+        <a href={`/dates/${encodeURIComponent(e.id)}/`}>{e.data.name}</a>
+        {e.data.ganji && (
+          <span class="meta"> · {e.data.ganji}</span>
+        )}
+      </li>
+    ))}
+  </ul>
+</Base>

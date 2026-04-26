@@ -1,0 +1,60 @@
+---
+import Base from "../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+
+const all = await getCollection("scripture");
+
+// Preface (00_서)
+const preface = all.find((e) => e.id === "00_서");
+
+// Group by 권
+const volumes = new Map<number, { name: string; hanja: string; year: number; ganji: string; chapters: typeof all }>();
+for (const e of all) {
+  if (!e.data.권) continue;
+  const v = e.data.권;
+  if (!volumes.has(v)) {
+    volumes.set(v, {
+      name: e.data.권_이름 ?? "",
+      hanja: e.data.권_이름_한자 ?? "",
+      year: e.data.연도 ?? 0,
+      ganji: e.data.연도_간지 ?? "",
+      chapters: [] as any,
+    });
+  }
+  volumes.get(v)!.chapters.push(e);
+}
+for (const v of volumes.values()) {
+  v.chapters.sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
+}
+const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
+---
+
+<Base title="천지개벽경 — jsbooks">
+  <h1>천지개벽경 (天地開闢經)</h1>
+  <p class="meta">학암 이중성(李重盛) 편술 · 1946년</p>
+
+  {preface && (
+    <p>
+      <a href="/scripture/preface/">서(序)</a>
+      <span class="meta"> · {preface.data.date_lunar}</span>
+    </p>
+  )}
+
+  {volList.map(([num, vol]) => (
+    <section>
+      <h2>
+        권 {num} · {vol.name} ({vol.hanja})
+        <span class="meta" style="font-size: 0.9rem; font-weight: normal; color: var(--muted)">
+          {" "}· {vol.ganji} {vol.year}
+        </span>
+      </h2>
+      <ul class="index-list">
+        {vol.chapters.map((c) => (
+          <li>
+            <a href={`/scripture/${num}/${c.data.장}/`}>{c.data.장}장</a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+</Base>

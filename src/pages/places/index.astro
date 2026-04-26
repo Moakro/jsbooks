@@ -1,0 +1,25 @@
+---
+import Base from "../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+
+const entries = (await getCollection("places")).sort((a, b) =>
+  a.id.localeCompare(b.id, "ko"),
+);
+---
+
+<Base title="지명 — jsbooks">
+  <h1>지명</h1>
+  <p class="meta">{entries.length}건</p>
+  <ul class="index-list">
+    {entries.map((e) => (
+      <li>
+        <a href={`/places/${encodeURIComponent(e.id)}/`}>
+          {e.data.name}
+          {e.data.name_hanja && (
+            <span class="meta"> ({e.data.name_hanja})</span>
+          )}
+        </a>
+      </li>
+    ))}
+  </ul>
+</Base>

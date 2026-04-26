@@ -1,0 +1,38 @@
+---
+import Base from "../layouts/Base.astro";
+import { getCollection } from "astro:content";
+
+const scriptureEntries = await getCollection("scripture");
+const chapterCount = scriptureEntries.filter((e) => "장" in e.data && e.data.장).length;
+
+const people = (await getCollection("people")).length;
+const places = (await getCollection("places")).length;
+const dosu = (await getCollection("dosu")).length;
+const terms = (await getCollection("terms")).length;
+const dates = (await getCollection("dates")).length;
+---
+
+<Base title="jsbooks — 증산계열 경전 디지털 라이브러리">
+  <h1>jsbooks</h1>
+  <p>
+    증산계열 경전을 옵시디언 마크다운 구조로 디지털화한 학술 친화 라이브러리.
+  </p>
+
+  <h2>천지개벽경 (天地開闢經)</h2>
+  <p>학암 이중성(李重盛) 편술. 1946년 4월 27일.</p>
+  <ul class="index-list">
+    <li>
+      <a href="/scripture/">권 9편 + 서</a>
+      <span class="meta"> · 총 {chapterCount}개 장</span>
+    </li>
+  </ul>
+
+  <h2>참조 카드</h2>
+  <ul class="index-list">
+    <li><a href="/people/">인물</a> <span class="meta">· {people}건</span></li>
+    <li><a href="/places/">지명</a> <span class="meta">· {places}건</span></li>
+    <li><a href="/dosu/">도수 / 공사</a> <span class="meta">· {dosu}건</span></li>
+    <li><a href="/terms/">사상 용어</a> <span class="meta">· {terms}건</span></li>
+    <li><a href="/dates/">시기 (간지 연도)</a> <span class="meta">· {dates}건</span></li>
+  </ul>
+</Base>

@@ -1,0 +1,41 @@
+---
+import Base from "../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import { buildCardManifest } from "../../lib/manifest";
+import { renderMarkdownBody } from "../../lib/wikilink";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("people");
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const manifest = await buildCardManifest();
+const bodyHTML = renderMarkdownBody(entry.body ?? "", manifest);
+---
+
+<Base title={`${entry.data.name} — 인물`}>
+  <p class="meta"><a href="/people/">← 인물</a></p>
+  <h1
+    data-pagefind-body
+    data-pagefind-filter="kind:인물"
+    data-pagefind-meta={`title:${entry.data.name} (인물)`}
+  >
+    {entry.data.name}
+    {entry.data.name_hanja && (
+      <span style="font-size: 0.75em; color: var(--hanja); font-weight: normal">
+        ({entry.data.name_hanja})
+      </span>
+    )}
+  </h1>
+  {entry.data.birth && <p class="meta">생: {entry.data.birth}</p>}
+  {entry.data.birth_place && <p class="meta">출생지: {entry.data.birth_place}</p>}
+  {entry.data.本貫 && <p class="meta">본관: {entry.data.本貫}</p>}
+  {entry.data.status === "stub" && (
+    <p class="meta" style="color: var(--accent)">※ 스텁(stub) — 보강 예정</p>
+  )}
+  <article class="prose-body" set:html={bodyHTML} />
+</Base>
