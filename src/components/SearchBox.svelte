@@ -12,12 +12,23 @@
     }>;
   };
 
+  type SearchMode = "keyword" | "semantic";
+  type ResultRow = {
+    url: string;
+    title: string;
+    kind: string;
+    excerpt: string;
+    score?: number;
+  };
+
   let pagefind = $state<any>(null);
   let pagefindError = $state<string | null>(null);
   let query = $state("");
   let open = $state(false);
-  let results = $state<{ url: string; excerpt: string; title: string; kind: string }[]>([]);
+  let mode = $state<SearchMode>("keyword");
+  let results = $state<ResultRow[]>([]);
   let loading = $state(false);
+  let semanticError = $state<string | null>(null);
 
   let inputEl: HTMLInputElement | undefined = $state();
   let debouncer: ReturnType<typeof setTimeout> | undefined;
@@ -60,9 +71,63 @@
     }
   }
 
+  async function runSemanticSearch(q: string) {
+    if (!q.trim()) {
+      results = [];
+      semanticError = null;
+      return;
+    }
+    loading = true;
+    semanticError = null;
+    try {
+      const url = `/api/semantic-search?q=${encodeURIComponent(q)}&topK=15`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        results = [];
+        semanticError = `검색 실패 (${res.status}) — 서버 인덱스가 아직 준비되지 않았을 수 있습니다.`;
+        return;
+      }
+      const data = await res.json();
+      const KIND_MAP: Record<string, string> = {
+        scripture: "경전",
+        people: "인물",
+        places: "지명",
+        dosu: "도수",
+        terms: "용어",
+        dates: "시기",
+      };
+      results = (data.results ?? []).map((r: any) => ({
+        url: r.href,
+        title: r.title,
+        kind: KIND_MAP[r.kind] ?? r.kind,
+        excerpt: r.snippet ?? "",
+        score: r.score,
+      }));
+    } catch (e: any) {
+      results = [];
+      semanticError = e?.message ?? "검색 실패";
+    } finally {
+      loading = false;
+    }
+  }
+
+  function dispatchSearch(q: string) {
+    if (mode === "semantic") return runSemanticSearch(q);
+    return runSearch(q);
+  }
+
   function onInput() {
     if (debouncer) clearTimeout(debouncer);
-    debouncer = setTimeout(() => runSearch(query), 180);
+    const delay = mode === "semantic" ? 350 : 180;
+    debouncer = setTimeout(() => dispatchSearch(query), delay);
+  }
+
+  function setMode(next: SearchMode) {
+    if (mode === next) return;
+    mode = next;
+    semanticError = null;
+    results = [];
+    if (query.trim()) dispatchSearch(query);
   }
 
   function openSearch() {
@@ -125,15 +190,36 @@
           bind:value={query}
           oninput={onInput}
           type="search"
-          placeholder="검색어 (예: 이마두, 단주, 의통, 금산사)"
+          placeholder={mode === "semantic"
+            ? "의미로 검색 (예: 강증산이 일본을 어떻게 봤는지)"
+            : "검색어 (예: 이마두, 단주, 의통, 금산사)"}
           autocomplete="off"
           spellcheck="false"
         />
         <button class="close" onclick={closeSearch} aria-label="닫기 (Esc)">✕</button>
       </div>
 
-      {#if pagefindError}
+      <div class="mode-tabs" role="tablist" aria-label="검색 방식">
+        <button
+          type="button"
+          class:active={mode === "keyword"}
+          role="tab"
+          aria-selected={mode === "keyword"}
+          onclick={() => setMode("keyword")}
+        >키워드</button>
+        <button
+          type="button"
+          class:active={mode === "semantic"}
+          role="tab"
+          aria-selected={mode === "semantic"}
+          onclick={() => setMode("semantic")}
+        >의미 (AI)</button>
+      </div>
+
+      {#if mode === "keyword" && pagefindError}
         <p class="hint">{pagefindError}</p>
+      {:else if mode === "semantic" && semanticError}
+        <p class="hint">{semanticError}</p>
       {:else if loading}
         <p class="hint">검색 중…</p>
       {:else if query && results.length === 0}
@@ -146,12 +232,21 @@
                 <span class="r-kind">{r.kind || "—"}</span>
                 <span class="r-title">{@html r.title}</span>
                 <span class="r-excerpt">{@html r.excerpt}</span>
+                {#if r.score !== undefined}
+                  <span class="r-score" title="유사도">{(r.score * 100).toFixed(0)}%</span>
+                {/if}
               </a>
             </li>
           {/each}
         </ul>
       {:else}
-        <p class="hint">단축키: <kbd>/</kbd> 또는 <kbd>Cmd</kbd>+<kbd>K</kbd> 로 검색 열기</p>
+        <p class="hint">
+          {#if mode === "semantic"}
+            의미 기반으로 절·카드를 검색합니다. 예: "강증산이 일본을 어떻게 봤나"
+          {:else}
+            단축키: <kbd>/</kbd> 또는 <kbd>Cmd</kbd>+<kbd>K</kbd> 로 검색 열기
+          {/if}
+        </p>
       {/if}
     </div>
   </div>
@@ -226,6 +321,32 @@
     cursor: pointer;
     color: var(--muted, #888);
     font-size: 1rem;
+  }
+  .mode-tabs {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--rule, #e5e5e0);
+  }
+  .mode-tabs button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 0.25rem 0.7rem;
+    cursor: pointer;
+    color: var(--muted, #888);
+    font: inherit;
+    font-size: 0.85rem;
+  }
+  .mode-tabs button.active {
+    color: var(--fg, #222);
+    border-color: var(--rule, #e5e5e0);
+    background: rgba(37, 99, 235, 0.06);
+  }
+  .r-score {
+    font-size: 0.72rem;
+    color: var(--muted, #888);
+    margin-left: 0.4rem;
   }
   .results {
     list-style: none;

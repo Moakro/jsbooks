@@ -1,0 +1,20 @@
+name = "jsbooks-search"
+main = "search.ts"
+compatibility_date = "2026-04-01"
+
+[ai]
+binding = "AI"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "jsbooks-embeddings"
+
+# Route this Worker on the jsbooks.wiki zone for the semantic-search endpoint.
+# Wildcard form ensures the route also matches when a query string is present
+# (Pages would otherwise intercept the "exact" form when the URL has ?q=...).
+[[routes]]
+pattern = "jsbooks.wiki/api/semantic-search*"
+zone_name = "jsbooks.wiki"
+
+[observability]
+enabled = true

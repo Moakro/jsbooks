@@ -10,7 +10,8 @@
     "build": "astro build && pagefind --site dist --output-subdir pagefind",
     "preview": "astro preview",
     "astro": "astro",
-    "sync:vault": "bash scripts/sync-vault.sh"
+    "sync:vault": "bash scripts/sync-vault.sh",
+    "embed": "node --experimental-strip-types --no-warnings scripts/embed.ts"
   },
   "dependencies": {
     "@astrojs/svelte": "^8.0.5",
@@ -20,6 +21,8 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "pagefind": "^1.5.2"
+    "@cloudflare/workers-types": "^4.20260426.1",
+    "pagefind": "^1.5.2",
+    "wrangler": "^4.85.0"
   }
 }
