@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Vectorize embedding NDJSON snapshot (regenerable; >50 MB)
+.vectorize/
