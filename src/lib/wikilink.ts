@@ -34,6 +34,11 @@ export function resolveWikilink(
   const trimmed = target.trim();
   if (!trimmed) return null;
 
+  // Preface alias
+  if (trimmed === "00_서" || trimmed === "서") {
+    return { href: "/scripture/preface/", known: true };
+  }
+
   // Scripture chapter: 01-07_장
   const m = trimmed.match(CHAPTER_RE);
   if (m) {

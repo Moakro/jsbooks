@@ -130,6 +130,10 @@ export async function buildBacklinkIndex(): Promise<BacklinkIndex> {
 
 function resolveKey(target: string, manifest: Awaited<ReturnType<typeof buildCardManifest>>): string | null {
   const trimmed = target.trim();
+  // Preface alias
+  if (trimmed === "00_서" || trimmed === "서") {
+    return "scripture:preface";
+  }
   // Scripture chapter reference like "01-07_장" -> "scripture:1:7"
   const m = trimmed.match(CHAPTER_REF);
   if (m) {
