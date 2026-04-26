@@ -1,6 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
+  type BacklinkData = {
+    kind: string;
+    href: string;
+    title: string;
+    excerpt: string;
+  };
+
   type CardData = {
     kind: string;
     kindLabel: string;
@@ -11,6 +18,16 @@
     status: string | null;
     bodyHTML: string;
     pageHref: string;
+    backlinks?: BacklinkData[];
+  };
+
+  const KIND_PILL: Record<string, string> = {
+    scripture: "경전",
+    people: "인물",
+    places: "지명",
+    dosu: "도수",
+    terms: "용어",
+    dates: "시기",
   };
 
   type StackItem = {
@@ -242,6 +259,24 @@
                   </dl>
                 {/if}
                 <div class="card-html">{@html item.data.bodyHTML}</div>
+                {#if item.data.backlinks && item.data.backlinks.length > 0}
+                  <section class="bl">
+                    <h3>이 카드를 인용한 곳 ({item.data.backlinks.length})</h3>
+                    <ul>
+                      {#each item.data.backlinks as bl}
+                        <li>
+                          <a href={bl.href}>
+                            <span class="bl-pill">{KIND_PILL[bl.kind] ?? bl.kind}</span>
+                            <span class="bl-title">{bl.title}</span>
+                          </a>
+                          {#if bl.excerpt}
+                            <p class="bl-excerpt">{bl.excerpt}</p>
+                          {/if}
+                        </li>
+                      {/each}
+                    </ul>
+                  </section>
+                {/if}
                 <p class="open-full">
                   <a href={item.data.pageHref}>전체 페이지로 열기 →</a>
                 </p>
@@ -412,6 +447,55 @@
     padding-top: 0.7rem;
     border-top: 1px dashed var(--rule, #e5e5e0);
     font-size: 0.85rem;
+  }
+  .bl {
+    margin-top: 1.4rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--rule, #e5e5e0);
+  }
+  .bl h3 {
+    font-size: 0.9rem;
+    color: var(--accent, #b91c1c);
+    margin: 0 0 0.5rem;
+  }
+  .bl ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .bl li {
+    border: 1px solid var(--rule, #e5e5e0);
+    border-radius: 5px;
+    padding: 0.4rem 0.6rem;
+    background: rgba(0, 0, 0, 0.02);
+    font-size: 0.86rem;
+  }
+  .bl a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    text-decoration: none;
+    color: var(--fg, #222);
+  }
+  .bl-pill {
+    font-size: 0.7rem;
+    color: var(--muted, #888);
+    border: 1px solid var(--rule, #e5e5e0);
+    border-radius: 999px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+  }
+  .bl-title {
+    font-weight: 600;
+  }
+  .bl-excerpt {
+    margin: 0.25rem 0 0;
+    color: var(--muted, #888);
+    font-size: 0.78rem;
+    line-height: 1.5;
   }
   .card-html :global(a.wikilink) {
     text-decoration: none;

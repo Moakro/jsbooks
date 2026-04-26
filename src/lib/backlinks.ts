@@ -1,0 +1,150 @@
+import { getCollection } from "astro:content";
+import { buildCardManifest } from "./manifest";
+import type { CardKind } from "./wikilink";
+
+/**
+ * Source location of a wikilink reference.
+ * - For scripture: { kind: "scripture", vol, chap, verse?, label }
+ * - For other cards: { kind, slug, label }
+ */
+export type Backlink =
+  | {
+      kind: "scripture";
+      vol: number;
+      chap: number;
+      verseId?: string;
+      title: string;
+      excerpt: string;
+    }
+  | {
+      kind: CardKind;
+      slug: string;
+      title: string;
+      excerpt: string;
+    };
+
+/** Map: target canonical key (e.g. "people:이마두") → list of backlinks */
+export type BacklinkIndex = Map<string, Backlink[]>;
+
+const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+const CHAPTER_REF = /^(\d{2})-(\d{2})_장$/;
+
+/**
+ * Build backlink index by scanning every collection's body.
+ * Result is keyed by `kind:canonicalSlug` and stores ALL inbound references.
+ */
+export async function buildBacklinkIndex(): Promise<BacklinkIndex> {
+  const manifest = await buildCardManifest();
+  const index: BacklinkIndex = new Map();
+
+  function add(targetKey: string, link: Backlink) {
+    if (!index.has(targetKey)) index.set(targetKey, []);
+    index.get(targetKey)!.push(link);
+  }
+
+  function extractTargets(body: string): string[] {
+    const targets: string[] = [];
+    let m: RegExpExecArray | null;
+    WIKILINK_RE.lastIndex = 0;
+    while ((m = WIKILINK_RE.exec(body)) !== null) {
+      targets.push(m[1].trim());
+    }
+    return targets;
+  }
+
+  function shortExcerpt(body: string, around: string, max = 140): string {
+    // strip wikilink syntax for excerpt readability
+    const plain = body.replace(WIKILINK_RE, (_, t, d) => d ?? t);
+    const idx = plain.indexOf(around);
+    if (idx < 0) {
+      return plain.slice(0, max).replace(/\s+/g, " ").trim();
+    }
+    const start = Math.max(0, idx - 40);
+    const end = Math.min(plain.length, idx + around.length + 80);
+    return (
+      (start > 0 ? "…" : "") +
+      plain.slice(start, end).replace(/\s+/g, " ").trim() +
+      (end < plain.length ? "…" : "")
+    );
+  }
+
+  // ------- Scripture (verses, with verse-level granularity) -------
+  const VERSE_RE = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
+  const scripture = await getCollection("scripture");
+  for (const entry of scripture) {
+    const vol = entry.data.권;
+    const chap = entry.data.장;
+    if (!vol || !chap) continue;
+    const body = entry.body ?? "";
+    let vm: RegExpExecArray | null;
+    VERSE_RE.lastIndex = 0;
+    while ((vm = VERSE_RE.exec(body)) !== null) {
+      const verseId = vm[2];
+      const verseBody = vm[3].trim();
+      const targets = extractTargets(verseBody);
+      const seen = new Set<string>();
+      for (const target of targets) {
+        const key = resolveKey(target, manifest);
+        if (!key) continue;
+        if (seen.has(key)) continue; // dedupe per verse
+        seen.add(key);
+        add(key, {
+          kind: "scripture",
+          vol,
+          chap,
+          verseId,
+          title: `권 ${vol} ${entry.data.권_이름 ?? ""} · ${chap}장 ${parseInt(vm[1], 10)}절`,
+          excerpt: shortExcerpt(verseBody, target),
+        });
+      }
+    }
+  }
+
+  // ------- Cards (people / places / dosu / terms / dates) -------
+  const cardKinds: CardKind[] = ["people", "places", "dosu", "terms", "dates"];
+  for (const kind of cardKinds) {
+    const entries = await getCollection(kind);
+    for (const entry of entries) {
+      const body = entry.body ?? "";
+      const targets = extractTargets(body);
+      const seen = new Set<string>();
+      for (const target of targets) {
+        const key = resolveKey(target, manifest);
+        if (!key) continue;
+        // self-reference skip
+        if (key === `${kind}:${entry.id}`) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        add(key, {
+          kind,
+          slug: entry.id,
+          title: (entry.data as any).name ?? entry.id,
+          excerpt: shortExcerpt(body, target),
+        });
+      }
+    }
+  }
+
+  return index;
+}
+
+function resolveKey(target: string, manifest: Awaited<ReturnType<typeof buildCardManifest>>): string | null {
+  const trimmed = target.trim();
+  // Scripture chapter reference like "01-07_장" -> "scripture:1:7"
+  const m = trimmed.match(CHAPTER_REF);
+  if (m) {
+    return `scripture:${parseInt(m[1], 10)}:${parseInt(m[2], 10)}`;
+  }
+  const entry = manifest.byName.get(trimmed);
+  if (!entry) return null;
+  return `${entry.kind}:${entry.canonical}`;
+}
+
+/** Lookup helpers used by pages */
+export function backlinksFor(
+  index: BacklinkIndex,
+  kind: CardKind,
+  slug: string,
+): Backlink[] {
+  return index.get(`${kind}:${slug}`) ?? [];
+}

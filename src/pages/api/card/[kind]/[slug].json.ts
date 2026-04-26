@@ -2,6 +2,11 @@ import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../../lib/manifest";
 import { renderMarkdownBody } from "../../../../lib/wikilink";
+import {
+  buildBacklinkIndex,
+  backlinksFor,
+  type Backlink,
+} from "../../../../lib/backlinks";
 
 const KINDS = ["people", "places", "dosu", "terms", "dates"] as const;
 type Kind = (typeof KINDS)[number];
@@ -47,6 +52,7 @@ export const GET: APIRoute = async ({ params }) => {
 
   const manifest = await buildCardManifest();
   const bodyHTML = renderMarkdownBody(entry.body ?? "", manifest);
+  const backlinks = backlinksFor(await buildBacklinkIndex(), kind, slug);
 
   return new Response(
     JSON.stringify({
@@ -59,6 +65,10 @@ export const GET: APIRoute = async ({ params }) => {
       status: entry.data.status ?? null,
       bodyHTML,
       pageHref: `/${kind}/${encodeURIComponent(slug)}/`,
+      backlinks: backlinks.map((b) => ({
+        ...b,
+        href: backlinkHref(b),
+      })),
     }),
     {
       status: 200,
@@ -66,6 +76,14 @@ export const GET: APIRoute = async ({ params }) => {
     },
   );
 };
+
+function backlinkHref(b: Backlink): string {
+  if (b.kind === "scripture") {
+    const anchor = b.verseId ? `#${b.verseId}` : "";
+    return `/scripture/${b.vol}/${b.chap}/${anchor}`;
+  }
+  return `/${b.kind}/${encodeURIComponent(b.slug)}/`;
+}
 
 function extractMeta(data: any, kind: Kind): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];

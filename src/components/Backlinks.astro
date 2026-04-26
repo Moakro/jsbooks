@@ -1,0 +1,95 @@
+---
+import type { Backlink } from "../lib/backlinks";
+
+interface Props {
+  backlinks: Backlink[];
+}
+
+const { backlinks } = Astro.props;
+
+const KIND_LABEL: Record<string, string> = {
+  scripture: "경전",
+  people: "인물",
+  places: "지명",
+  dosu: "도수",
+  terms: "용어",
+  dates: "시기",
+};
+
+function hrefFor(b: Backlink): string {
+  if (b.kind === "scripture") {
+    const anchor = b.verseId ? `#${b.verseId}` : "";
+    return `/scripture/${b.vol}/${b.chap}/${anchor}`;
+  }
+  return `/${b.kind}/${encodeURIComponent(b.slug)}/`;
+}
+---
+
+{backlinks.length > 0 && (
+  <section class="backlinks">
+    <h2>이 카드를 인용한 곳 ({backlinks.length})</h2>
+    <ul>
+      {backlinks.map((b) => (
+        <li>
+          <a href={hrefFor(b)}>
+            <span class="kind-pill">{KIND_LABEL[b.kind]}</span>
+            <span class="bl-title">{b.title}</span>
+          </a>
+          {b.excerpt && <p class="bl-excerpt">{b.excerpt}</p>}
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+<style>
+  .backlinks {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+  }
+  .backlinks h2 {
+    font-size: 1.05rem;
+    color: var(--accent);
+    margin: 0 0 0.8rem;
+  }
+  .backlinks ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .backlinks li {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 0.55rem 0.85rem;
+    background: rgba(0, 0, 0, 0.02);
+  }
+  .backlinks li a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--fg);
+    font-size: 0.95rem;
+  }
+  .kind-pill {
+    font-size: 0.72rem;
+    color: var(--muted);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 1px 8px;
+    flex-shrink: 0;
+  }
+  .bl-title {
+    font-weight: 600;
+  }
+  .bl-excerpt {
+    margin: 0.3rem 0 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+</style>

@@ -1,8 +1,10 @@
 ---
 import Base from "../../layouts/Base.astro";
+import Backlinks from "../../components/Backlinks.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../lib/manifest";
 import { renderMarkdownBody } from "../../lib/wikilink";
+import { buildBacklinkIndex, backlinksFor } from "../../lib/backlinks";
 
 export async function getStaticPaths() {
   const entries = await getCollection("people");
@@ -15,6 +17,7 @@ export async function getStaticPaths() {
 const { entry } = Astro.props;
 const manifest = await buildCardManifest();
 const bodyHTML = renderMarkdownBody(entry.body ?? "", manifest);
+const backlinks = backlinksFor(await buildBacklinkIndex(), "people", entry.id);
 ---
 
 <Base title={`${entry.data.name} — 인물`}>
@@ -38,4 +41,5 @@ const bodyHTML = renderMarkdownBody(entry.body ?? "", manifest);
     <p class="meta" style="color: var(--accent)">※ 스텁(stub) — 보강 예정</p>
   )}
   <article class="prose-body" set:html={bodyHTML} />
+  <Backlinks backlinks={backlinks} />
 </Base>
