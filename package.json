@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && pnpm exec pagefind --site dist --output-subdir pagefind",
+    "build": "astro build && pnpm exec pagefind --site dist/client --output-subdir pagefind",
     "preview": "astro preview",
     "astro": "astro",
     "sync:vault": "bash scripts/sync-vault.sh",
