@@ -2,6 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import Backlinks from "../../components/Backlinks.astro";
 import History from "../../components/History.astro";
+import Comments from "../../components/Comments.svelte";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../lib/manifest";
 import { renderMarkdownBody } from "../../lib/wikilink";
@@ -40,5 +41,6 @@ const historyPath = `content/dosu/${entry.id}.md`;
   )}
   <article class="prose-body" set:html={bodyHTML} />
   <Backlinks backlinks={backlinks} />
+  <Comments client:idle target={`card:dosu:${entry.id}`} />
   <History path={historyPath} />
 </Base>

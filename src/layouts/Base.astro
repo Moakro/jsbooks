@@ -1,6 +1,7 @@
 ---
 import SideCard from "../components/SideCard.svelte";
 import SearchBox from "../components/SearchBox.svelte";
+import AuthLink from "../components/AuthLink.svelte";
 
 interface Props {
   title: string;
@@ -30,6 +31,7 @@ const { title, description = "증산계열 경전 디지털 라이브러리" } =
       </nav>
       <span style="flex: 1"></span>
       <SearchBox client:load />
+      <AuthLink client:load />
     </header>
     <main>
       <slot />
