@@ -27,36 +27,46 @@ export interface CardManifest {
 
 const CHAPTER_RE = /^(\d{2})-(\d{2})_장$/;
 
+/**
+ * Resolution result.
+ *  - `mode: "card"` — opens in side-card sidebar (default behavior of `<a class="wikilink">`).
+ *  - `mode: "page"` — full page navigation (chapter, preface, etc.).
+ */
+export type Resolved = {
+  href: string;
+  mode: "card" | "page";
+};
+
 export function resolveWikilink(
   target: string,
   manifest: CardManifest,
-): { href: string; known: boolean } | null {
+): Resolved | null {
   const trimmed = target.trim();
   if (!trimmed) return null;
 
-  // Preface alias
+  // Preface alias — full-page move
   if (trimmed === "00_서" || trimmed === "서") {
-    return { href: "/scripture/preface/", known: true };
+    return { href: "/scripture/preface/", mode: "page" };
   }
 
-  // Scripture chapter: 01-07_장
+  // Scripture chapter: 01-07_장 — full-page move
   const m = trimmed.match(CHAPTER_RE);
   if (m) {
     const vol = parseInt(m[1], 10);
     const chap = parseInt(m[2], 10);
-    return { href: `/scripture/${vol}/${chap}/`, known: true };
+    return { href: `/scripture/${vol}/${chap}/`, mode: "page" };
   }
 
-  // Card lookup (canonical-aware: aliases resolve to their canonical slug)
+  // Card lookup — opens side-card
   const entry = manifest.byName.get(trimmed);
   if (entry) {
     return {
       href: `/${entry.kind}/${encodeURIComponent(entry.canonical)}/`,
-      known: true,
+      mode: "card",
     };
   }
 
-  // Unknown — return null so caller can render as plain text
+  // Unknown — caller renders as missing
   return null;
 }
 
@@ -69,13 +79,14 @@ export function resolveWikilink(
 const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
 export function renderWikilinks(text: string, manifest: CardManifest): string {
-  return text.replace(WIKILINK_RE, (whole, target, display) => {
+  return text.replace(WIKILINK_RE, (_whole, target, display) => {
     const resolved = resolveWikilink(target, manifest);
     const label = display ?? target;
     if (!resolved) {
-      return `<span class="wikilink-missing" title="대상 카드가 없습니다: ${escapeAttr(target)}">${escapeText(label)}</span>`;
+      return `<span class="wikilink-missing" title="아직 보강되지 않은 카드입니다: ${escapeAttr(target)}">${escapeText(label)}</span>`;
     }
-    return `<a class="wikilink" href="${resolved.href}">${escapeText(label)}</a>`;
+    const cls = resolved.mode === "page" ? "wikilink page" : "wikilink";
+    return `<a class="${cls}" href="${resolved.href}">${escapeText(label)}</a>`;
   });
 }
 
@@ -90,14 +101,15 @@ export function renderMarkdownBody(text: string, manifest: CardManifest): string
   const placeholders: string[] = [];
   const PLACEHOLDER = (i: number) => `\x00WL${i}\x00`;
 
-  const withPlaceholders = text.replace(WIKILINK_RE, (whole, target, display) => {
+  const withPlaceholders = text.replace(WIKILINK_RE, (_whole, target, display) => {
     const resolved = resolveWikilink(target, manifest);
     const label = display ?? target;
     let html: string;
     if (!resolved) {
-      html = `<span class="wikilink-missing" title="대상 카드가 없습니다: ${escapeAttr(target)}">${escapeText(label)}</span>`;
+      html = `<span class="wikilink-missing" title="아직 보강되지 않은 카드입니다: ${escapeAttr(target)}">${escapeText(label)}</span>`;
     } else {
-      html = `<a class="wikilink" href="${resolved.href}">${escapeText(label)}</a>`;
+      const cls = resolved.mode === "page" ? "wikilink page" : "wikilink";
+      html = `<a class="${cls}" href="${resolved.href}">${escapeText(label)}</a>`;
     }
     const idx = placeholders.length;
     placeholders.push(html);

@@ -39,24 +39,55 @@ const { title, description = "증산계열 경전 디지털 라이브러리" } =
     </footer>
     <SideCard client:load />
     <style is:global>
+      /* ───────── Design tokens ─────────
+       * 태극 페어링: 단심(陽) 메인 + 단청 청록(陰) 보조 + 한지 무채.
+       * 사이드바·카드 링크 = 단심 / 페이지 이동 = 청록 / 미존재 = 무채.
+       */
       :root {
-        --bg: #fafaf7;
-        --fg: #222;
-        --muted: #888;
-        --link: #2563eb;
-        --hanja: #555;
-        --rule: #e5e5e0;
-        --accent: #b91c1c;
+        /* 양 — 단심 */
+        --color-primary: #a8352a;
+        --color-primary-soft: #c4564a;
+        --color-primary-bg: #fbf3f1;
+
+        /* 음 — 단청 청록 */
+        --color-secondary: #1e6e6e;
+        --color-secondary-soft: #2c8585;
+        --color-secondary-bg: #f0f7f6;
+
+        /* 무채 */
+        --color-fg: #1f1c1a;
+        --color-muted: #8a807a;
+        --color-disabled: #b8b0aa;
+        --color-rule: #e8dfd9;
+        --color-bg: #fbf8f4;
+        --color-hanja: #5b504a;
+
+        /* 의미 별칭 (기존 선언 호환) */
+        --bg: var(--color-bg);
+        --fg: var(--color-fg);
+        --muted: var(--color-muted);
+        --hanja: var(--color-hanja);
+        --rule: var(--color-rule);
+        --accent: var(--color-primary);
+        --link: var(--color-primary);
+        --link-page: var(--color-secondary);
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #181816;
-          --fg: #e5e5e0;
-          --muted: #888;
-          --link: #60a5fa;
-          --hanja: #aaa;
-          --rule: #2a2a26;
-          --accent: #f87171;
+          --color-primary: #d97765;
+          --color-primary-soft: #c0584a;
+          --color-primary-bg: #2a1814;
+
+          --color-secondary: #5fb6b3;
+          --color-secondary-soft: #4a9c99;
+          --color-secondary-bg: #102624;
+
+          --color-fg: #ece6dd;
+          --color-muted: #908779;
+          --color-disabled: #5a5048;
+          --color-rule: #2e2622;
+          --color-bg: #15110d;
+          --color-hanja: #a89e94;
         }
       }
       *,
@@ -151,19 +182,33 @@ const { title, description = "증산계열 경전 디지털 라이브러리" } =
         color: var(--accent);
       }
       a {
-        color: var(--link);
+        color: var(--color-secondary);
       }
+      /* Side-card link (인물·지명·도수·용어·시기): 단심 + 점선 */
       a.wikilink {
+        color: var(--color-primary);
         text-decoration: none;
-        border-bottom: 1px dotted var(--link);
+        border-bottom: 1px dotted var(--color-primary);
       }
       a.wikilink:hover {
-        background: rgba(37, 99, 235, 0.08);
+        background: var(--color-primary-bg);
       }
+      /* Page-move link (장 이동, 서문 등): 청록 + 실선 */
+      a.wikilink.page,
+      a.page-link {
+        color: var(--color-secondary);
+        text-decoration: none;
+        border-bottom: 1px solid var(--color-secondary);
+      }
+      a.wikilink.page:hover,
+      a.page-link:hover {
+        background: var(--color-secondary-bg);
+      }
+      /* Missing target: 무채 + 점선 + 호버 안내 */
       .wikilink-missing {
-        color: var(--muted);
-        text-decoration: line-through;
-        text-decoration-color: var(--muted);
+        color: var(--color-disabled);
+        border-bottom: 1px dotted var(--color-disabled);
+        cursor: help;
       }
       .verse {
         margin: 1.4rem 0;

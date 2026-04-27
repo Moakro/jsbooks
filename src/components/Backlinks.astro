@@ -46,11 +46,11 @@ function hrefFor(b: Backlink): string {
   .backlinks {
     margin-top: 3rem;
     padding-top: 1.5rem;
-    border-top: 1px solid var(--rule);
+    border-top: 1px solid var(--color-rule);
   }
   .backlinks h2 {
     font-size: 1.05rem;
-    color: var(--accent);
+    color: var(--color-primary);
     margin: 0 0 0.8rem;
   }
   .backlinks ul {
@@ -62,23 +62,27 @@ function hrefFor(b: Backlink): string {
     gap: 0.6rem;
   }
   .backlinks li {
-    border: 1px solid var(--rule);
+    border: 1px solid var(--color-rule);
     border-radius: 6px;
     padding: 0.55rem 0.85rem;
-    background: rgba(0, 0, 0, 0.02);
+    background: var(--color-secondary-bg);
   }
   .backlinks li a {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     text-decoration: none;
-    color: var(--fg);
+    color: var(--color-fg);
     font-size: 0.95rem;
+  }
+  .backlinks li a:hover .bl-title {
+    color: var(--color-secondary);
+    border-bottom: 1px solid var(--color-secondary);
   }
   .kind-pill {
     font-size: 0.72rem;
-    color: var(--muted);
-    border: 1px solid var(--rule);
+    color: var(--color-secondary);
+    border: 1px solid var(--color-secondary);
     border-radius: 999px;
     padding: 1px 8px;
     flex-shrink: 0;
@@ -88,7 +92,7 @@ function hrefFor(b: Backlink): string {
   }
   .bl-excerpt {
     margin: 0.3rem 0 0;
-    color: var(--muted);
+    color: var(--color-muted);
     font-size: 0.85rem;
     line-height: 1.55;
   }

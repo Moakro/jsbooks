@@ -258,32 +258,33 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.3rem 0.7rem;
-    border: 1px solid var(--rule, #e5e5e0);
+    border: 1px solid var(--color-rule, #e8dfd9);
     border-radius: 6px;
     background: transparent;
     cursor: pointer;
-    color: var(--fg, #222);
+    color: var(--color-fg, #1f1c1a);
     font-size: 0.92rem;
   }
   .trigger:hover {
-    background: rgba(0, 0, 0, 0.03);
+    background: var(--color-secondary-bg, #f0f7f6);
+    border-color: var(--color-secondary, #1e6e6e);
   }
   .trigger-label {
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
   }
   kbd {
     font: inherit;
     font-size: 0.78em;
     padding: 0 6px;
-    border: 1px solid var(--rule, #e5e5e0);
+    border: 1px solid var(--color-rule, #e8dfd9);
     border-radius: 4px;
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
   }
 
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.45);
     z-index: 100;
     display: flex;
     justify-content: center;
@@ -291,7 +292,7 @@
     padding-top: 10vh;
   }
   .modal {
-    background: var(--bg, #fafaf7);
+    background: var(--color-bg, #fbf8f4);
     width: min(640px, 92vw);
     max-height: 78vh;
     border-radius: 10px;
@@ -302,7 +303,7 @@
   }
   .search-row {
     display: flex;
-    border-bottom: 1px solid var(--rule, #e5e5e0);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
   }
   .search-row input {
     flex: 1;
@@ -312,21 +313,21 @@
     font: inherit;
     font-size: 1.05rem;
     background: transparent;
-    color: var(--fg, #222);
+    color: var(--color-fg, #1f1c1a);
   }
   .search-row .close {
     background: transparent;
     border: none;
     padding: 0 1rem;
     cursor: pointer;
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
     font-size: 1rem;
   }
   .mode-tabs {
     display: flex;
     gap: 0.25rem;
     padding: 0.5rem 1rem;
-    border-bottom: 1px solid var(--rule, #e5e5e0);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
   }
   .mode-tabs button {
     background: transparent;
@@ -334,18 +335,18 @@
     border-radius: 5px;
     padding: 0.25rem 0.7rem;
     cursor: pointer;
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
     font: inherit;
     font-size: 0.85rem;
   }
   .mode-tabs button.active {
-    color: var(--fg, #222);
-    border-color: var(--rule, #e5e5e0);
-    background: rgba(37, 99, 235, 0.06);
+    color: var(--color-primary, #a8352a);
+    border-color: var(--color-primary, #a8352a);
+    background: var(--color-primary-bg, #fbf3f1);
   }
   .r-score {
     font-size: 0.72rem;
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
     margin-left: 0.4rem;
   }
   .results {
@@ -360,16 +361,16 @@
     column-gap: 0.7rem;
     row-gap: 0.2rem;
     padding: 0.6rem 1rem;
-    border-bottom: 1px solid var(--rule, #e5e5e0);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
     text-decoration: none;
-    color: var(--fg, #222);
+    color: var(--color-fg, #1f1c1a);
   }
   .results li a:hover {
-    background: rgba(37, 99, 235, 0.06);
+    background: var(--color-primary-bg, #fbf3f1);
   }
   .r-kind {
     font-size: 0.78rem;
-    color: var(--muted, #888);
+    color: var(--color-secondary, #1e6e6e);
     grid-row: 1 / span 2;
     align-self: center;
   }
@@ -379,16 +380,18 @@
   .r-excerpt {
     grid-column: 2;
     font-size: 0.88rem;
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
     line-height: 1.5;
   }
   .r-excerpt :global(mark) {
-    background: rgba(255, 220, 100, 0.5);
+    background: var(--color-primary-bg, #fbf3f1);
+    color: var(--color-primary, #a8352a);
     padding: 0 2px;
+    border-radius: 2px;
   }
   .hint {
     padding: 1rem;
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
     font-size: 0.92rem;
   }
 </style>

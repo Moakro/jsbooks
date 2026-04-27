@@ -179,7 +179,9 @@
   function handleClick(e: MouseEvent) {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     const target = e.target as HTMLElement;
-    const a = target.closest("a.wikilink") as HTMLAnchorElement | null;
+    // Only intercept side-card links. `.wikilink.page` (chapter / preface) and
+    // bare `.page-link` should navigate normally.
+    const a = target.closest("a.wikilink:not(.page)") as HTMLAnchorElement | null;
     if (!a) return;
     const href = a.getAttribute("href");
     if (!href) return;
@@ -292,8 +294,8 @@
 <style>
   aside {
     position: fixed;
-    background: var(--bg, #fafaf7);
-    border-left: 1px solid var(--rule, #e5e5e0);
+    background: var(--color-bg, #fbf8f4);
+    border-left: 1px solid var(--color-rule, #e8dfd9);
     box-shadow: -8px 0 24px rgba(0, 0, 0, 0.06);
     transform: translateX(100%);
     transition: transform 0.22s ease;
@@ -340,26 +342,28 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.6rem 0.8rem;
-    border-bottom: 1px solid var(--rule, #e5e5e0);
-    background: var(--bg, #fafaf7);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+    background: var(--color-primary-bg, #fbf3f1);
     flex-shrink: 0;
   }
   .sb-head .title {
     flex: 1;
     font-size: 0.9rem;
-    color: var(--muted, #888);
+    color: var(--color-primary, #a8352a);
+    font-weight: 600;
   }
   .sb-head button {
     background: transparent;
-    border: 1px solid var(--rule, #e5e5e0);
+    border: 1px solid var(--color-primary, #a8352a);
     border-radius: 4px;
     padding: 0.25rem 0.6rem;
     cursor: pointer;
     font-size: 1rem;
-    color: var(--fg, #222);
+    color: var(--color-primary, #a8352a);
   }
   .sb-head button:hover {
-    background: var(--rule, #e5e5e0);
+    background: var(--color-primary, #a8352a);
+    color: var(--color-bg, #fbf8f4);
   }
 
   .cards {
@@ -369,7 +373,7 @@
     flex-direction: column;
   }
   .card {
-    border-bottom: 1px solid var(--rule, #e5e5e0);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
   }
   .card-head {
     display: flex;
@@ -377,16 +381,21 @@
     gap: 0.5rem;
     padding: 0.55rem 0.85rem;
     cursor: pointer;
-    background: var(--bg, #fafaf7);
+    background: var(--color-bg, #fbf8f4);
     user-select: none;
+    width: 100%;
+    border: none;
+    text-align: left;
+    font: inherit;
+    color: inherit;
   }
   .card-head:hover {
-    background: rgba(0, 0, 0, 0.03);
+    background: var(--color-primary-bg, #fbf3f1);
   }
   .kind-pill {
     font-size: 0.72rem;
-    color: var(--muted, #888);
-    border: 1px solid var(--rule, #e5e5e0);
+    color: var(--color-primary, #a8352a);
+    border: 1px solid var(--color-primary, #a8352a);
     border-radius: 999px;
     padding: 1px 8px;
     flex-shrink: 0;
@@ -435,27 +444,32 @@
   }
   .stub {
     font-size: 0.82rem;
-    color: var(--accent, #b91c1c);
+    color: var(--color-primary, #a8352a);
     margin: 0 0 0.6rem;
   }
   .muted {
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
     font-size: 0.9rem;
   }
   .open-full {
     margin-top: 1rem;
     padding-top: 0.7rem;
-    border-top: 1px dashed var(--rule, #e5e5e0);
+    border-top: 1px dashed var(--color-rule, #e8dfd9);
     font-size: 0.85rem;
+  }
+  .open-full :global(a) {
+    color: var(--color-secondary, #1e6e6e);
+    border-bottom: 1px solid var(--color-secondary, #1e6e6e);
+    text-decoration: none;
   }
   .bl {
     margin-top: 1.4rem;
     padding-top: 0.9rem;
-    border-top: 1px solid var(--rule, #e5e5e0);
+    border-top: 1px solid var(--color-rule, #e8dfd9);
   }
   .bl h3 {
     font-size: 0.9rem;
-    color: var(--accent, #b91c1c);
+    color: var(--color-primary, #a8352a);
     margin: 0 0 0.5rem;
   }
   .bl ul {
@@ -467,10 +481,10 @@
     gap: 0.4rem;
   }
   .bl li {
-    border: 1px solid var(--rule, #e5e5e0);
+    border: 1px solid var(--color-rule, #e8dfd9);
     border-radius: 5px;
     padding: 0.4rem 0.6rem;
-    background: rgba(0, 0, 0, 0.02);
+    background: var(--color-secondary-bg, #f0f7f6);
     font-size: 0.86rem;
   }
   .bl a {
@@ -478,12 +492,12 @@
     align-items: center;
     gap: 0.4rem;
     text-decoration: none;
-    color: var(--fg, #222);
+    color: var(--color-fg, #1f1c1a);
   }
   .bl-pill {
     font-size: 0.7rem;
-    color: var(--muted, #888);
-    border: 1px solid var(--rule, #e5e5e0);
+    color: var(--color-secondary, #1e6e6e);
+    border: 1px solid var(--color-secondary, #1e6e6e);
     border-radius: 999px;
     padding: 1px 6px;
     flex-shrink: 0;
@@ -493,24 +507,29 @@
   }
   .bl-excerpt {
     margin: 0.25rem 0 0;
-    color: var(--muted, #888);
+    color: var(--color-muted, #8a807a);
     font-size: 0.78rem;
     line-height: 1.5;
   }
   .card-html :global(a.wikilink) {
     text-decoration: none;
-    border-bottom: 1px dotted var(--link, #2563eb);
-    color: var(--link, #2563eb);
+    border-bottom: 1px dotted var(--color-primary, #a8352a);
+    color: var(--color-primary, #a8352a);
+  }
+  .card-html :global(a.wikilink.page) {
+    border-bottom: 1px solid var(--color-secondary, #1e6e6e);
+    color: var(--color-secondary, #1e6e6e);
   }
   .card-html :global(.wikilink-missing) {
-    color: var(--muted, #888);
-    text-decoration: line-through;
+    color: var(--color-disabled, #b8b0aa);
+    border-bottom: 1px dotted var(--color-disabled, #b8b0aa);
+    cursor: help;
   }
   .card-html :global(h1),
   .card-html :global(h2),
   .card-html :global(h3) {
     font-size: 1rem;
-    color: var(--accent, #b91c1c);
+    color: var(--color-primary, #a8352a);
     margin: 1.2rem 0 0.4rem;
   }
   .card-html :global(p) {
