@@ -1,60 +1,123 @@
 ---
 import Base from "../../layouts/Base.astro";
-import { getCollection } from "astro:content";
 
-const all = await getCollection("scripture");
-
-// Preface (00_서)
-const preface = all.find((e) => e.id === "00_서");
-
-// Group by 권
-const volumes = new Map<number, { name: string; hanja: string; year: number; ganji: string; chapters: typeof all }>();
-for (const e of all) {
-  if (!e.data.권) continue;
-  const v = e.data.권;
-  if (!volumes.has(v)) {
-    volumes.set(v, {
-      name: e.data.권_이름 ?? "",
-      hanja: e.data.권_이름_한자 ?? "",
-      year: e.data.연도 ?? 0,
-      ganji: e.data.연도_간지 ?? "",
-      chapters: [] as any,
-    });
-  }
-  volumes.get(v)!.chapters.push(e);
-}
-for (const v of volumes.values()) {
-  v.chapters.sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
-}
-const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
+// 경전 카탈로그 — 사이트에 등록된 모든 경전을 한눈에.
+// 콘텐츠가 늘어나면 _meta.md 컬렉션에서 자동 수집하도록 전환.
+const scriptures = [
+  {
+    slug: "cheonjigaebyeokgyeong",
+    name: "천지개벽경",
+    hanja: "天地開闢經",
+    editor: "이중성",
+    editor_hanja: "李重盛",
+    year: 1946,
+    description:
+      "학암 이중성이 강증산의 9년 천지공사를 권 9편 96장으로 정리한 종합 경전. 신축년(1901)부터 기유년(1909)까지의 행적과 가르침을 편년·편장 단위로 수록.",
+    tradition: "증산계열",
+    status: "active",
+  },
+];
 ---
 
-<Base title="천지개벽경 — jsbooks">
-  <h1>천지개벽경 (天地開闢經)</h1>
-  <p class="meta">학암 이중성(李重盛) 편술 · 1946년</p>
+<Base title="경전 카탈로그 — jsbooks">
+  <h1>경전</h1>
+  <p class="meta">증산계열 경전 디지털 라이브러리. 사용자는 좌측 사이드바에서 자기에게 맞는 경전만 선택해 노출할 수 있습니다.</p>
 
-  {preface && (
-    <p>
-      <a href="/scripture/preface/">서(序)</a>
-      <span class="meta"> · {preface.data.date_lunar}</span>
-    </p>
-  )}
+  <ul class="catalog">
+    {scriptures.map((s) => (
+      <li class={`card ${s.status}`}>
+        <a href={`/scripture/${s.slug}/`} class="card-link">
+          <h2>
+            {s.name}
+            <span class="hanja">({s.hanja})</span>
+          </h2>
+          <p class="row meta-row">
+            <span class="tradition">{s.tradition}</span>
+            <span class="dot">·</span>
+            <span>{s.editor} ({s.editor_hanja})</span>
+            <span class="dot">·</span>
+            <span>{s.year}</span>
+          </p>
+          <p class="desc">{s.description}</p>
+        </a>
+      </li>
+    ))}
+  </ul>
 
-  {volList.map(([num, vol]) => (
-    <section>
-      <h2>
-        권 {num} · {vol.name} ({vol.hanja})
-        <span class="meta" style="font-size: 0.9rem; font-weight: normal; color: var(--muted)">
-          {" "}· {vol.ganji} {vol.year}
-        </span>
-      </h2>
-      <ul class="index-list">
-        {vol.chapters.map((c) => (
-          <li>
-            <a href={`/scripture/${num}/${c.data.장}/`}>{c.data.장}장</a>
-          </li>
-        ))}
-      </ul>
-    </section>
-  ))}
+  <p class="hint">
+    추가될 경전은 <a href="/news/">소식</a>에서 안내됩니다.
+  </p>
 </Base>
+
+<style>
+  .catalog {
+    list-style: none;
+    padding: 0;
+    margin: 1.5rem 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  @media (min-width: 720px) {
+    .catalog {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .card {
+    border: 1px solid var(--color-rule);
+    border-radius: 8px;
+    background: var(--color-bg);
+    transition: border-color 0.18s ease, background 0.18s ease;
+  }
+  .card:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg);
+  }
+  .card-link {
+    display: block;
+    padding: 1rem 1.1rem;
+    text-decoration: none;
+    color: var(--color-fg);
+  }
+  .card h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.15rem;
+    color: var(--color-primary);
+  }
+  .card .hanja {
+    color: var(--color-hanja);
+    font-size: 0.78em;
+    font-weight: normal;
+    margin-left: 0.3rem;
+  }
+  .row {
+    margin: 0.3rem 0 0.6rem;
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    align-items: baseline;
+  }
+  .tradition {
+    color: var(--color-secondary);
+    border: 1px solid var(--color-secondary);
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 0.78rem;
+  }
+  .dot {
+    opacity: 0.6;
+  }
+  .desc {
+    margin: 0.2rem 0 0;
+    color: var(--color-fg);
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+  .hint {
+    color: var(--color-muted);
+    font-size: 0.88rem;
+    margin-top: 1.5rem;
+  }
+</style>

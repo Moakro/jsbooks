@@ -1,0 +1,144 @@
+---
+import { resolveSection } from "../data/site-nav";
+import { SIDEBAR_BY_SECTION, shouldShowSidebar } from "../data/sidebar-nav";
+import ScripturesList from "./ScripturesList.svelte";
+import { getCollection } from "astro:content";
+
+interface Props {
+  /** Slug of the scripture that's currently being viewed (highlight in list). */
+  currentScriptureSlug?: string | null;
+}
+
+const { currentScriptureSlug = null } = Astro.props;
+const path = Astro.url.pathname;
+const showSidebar = shouldShowSidebar(path);
+const section = resolveSection(path);
+
+if (showSidebar && !section) {
+  // Fall back to no sidebar for unknown sections
+}
+
+const blocks = section ? SIDEBAR_BY_SECTION[section] : [];
+
+// For 경전 sidebar, we feed the ScripturesList island with all scripture meta.
+let scriptureMeta:
+  | {
+      slug: string;
+      name: string;
+      name_hanja: string | null;
+      editor: string | null;
+      edition_date: string | null;
+      href: string;
+    }[]
+  = [];
+
+if (section === "scripture" && blocks.some((b) => b.type === "scriptures-list")) {
+  // Future: read from a scriptureMeta collection. For now, hardcode a single
+  // entry derived from existing content. When `_meta.md` is added per
+  // scripture, swap to: getCollection("scriptureMeta").
+  scriptureMeta = [
+    {
+      slug: "cheonjigaebyeokgyeong",
+      name: "천지개벽경",
+      name_hanja: "天地開闢經",
+      editor: "이중성",
+      edition_date: "1946-04-27",
+      href: "/scripture/cheonjigaebyeokgyeong/",
+    },
+  ];
+}
+
+function isActiveLink(itemPath: string): boolean {
+  if (itemPath === path) return true;
+  if (itemPath.endsWith("/") && path.startsWith(itemPath)) return true;
+  return false;
+}
+---
+
+{showSidebar && section && (
+  <aside class="sidebar" data-section={section}>
+    {blocks.map((b) => {
+      if (b.type === "scriptures-list") {
+        return <ScripturesList client:load all={scriptureMeta} currentSlug={currentScriptureSlug} />;
+      }
+      if (b.type === "section") {
+        return (
+          <div class="block">
+            <h3>{b.label}</h3>
+            <ul>
+              {b.items.map((it) => (
+                <li class:list={[{ active: isActiveLink(it.path) }, it.auth ? "auth-only" : ""]}>
+                  <a href={it.path}>{it.label}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
+      // simple link
+      return (
+        <div class="block">
+          <a class:list={["sidebar-link", { active: isActiveLink(b.path) }, b.auth ? "auth-only" : ""]} href={b.path}>
+            {b.label}
+          </a>
+        </div>
+      );
+    })}
+  </aside>
+)}
+
+<style>
+  .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--color-rule);
+    background: var(--color-bg);
+    padding: 0.5rem 0 1rem;
+    overflow-y: auto;
+  }
+  .block {
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .block:last-child {
+    border-bottom: none;
+  }
+  h3 {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+  li a, .sidebar-link {
+    display: block;
+    padding: 0.35rem 0.5rem;
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--color-fg);
+    font-size: 0.92rem;
+    line-height: 1.35;
+  }
+  li a:hover, .sidebar-link:hover {
+    background: var(--color-primary-bg);
+  }
+  li.active a, .sidebar-link.active {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+    font-weight: 600;
+    border-left: 3px solid var(--color-primary);
+    padding-left: calc(0.5rem - 3px);
+  }
+  /* `auth-only` items are visually unchanged for now; in Phase B they will be
+     hidden for logged-out users via JS. Kept as a marker class. */
+  .auth-only::after {
+    /* subtle indicator: dotted underline on label */
+  }
+</style>

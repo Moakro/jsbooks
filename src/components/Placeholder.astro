@@ -1,0 +1,27 @@
+---
+interface Props {
+  title: string;
+  note?: string;
+  children?: any;
+}
+const { title, note = "이 영역은 콘텐츠가 누적되는 대로 공개됩니다." } = Astro.props;
+---
+
+<section class="placeholder">
+  <h1>{title}</h1>
+  <p class="muted">{note}</p>
+  <slot />
+</section>
+
+<style>
+  .placeholder {
+    padding: 2rem 0;
+  }
+  .placeholder h1 {
+    color: var(--color-primary);
+  }
+  .muted {
+    color: var(--color-muted);
+    font-size: 0.95rem;
+  }
+</style>

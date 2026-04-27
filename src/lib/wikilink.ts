@@ -44,17 +44,19 @@ export function resolveWikilink(
   const trimmed = target.trim();
   if (!trimmed) return null;
 
-  // Preface alias — full-page move
+  // Preface alias — full-page move (천지개벽경 only for now)
   if (trimmed === "00_서" || trimmed === "서") {
-    return { href: "/scripture/preface/", mode: "page" };
+    return { href: "/scripture/cheonjigaebyeokgyeong/preface/", mode: "page" };
   }
 
-  // Scripture chapter: 01-07_장 — full-page move
+  // Scripture chapter: 01-07_장 — currently 천지개벽경 only.
+  // When other scriptures arrive, callers must scope the link to its scripture
+  // (e.g. via the source file's collection slug).
   const m = trimmed.match(CHAPTER_RE);
   if (m) {
     const vol = parseInt(m[1], 10);
     const chap = parseInt(m[2], 10);
-    return { href: `/scripture/${vol}/${chap}/`, mode: "page" };
+    return { href: `/scripture/cheonjigaebyeokgyeong/${vol}/${chap}/`, mode: "page" };
   }
 
   // Card lookup — opens side-card

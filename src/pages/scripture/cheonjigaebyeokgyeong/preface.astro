@@ -1,8 +1,8 @@
 ---
-import Base from "../../layouts/Base.astro";
+import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
-import { buildCardManifest } from "../../lib/manifest";
-import { renderMarkdownBody } from "../../lib/wikilink";
+import { buildCardManifest } from "../../../lib/manifest";
+import { renderMarkdownBody } from "../../../lib/wikilink";
 
 const all = await getCollection("scripture");
 const preface = all.find((e) => e.id === "00_서");
@@ -12,8 +12,8 @@ const manifest = await buildCardManifest();
 const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
 ---
 
-<Base title="서(序) — 천지개벽경">
-  <p class="meta"><a href="/scripture/">← 천지개벽경</a></p>
+<Base title="서(序) — 천지개벽경" scriptureSlug="cheonjigaebyeokgyeong">
+  <p class="meta"><a href="/scripture/cheonjigaebyeokgyeong/">← 천지개벽경</a></p>
   <h1>천지개벽경 서(序)</h1>
   <p class="meta">{preface.data.date_lunar}</p>
   <article class="prose-body" set:html={bodyHTML} />

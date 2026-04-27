@@ -2,12 +2,20 @@
 import SideCard from "../components/SideCard.svelte";
 import SearchBox from "../components/SearchBox.svelte";
 import AuthLink from "../components/AuthLink.svelte";
+import Sidebar from "../components/Sidebar.astro";
+import { HEADER_NAV, resolveSection } from "../data/site-nav";
+import { shouldShowSidebar } from "../data/sidebar-nav";
 
 interface Props {
   title: string;
   description?: string;
+  /** Slug of the scripture currently being viewed, for sidebar highlight. */
+  scriptureSlug?: string | null;
 }
-const { title, description = "증산계열 경전 디지털 라이브러리" } = Astro.props;
+const { title, description = "증산계열 경전 디지털 라이브러리", scriptureSlug = null } = Astro.props;
+const path = Astro.url.pathname;
+const activeSection = resolveSection(path);
+const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
 ---
 
 <!doctype html>
@@ -20,26 +28,58 @@ const { title, description = "증산계열 경전 디지털 라이브러리" } =
   </head>
   <body>
     <header>
+      {sidebarVisible && (
+        <button id="sidebar-toggle" class="hamburger" type="button" aria-label="사이드바 열기" aria-controls="site-sidebar">
+          <span></span><span></span><span></span>
+        </button>
+      )}
       <a href="/" class="brand">jsbooks</a>
       <nav>
-        <a href="/scripture/">경전</a>
-        <a href="/people/">인물</a>
-        <a href="/places/">지명</a>
-        <a href="/dosu/">도수</a>
-        <a href="/terms/">용어</a>
-        <a href="/dates/">시기</a>
+        {HEADER_NAV.map((s) => (
+          <a href={s.href} class:list={[{ active: activeSection === s.slug }]}>{s.label}</a>
+        ))}
       </nav>
       <span style="flex: 1"></span>
       <SearchBox client:load />
       <AuthLink client:load />
     </header>
-    <main>
-      <slot />
-    </main>
+    <div class="layout">
+      {sidebarVisible && (
+        <div class="sidebar-wrap" id="site-sidebar">
+          <Sidebar currentScriptureSlug={scriptureSlug} />
+        </div>
+      )}
+      <main>
+        <slot />
+      </main>
+    </div>
     <footer>
       <small>증산계열 경전 디지털 라이브러리 · 학술 친화 자료</small>
     </footer>
     <SideCard client:load />
+    <script>
+      // Sidebar toggle: mobile slide-in / desktop optional collapse.
+      const btn = document.getElementById("sidebar-toggle");
+      const wrap = document.getElementById("site-sidebar");
+      function setOpen(open: boolean) {
+        if (!wrap) return;
+        wrap.classList.toggle("open", open);
+        document.body.classList.toggle("sidebar-open", open);
+        btn?.setAttribute("aria-expanded", String(open));
+      }
+      btn?.addEventListener("click", () => {
+        const isOpen = wrap?.classList.contains("open") ?? false;
+        setOpen(!isOpen);
+      });
+      // Close when tapping outside on mobile
+      document.addEventListener("click", (e) => {
+        if (window.innerWidth >= 1024) return;
+        if (!wrap?.classList.contains("open")) return;
+        const target = e.target as Node;
+        if (wrap.contains(target) || btn?.contains(target)) return;
+        setOpen(false);
+      });
+    </script>
     <style is:global>
       /* ───────── Design tokens ─────────
        * 태극 페어링: 단심(陽) 메인 + 단청 청록(陰) 보조 + 한지 무채.
@@ -136,27 +176,120 @@ const { title, description = "증산계열 경전 디지털 라이브러리" } =
         text-decoration: none;
         color: var(--fg);
         font-size: 0.95rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 5px;
       }
       header nav a:hover {
-        color: var(--link);
+        color: var(--color-primary);
+        background: var(--color-primary-bg);
+      }
+      header nav a.active {
+        color: var(--color-primary);
+        background: var(--color-primary-bg);
+        font-weight: 600;
+      }
+      .hamburger {
+        display: none;
+        flex-direction: column;
+        justify-content: center;
+        gap: 4px;
+        width: 32px;
+        height: 32px;
+        padding: 6px;
+        background: transparent;
+        border: 1px solid var(--color-rule);
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .hamburger span {
+        display: block;
+        height: 2px;
+        background: var(--color-fg);
+        border-radius: 1px;
+      }
+      .hamburger:hover {
+        border-color: var(--color-primary);
+        background: var(--color-primary-bg);
+      }
+      .layout {
+        display: flex;
+        align-items: flex-start;
+      }
+      .sidebar-wrap {
+        flex-shrink: 0;
       }
       main {
         max-width: 800px;
         margin: 0 auto;
         padding: 2rem 1.25rem 4rem;
         transition: margin 0.22s ease, max-width 0.22s ease;
+        flex: 1;
+        min-width: 0;
       }
-      /* Desktop: when sidecard is open, push main to the left of it */
+      /* Desktop ≥ 1280: sidebar always visible */
+      @media (min-width: 1280px) {
+        .sidebar-wrap {
+          position: sticky;
+          top: 56px; /* approx header height */
+          height: calc(100vh - 56px);
+        }
+      }
+      /* Tablet 1024–1279: sidebar collapsible via hamburger */
+      @media (min-width: 1024px) and (max-width: 1279px) {
+        .hamburger {
+          display: inline-flex;
+        }
+        .sidebar-wrap {
+          position: sticky;
+          top: 56px;
+          height: calc(100vh - 56px);
+          margin-left: -240px; /* collapsed by default */
+          transition: margin-left 0.22s ease;
+        }
+        .sidebar-wrap.open {
+          margin-left: 0;
+        }
+      }
+      /* Mobile < 1024: sidebar slides in from left */
+      @media (max-width: 1023px) {
+        .hamburger {
+          display: inline-flex;
+          order: -1; /* on the very left */
+        }
+        .layout {
+          display: block;
+        }
+        .sidebar-wrap {
+          position: fixed;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          width: min(280px, 80vw);
+          background: var(--color-bg);
+          z-index: 60;
+          transform: translateX(-100%);
+          transition: transform 0.22s ease;
+          box-shadow: 4px 0 16px rgba(0, 0, 0, 0.1);
+          overflow-y: auto;
+        }
+        .sidebar-wrap.open {
+          transform: translateX(0);
+        }
+        body.sidebar-open::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.4);
+          z-index: 55;
+        }
+      }
+      /* Desktop: when SideCard is open, give it room on the right.
+         The left sidebar already takes its own space via flex layout. */
       @media (min-width: 1024px) {
         body[data-sidecard="open"] main {
-          margin-left: max(2rem, calc((100vw - 800px - 420px) / 2));
-          margin-right: 460px;
-        }
-        body[data-sidecard="open"] header {
-          padding-right: 440px;
+          margin-right: 440px;
         }
       }
-      /* Mobile: bottom sheet — leave footer space so it isn't hidden */
       @media (max-width: 1023px) {
         body[data-sidecard="open"] main {
           padding-bottom: 70vh;

@@ -1,10 +1,10 @@
 ---
-import Base from "../../../layouts/Base.astro";
-import History from "../../../components/History.astro";
-import Comments from "../../../components/Comments.svelte";
+import Base from "../../../../layouts/Base.astro";
+import History from "../../../../components/History.astro";
+import Comments from "../../../../components/Comments.svelte";
 import { getCollection } from "astro:content";
-import { buildCardManifest } from "../../../lib/manifest";
-import { renderWikilinks } from "../../../lib/wikilink";
+import { buildCardManifest } from "../../../../lib/manifest";
+import { renderWikilinks } from "../../../../lib/wikilink";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -51,9 +51,9 @@ const next = sameVol[idx + 1];
 const historyPath = `content/scripture/cheonjigaebyeokgyeong/${entry.id}.md`;
 ---
 
-<Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`}>
+<Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`} scriptureSlug="cheonjigaebyeokgyeong">
   <p class="meta">
-    <a href="/scripture/">천지개벽경</a> · 권 {권} · {권_이름} ({권_이름_한자}) ·
+    <a href="/scripture/cheonjigaebyeokgyeong/">천지개벽경</a> · 권 {권} · {권_이름} ({권_이름_한자}) ·
     {연도_간지} {연도}
   </p>
   <h1
@@ -74,11 +74,11 @@ const historyPath = `content/scripture/cheonjigaebyeokgyeong/${entry.id}.md`;
 
   <nav class="chapter-nav">
     {prev && (
-      <a href={`/scripture/${권}/${prev.data.장}/`}>← {prev.data.장}장</a>
+      <a href={`/scripture/cheonjigaebyeokgyeong/${권}/${prev.data.장}/`}>← {prev.data.장}장</a>
     )}
     <span style="flex: 1" />
     {next && (
-      <a href={`/scripture/${권}/${next.data.장}/`}>{next.data.장}장 →</a>
+      <a href={`/scripture/cheonjigaebyeokgyeong/${권}/${next.data.장}/`}>{next.data.장}장 →</a>
     )}
   </nav>
 
