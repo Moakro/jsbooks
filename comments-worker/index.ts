@@ -29,8 +29,13 @@ interface Env {
 const COOKIE_NAME = "jb_session";
 const SESSION_TTL = 60 * 60 * 24 * 30; // 30 days
 const NICKNAME_RESERVED = [
-  "관리자", "admin", "운영자", "본부", "공식", "총무",
-  "상제", "강증산", "moakro", "system", "support",
+  // 운영자
+  "관리자", "admin", "운영자", "moakro", "system", "support",
+  // 단체명 부분 매치
+  "본부", "공식", "총무", "총회", "회장", "교주",
+  // 교리적 권위
+  "상제", "강증산", "미륵", "미륵존불", "옥황", "옥황상제",
+  "대선생", "진인", "성인", "도주",
 ];
 
 export default {
@@ -348,12 +353,9 @@ async function setNickname(req: Request, env: Env): Promise<Response> {
   }
   const lower = nickname.toLowerCase();
   if (NICKNAME_RESERVED.some((r) => lower.includes(r.toLowerCase()))) {
-    return json({ error: "운영자·단체명으로 오인될 수 있는 닉네임입니다" }, 400);
+    return json({ error: "운영자·단체명·교리적 권위를 유추할 수 있는 닉네임입니다" }, 400);
   }
-  const dup = await env.DB.prepare(
-    "SELECT 1 FROM users WHERE display_name=? AND id<>?",
-  ).bind(nickname, uid).first();
-  if (dup) return json({ error: "이미 사용 중인 닉네임입니다" }, 409);
+  // 중복 확인은 의도적으로 하지 않음. 프로필 이미지로 사용자를 구분.
 
   const old = await env.DB.prepare("SELECT display_name FROM users WHERE id=?").bind(uid).first<{ display_name: string | null }>();
   const oldName = old?.display_name ?? null;

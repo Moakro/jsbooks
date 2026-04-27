@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   google_name   TEXT NOT NULL,                    -- legal name (NEVER expose)
   display_name  TEXT,                             -- nickname, NULL until set
   avatar_url    TEXT,
-  affiliation   TEXT,                             -- 분파 자가 표시 (선택)
+  affiliation   TEXT,                             -- 단체 자가 표시 (선택)
   level         INTEGER NOT NULL DEFAULT 0,       -- 0=대기, 1=일반, 2=검증, 3=큐레이터
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
