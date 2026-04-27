@@ -1,0 +1,102 @@
+---
+import { historyFor, commitURL, type HistoryEntry } from "../lib/history";
+
+interface Props {
+  /** Content file path relative to the repo root, e.g. "content/people/이마두.md". */
+  path: string;
+}
+
+const { path } = Astro.props;
+const entries: HistoryEntry[] = historyFor(path);
+
+function shortDate(iso: string): string {
+  // 2026-04-26T14:30:00+09:00 → 2026-04-26
+  return iso.slice(0, 10);
+}
+---
+
+{entries.length > 0 && (
+  <details class="history">
+    <summary>
+      <span class="hist-icon" aria-hidden="true">📝</span>
+      <span>수정 이력 ({entries.length})</span>
+    </summary>
+    <ol>
+      {entries.map((e) => (
+        <li>
+          <span class="h-date">{shortDate(e.date)}</span>
+          <span class="h-msg">{e.subject}</span>
+          <a class="h-hash" href={commitURL(e.hash)} target="_blank" rel="noopener" title={`${e.author} · ${e.date}`}>
+            {e.hash}
+          </a>
+        </li>
+      ))}
+    </ol>
+  </details>
+)}
+
+<style>
+  .history {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--color-rule);
+    font-size: 0.88rem;
+  }
+  .history > summary {
+    cursor: pointer;
+    color: var(--color-muted);
+    font-size: 0.92rem;
+    list-style: none;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .history > summary::marker,
+  .history > summary::-webkit-details-marker {
+    display: none;
+  }
+  .history > summary:hover {
+    color: var(--color-secondary);
+  }
+  .hist-icon {
+    font-size: 1em;
+  }
+  .history ol {
+    list-style: none;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .history li {
+    display: grid;
+    grid-template-columns: 6.5em 1fr auto;
+    column-gap: 0.7rem;
+    align-items: baseline;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .history li:last-child {
+    border-bottom: none;
+  }
+  .h-date {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+  }
+  .h-msg {
+    color: var(--color-fg);
+  }
+  .h-hash {
+    font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 0.78rem;
+    color: var(--color-secondary);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-secondary);
+  }
+  .h-hash:hover {
+    background: var(--color-secondary-bg);
+  }
+</style>

@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # Vectorize embedding NDJSON snapshot (regenerable; >50 MB)
 .vectorize/
+
+# Generated at build time from git log
+src/data/history.json

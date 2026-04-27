@@ -1,5 +1,6 @@
 ---
 import Base from "../../../layouts/Base.astro";
+import History from "../../../components/History.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderWikilinks } from "../../../lib/wikilink";
@@ -44,6 +45,9 @@ const sameVol = all
 const idx = sameVol.findIndex((e) => e.id === entry.id);
 const prev = sameVol[idx - 1];
 const next = sameVol[idx + 1];
+
+// entry.id is like "02_임인편/02-01_장" — reconstruct the content/ path.
+const historyPath = `content/scripture/cheonjigaebyeokgyeong/${entry.id}.md`;
 ---
 
 <Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`}>
@@ -76,6 +80,8 @@ const next = sameVol[idx + 1];
       <a href={`/scripture/${권}/${next.data.장}/`}>{next.data.장}장 →</a>
     )}
   </nav>
+
+  <History path={historyPath} />
 </Base>
 
 <style>
