@@ -25,10 +25,10 @@ export interface SectionDef {
 export const HEADER_NAV: SectionDef[] = [
   {
     slug: "scripture",
-    label: "경전",
+    label: "위키",
     href: "/scripture/",
     // Cards (인물·지명·도수·용어·시기) and the legacy /scripture/N/M/ paths
-    // also belong to the 경전 section.
+    // also belong to the 위키 (scripture) section.
     prefixes: [
       "/scripture/",
       "/people/",
@@ -39,16 +39,16 @@ export const HEADER_NAV: SectionDef[] = [
     ],
   },
   {
-    slug: "news",
-    label: "소식",
-    href: "/news/",
-    prefixes: ["/news/"],
-  },
-  {
     slug: "feed",
     label: "피드",
     href: "/feed/",
     prefixes: ["/feed/"],
+  },
+  {
+    slug: "news",
+    label: "뉴스",
+    href: "/news/",
+    prefixes: ["/news/"],
   },
 ];
 

@@ -23,21 +23,21 @@ const dates = (await getCollection("dates")).length;
 
   <div class="grid">
     <a class="tile primary" href="/scripture/">
-      <h2>경전</h2>
+      <h2>위키</h2>
       <p>
-        본문·인물·지명·도수·용어·시기. 천지개벽경 9편 96장 ({chapterCount}개 장)
+        경전 본문·인물·지명·도수·용어·시기. 천지개벽경 9편 96장 ({chapterCount}개 장)
         + 참조 카드 {people + places + dosu + terms + dates}건.
       </p>
-    </a>
-
-    <a class="tile" href="/news/">
-      <h2>소식</h2>
-      <p>jsbooks의 공지·업데이트·릴리스·로드맵.</p>
     </a>
 
     <a class="tile" href="/feed/">
       <h2>피드</h2>
       <p>사용자 댓글·짧은 글·답사기·사진의 시간순 흐름.</p>
+    </a>
+
+    <a class="tile" href="/news/">
+      <h2>뉴스</h2>
+      <p>jsbooks의 공지·업데이트·릴리스·로드맵.</p>
     </a>
   </div>
 </Base>
