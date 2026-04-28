@@ -71,7 +71,7 @@
       <label class="field">
         <span>닉네임 <em>(2~24자)</em></span>
         <input bind:value={nickname} maxlength="24" minlength="2" required autofocus
-          placeholder="예: 학암독자" />
+          placeholder="예: 자유인" />
       </label>
 
       <label class="field">
@@ -80,15 +80,15 @@
           placeholder="예: 무종파 / 학술 / 본인 표기 자유" />
       </label>
 
-      <details class="rules">
-        <summary>닉네임 정책 (펼침)</summary>
+      <section class="rules">
+        <h2>닉네임 정책</h2>
         <ul>
           <li>운영자·단체명·교리적 권위를 유추할 수 있는 닉네임은 거부됩니다 (관리자, OO본부, OO공식, 총무, 상제, 진인 등).</li>
           <li>중복 확인은 하지 않습니다. 프로필 이미지로 사용자를 구분합니다.</li>
           <li>닉네임 변경은 가능하지만 변경 이력이 보존됩니다.</li>
           <li>단체 표시는 댓글 옆에 작은 라벨로 표시됩니다. 입력하지 않아도 됩니다.</li>
         </ul>
-      </details>
+      </section>
 
       {#if error}
         <p class="error">{error}</p>
@@ -141,16 +141,22 @@
     background: var(--color-primary-bg);
   }
   .rules {
-    margin: 1rem 0;
+    margin: 1.2rem 0;
+    padding: 0.8rem 1rem;
     font-size: 0.88rem;
     color: var(--color-muted);
+    background: var(--color-secondary-bg);
+    border-left: 3px solid var(--color-secondary);
+    border-radius: 0 6px 6px 0;
   }
-  .rules summary {
-    cursor: pointer;
+  .rules h2 {
+    margin: 0 0 0.4rem;
+    font-size: 0.92rem;
     color: var(--color-secondary);
+    font-weight: 600;
   }
   .rules ul {
-    margin: 0.5rem 0 0;
+    margin: 0.4rem 0 0;
     padding-left: 1.2rem;
     line-height: 1.6;
   }
