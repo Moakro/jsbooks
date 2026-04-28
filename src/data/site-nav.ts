@@ -26,17 +26,9 @@ export const HEADER_NAV: SectionDef[] = [
   {
     slug: "scripture",
     label: "위키",
-    href: "/scripture/",
-    // Cards (인물·지명·도수·용어·시기) and the legacy /scripture/N/M/ paths
-    // also belong to the 위키 (scripture) section.
-    prefixes: [
-      "/scripture/",
-      "/people/",
-      "/places/",
-      "/dosu/",
-      "/terms/",
-      "/dates/",
-    ],
+    href: "/wiki/",
+    // /wiki/* covers scripture body, cards, and the home page (`/` is the wiki root).
+    prefixes: ["/wiki/"],
   },
   {
     slug: "feed",
@@ -62,6 +54,8 @@ export const ACCOUNT_SECTION: SectionDef = {
 
 /** Resolve which section a URL path belongs to (or null for fully neutral pages). */
 export function resolveSection(pathname: string): SectionSlug | null {
+  // Site root acts as the wiki home.
+  if (pathname === "/") return "scripture";
   for (const def of HEADER_NAV) {
     if (def.prefixes.some((p) => pathname.startsWith(p))) return def.slug;
   }

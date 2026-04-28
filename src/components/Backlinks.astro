@@ -19,9 +19,9 @@ const KIND_LABEL: Record<string, string> = {
 function hrefFor(b: Backlink): string {
   if (b.kind === "scripture") {
     const anchor = b.verseId ? `#${b.verseId}` : "";
-    return `/scripture/${b.vol}/${b.chap}/${anchor}`;
+    return `/wiki/cheonjigaebyeokgyeong/${b.vol}/${b.chap}/${anchor}`;
   }
-  return `/${b.kind}/${encodeURIComponent(b.slug)}/`;
+  return `/wiki/${b.kind}/${encodeURIComponent(b.slug)}/`;
 }
 ---
 

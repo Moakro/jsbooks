@@ -53,7 +53,7 @@ const historyPath = `content/scripture/cheonjigaebyeokgyeong/${entry.id}.md`;
 
 <Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`} scriptureSlug="cheonjigaebyeokgyeong">
   <p class="meta">
-    <a href="/scripture/cheonjigaebyeokgyeong/">천지개벽경</a> · 권 {권} · {권_이름} ({권_이름_한자}) ·
+    <a href="/wiki/cheonjigaebyeokgyeong/">천지개벽경</a> · 권 {권} · {권_이름} ({권_이름_한자}) ·
     {연도_간지} {연도}
   </p>
   <h1
@@ -74,11 +74,11 @@ const historyPath = `content/scripture/cheonjigaebyeokgyeong/${entry.id}.md`;
 
   <nav class="chapter-nav">
     {prev && (
-      <a href={`/scripture/cheonjigaebyeokgyeong/${권}/${prev.data.장}/`}>← {prev.data.장}장</a>
+      <a href={`/wiki/cheonjigaebyeokgyeong/${권}/${prev.data.장}/`}>← {prev.data.장}장</a>
     )}
     <span style="flex: 1" />
     {next && (
-      <a href={`/scripture/cheonjigaebyeokgyeong/${권}/${next.data.장}/`}>{next.data.장}장 →</a>
+      <a href={`/wiki/cheonjigaebyeokgyeong/${권}/${next.data.장}/`}>{next.data.장}장 →</a>
     )}
   </nav>
 

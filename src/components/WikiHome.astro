@@ -1,9 +1,23 @@
 ---
-import Base from "../../layouts/Base.astro";
+/**
+ * Wiki home content — shown both at `/` (site root) and `/wiki/` (section root).
+ * Shows the scripture catalog and a prompt-style entry point.
+ */
 
-// 경전 카탈로그 — 사이트에 등록된 모든 경전을 한눈에.
-// 콘텐츠가 늘어나면 _meta.md 컬렉션에서 자동 수집하도록 전환.
-const scriptures = [
+interface ScriptureCard {
+  slug: string;
+  name: string;
+  hanja: string;
+  editor: string;
+  editor_hanja: string;
+  year: number;
+  description: string;
+  tradition: string;
+  status: "active" | "wip" | "planned";
+}
+
+// Until `_meta.md` collection lands, hardcode the catalog.
+const scriptures: ScriptureCard[] = [
   {
     slug: "cheonjigaebyeokgyeong",
     name: "천지개벽경",
@@ -19,18 +33,35 @@ const scriptures = [
 ];
 ---
 
-<Base title="경전 카탈로그 — jsbooks">
-  <h1>경전</h1>
-  <p class="meta">증산계열 경전 디지털 라이브러리. 사용자는 좌측 사이드바에서 자기에게 맞는 경전만 선택해 노출할 수 있습니다.</p>
+<section class="lead">
+  <h1>jsbooks</h1>
+  <p>
+    증산계열 경전 디지털 라이브러리. 사용자는 자기에게 맞는 경전을 좌측에서
+    선택해 노출할 수 있습니다.
+  </p>
+</section>
 
+<form class="prompt" action="/search/" method="get" role="search">
+  <input
+    type="search"
+    name="q"
+    placeholder="찾으시는 절·인물·뜻을 입력하세요. (예: 이마두, 단주의 원한, 무신납월공사)"
+    autocomplete="off"
+    spellcheck="false"
+  />
+  <button type="submit" class="go" aria-label="검색">→</button>
+</form>
+
+<section class="catalog-section">
+  <h2>등록된 경전</h2>
   <ul class="catalog">
     {scriptures.map((s) => (
       <li class={`card ${s.status}`}>
-        <a href={`/scripture/${s.slug}/`} class="card-link">
-          <h2>
+        <a href={`/wiki/${s.slug}/`} class="card-link">
+          <h3>
             {s.name}
             <span class="hanja">({s.hanja})</span>
-          </h2>
+          </h3>
           <p class="row meta-row">
             <span class="tradition">{s.tradition}</span>
             <span class="dot">·</span>
@@ -43,17 +74,66 @@ const scriptures = [
       </li>
     ))}
   </ul>
-
   <p class="hint">
-    추가될 경전은 <a href="/news/">소식</a>에서 안내됩니다.
+    추가될 경전은 <a href="/news/" class="page-link">뉴스</a>에서 안내됩니다.
   </p>
-</Base>
+</section>
 
 <style>
+  .lead {
+    margin: 1.5rem 0 1.5rem;
+  }
+  .lead h1 {
+    color: var(--color-primary);
+    font-size: 2rem;
+    margin: 0 0 0.5rem;
+  }
+  .lead p {
+    color: var(--color-fg);
+    line-height: 1.7;
+  }
+
+  .prompt {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--color-primary);
+    border-radius: 10px;
+    background: var(--color-primary-bg);
+    overflow: hidden;
+    margin: 0 0 2.5rem;
+  }
+  .prompt input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 0.9rem 1rem;
+    font: inherit;
+    font-size: 1rem;
+    background: transparent;
+    color: var(--color-fg);
+  }
+  .prompt .go {
+    border: none;
+    background: var(--color-primary);
+    color: var(--color-bg);
+    padding: 0 1.1rem;
+    cursor: pointer;
+    font-size: 1.05rem;
+  }
+  .prompt .go:hover {
+    background: var(--color-primary-soft);
+  }
+
+  .catalog-section h2 {
+    font-size: 1rem;
+    color: var(--color-muted);
+    margin: 0 0 0.8rem;
+    font-weight: 600;
+  }
   .catalog {
     list-style: none;
     padding: 0;
-    margin: 1.5rem 0;
+    margin: 0 0 1rem;
     display: grid;
     grid-template-columns: 1fr;
     gap: 1rem;
@@ -79,7 +159,7 @@ const scriptures = [
     text-decoration: none;
     color: var(--color-fg);
   }
-  .card h2 {
+  .card h3 {
     margin: 0 0 0.4rem;
     font-size: 1.15rem;
     color: var(--color-primary);
@@ -118,6 +198,5 @@ const scriptures = [
   .hint {
     color: var(--color-muted);
     font-size: 0.88rem;
-    margin-top: 1.5rem;
   }
 </style>

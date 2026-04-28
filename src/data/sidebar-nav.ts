@@ -32,11 +32,11 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       type: "section",
       label: "참조",
       items: [
-        { label: "인물", path: "/people/" },
-        { label: "지명", path: "/places/" },
-        { label: "도수", path: "/dosu/" },
-        { label: "용어", path: "/terms/" },
-        { label: "시기", path: "/dates/" },
+        { label: "인물", path: "/wiki/people/" },
+        { label: "지명", path: "/wiki/places/" },
+        { label: "도수", path: "/wiki/dosu/" },
+        { label: "용어", path: "/wiki/terms/" },
+        { label: "시기", path: "/wiki/dates/" },
       ],
     },
     {
@@ -124,7 +124,6 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
 
 /** Pages that intentionally render full-width with no sidebar. */
 export const NO_SIDEBAR_PATHS: ReadonlyArray<string> = [
-  "/",
   "/search/",
   "/about/",
   "/changelog/",

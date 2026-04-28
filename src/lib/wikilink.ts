@@ -5,7 +5,7 @@
  * Strategy:
  *   1. Bare names match a card slug (people / places / dosu / terms / dates).
  *      We resolve them by lookup at build time via a manifest (passed in).
- *   2. Scripture chapter refs `NN-MM_장` route to /scripture/jang/<vol>/<chap>.
+ *   2. Scripture chapter refs `NN-MM_장` route to /wiki/jang/<vol>/<chap>.
  *   3. Unknown targets render as plain text (no link), surfaced as build warning.
  */
 
@@ -46,7 +46,7 @@ export function resolveWikilink(
 
   // Preface alias — full-page move (천지개벽경 only for now)
   if (trimmed === "00_서" || trimmed === "서") {
-    return { href: "/scripture/cheonjigaebyeokgyeong/preface/", mode: "page" };
+    return { href: "/wiki/cheonjigaebyeokgyeong/preface/", mode: "page" };
   }
 
   // Scripture chapter: 01-07_장 — currently 천지개벽경 only.
@@ -56,14 +56,14 @@ export function resolveWikilink(
   if (m) {
     const vol = parseInt(m[1], 10);
     const chap = parseInt(m[2], 10);
-    return { href: `/scripture/cheonjigaebyeokgyeong/${vol}/${chap}/`, mode: "page" };
+    return { href: `/wiki/cheonjigaebyeokgyeong/${vol}/${chap}/`, mode: "page" };
   }
 
   // Card lookup — opens side-card
   const entry = manifest.byName.get(trimmed);
   if (entry) {
     return {
-      href: `/${entry.kind}/${encodeURIComponent(entry.canonical)}/`,
+      href: `/wiki/${entry.kind}/${encodeURIComponent(entry.canonical)}/`,
       mode: "card",
     };
   }

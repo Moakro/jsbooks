@@ -1,15 +1,15 @@
 ---
-import Base from "../../layouts/Base.astro";
-import Backlinks from "../../components/Backlinks.astro";
-import History from "../../components/History.astro";
-import Comments from "../../components/Comments.svelte";
+import Base from "../../../layouts/Base.astro";
+import Backlinks from "../../../components/Backlinks.astro";
+import History from "../../../components/History.astro";
+import Comments from "../../../components/Comments.svelte";
 import { getCollection } from "astro:content";
-import { buildCardManifest } from "../../lib/manifest";
-import { renderMarkdownBody } from "../../lib/wikilink";
-import { buildBacklinkIndex, backlinksFor } from "../../lib/backlinks";
+import { buildCardManifest } from "../../../lib/manifest";
+import { renderMarkdownBody } from "../../../lib/wikilink";
+import { buildBacklinkIndex, backlinksFor } from "../../../lib/backlinks";
 
 export async function getStaticPaths() {
-  const entries = await getCollection("terms");
+  const entries = await getCollection("dosu");
   return entries.map((entry) => ({
     params: { slug: entry.id },
     props: { entry },
@@ -19,13 +19,13 @@ export async function getStaticPaths() {
 const { entry } = Astro.props;
 const manifest = await buildCardManifest();
 const bodyHTML = renderMarkdownBody(entry.body ?? "", manifest);
-const backlinks = backlinksFor(await buildBacklinkIndex(), "terms", entry.id);
-const historyPath = `content/terms/${entry.id}.md`;
+const backlinks = backlinksFor(await buildBacklinkIndex(), "dosu", entry.id);
+const historyPath = `content/dosu/${entry.id}.md`;
 ---
 
-<Base title={`${entry.data.name} — 사상 용어`}>
-  <p class="meta"><a href="/terms/">← 사상 용어</a></p>
-  <h1 data-pagefind-body data-pagefind-filter="kind:용어" data-pagefind-meta={`title:${entry.data.name} (용어)`}>
+<Base title={`${entry.data.name} — 도수 / 공사`}>
+  <p class="meta"><a href="/wiki/dosu/">← 도수 / 공사</a></p>
+  <h1 data-pagefind-body data-pagefind-filter="kind:도수" data-pagefind-meta={`title:${entry.data.name} (도수)`}>
     {entry.data.name}
     {entry.data.name_hanja && (
       <span style="font-size: 0.75em; color: var(--hanja); font-weight: normal">
@@ -41,6 +41,6 @@ const historyPath = `content/terms/${entry.id}.md`;
   )}
   <article class="prose-body" set:html={bodyHTML} />
   <Backlinks backlinks={backlinks} />
-  <Comments client:idle target={`card:terms:${entry.id}`} />
+  <Comments client:idle target={`card:dosu:${entry.id}`} />
   <History path={historyPath} />
 </Base>
