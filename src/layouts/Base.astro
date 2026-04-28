@@ -25,6 +25,12 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Anton&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <header>
@@ -33,7 +39,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
           <span></span><span></span><span></span>
         </button>
       )}
-      <a href="/" class="brand">jsbooks</a>
+      <a href="/" class="brand"><span class="brand-js">JS</span><span class="brand-books">Books</span></a>
       <nav>
         {HEADER_NAV.map((s) => (
           <a href={s.href} class:list={[{ active: activeSection === s.slug }]}>{s.label}</a>
@@ -162,10 +168,20 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         z-index: 10;
       }
       header .brand {
-        font-weight: 700;
-        font-size: 1.1rem;
         text-decoration: none;
-        color: var(--accent);
+        font-family: "Anton", Impact, "Haettenschweiler",
+          "Arial Narrow Bold", "Bebas Neue", system-ui, sans-serif;
+        font-weight: 400; /* Anton is single-weight; Impact ignores weight. */
+        font-size: 1.6rem;
+        line-height: 1;
+        letter-spacing: 0.02em;
+        display: inline-flex;
+      }
+      header .brand-js {
+        color: var(--color-primary);
+      }
+      header .brand-books {
+        color: var(--color-secondary);
       }
       header nav {
         display: flex;
