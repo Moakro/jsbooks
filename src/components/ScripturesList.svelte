@@ -32,18 +32,12 @@
       const me = await fetch("/api/me", { credentials: "same-origin" });
       const meData = await me.json();
       user = meData.user ? { id: meData.user.id } : null;
-      if (!user) {
-        prefs = null;
-        return;
-      }
-      // Phase B will expose /api/me/scriptures. For now: graceful fallback.
-      const res = await fetch("/api/me/scriptures", { credentials: "same-origin" });
-      if (res.ok) {
-        const data = await res.json();
-        prefs = data.prefs ?? [];
-      } else {
-        prefs = []; // logged in but no prefs yet
-      }
+      // /api/me/scriptures is reserved for Phase B (per-user library prefs).
+      // Until that endpoint exists we don't call it — calling a known-404 URL
+      // pollutes the browser console with red errors that try/catch can't
+      // suppress. Default behavior (= show all scriptures, default order)
+      // already handles both logged-in and logged-out cases here.
+      prefs = null;
     } finally {
       loading = false;
     }
