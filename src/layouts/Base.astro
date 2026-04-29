@@ -34,20 +34,29 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
   </head>
   <body>
     <header>
-      {sidebarVisible && (
-        <button id="sidebar-toggle" class="hamburger" type="button" aria-label="사이드바 열기" aria-controls="site-sidebar">
-          <span></span><span></span><span></span>
-        </button>
-      )}
-      <a href="/" class="brand"><span class="brand-js">JS</span><span class="brand-books">Books</span></a>
-      <nav>
-        {HEADER_NAV.map((s) => (
-          <a href={s.href} class:list={[{ active: activeSection === s.slug }]}>{s.label}</a>
-        ))}
+      <div class="header-row top">
+        {sidebarVisible && (
+          <button id="sidebar-toggle" class="hamburger" type="button" aria-label="사이드바 열기" aria-controls="site-sidebar">
+            <span></span><span></span><span></span>
+          </button>
+        )}
+        <a href="/" class="brand"><span class="brand-js">JS</span><span class="brand-books">Books</span></a>
+        <nav class="nav-inline">
+          {HEADER_NAV.map((s) => (
+            <a href={s.href} class:list={[{ active: activeSection === s.slug }]}>{s.label}</a>
+          ))}
+        </nav>
+        <span style="flex: 1"></span>
+        <SearchBox client:load />
+        <AuthLink client:load />
+      </div>
+      <nav class="nav-bottom" aria-label="섹션">
+        <div class="nav-scroll">
+          {HEADER_NAV.map((s) => (
+            <a href={s.href} class:list={[{ active: activeSection === s.slug }]}>{s.label}</a>
+          ))}
+        </div>
       </nav>
-      <span style="flex: 1"></span>
-      <SearchBox client:load />
-      <AuthLink client:load />
     </header>
     <div class="layout">
       {sidebarVisible && (
@@ -157,15 +166,21 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         line-height: 1.7;
       }
       header {
+        background: var(--bg);
+        border-bottom: 1px solid var(--rule);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .header-row.top {
         display: flex;
         align-items: center;
         gap: 1.5rem;
         padding: 1rem 2rem;
-        border-bottom: 1px solid var(--rule);
-        background: var(--bg);
-        position: sticky;
-        top: 0;
-        z-index: 10;
+      }
+      /* Bottom row exists in DOM for mobile only — hidden on desktop. */
+      .nav-bottom {
+        display: none;
       }
       header .brand {
         text-decoration: none;
@@ -271,6 +286,48 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         .hamburger {
           display: inline-flex;
           order: -1; /* on the very left */
+        }
+        /* Top row: 햄버거 · 브랜드 · (flex spacer) · 검색 · 로그인.
+           Inline nav를 숨기고 별도 하단 줄로 노출. */
+        .header-row.top {
+          padding: 0.7rem 1rem;
+          gap: 0.7rem;
+        }
+        .nav-inline {
+          display: none;
+        }
+        .nav-bottom {
+          display: block;
+          border-top: 1px solid var(--color-rule);
+          background: var(--color-bg);
+        }
+        .nav-bottom .nav-scroll {
+          display: flex;
+          gap: 0.4rem;
+          padding: 0.5rem 1rem;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+          white-space: nowrap;
+        }
+        .nav-bottom .nav-scroll::-webkit-scrollbar {
+          display: none;
+        }
+        .nav-bottom .nav-scroll a {
+          flex-shrink: 0;
+          text-decoration: none;
+          color: var(--color-fg);
+          font-size: 0.95rem;
+          padding: 0.3rem 0.8rem;
+          border-radius: 5px;
+        }
+        .nav-bottom .nav-scroll a.active {
+          color: var(--color-primary);
+          background: var(--color-primary-bg);
+          font-weight: 600;
+        }
+        .nav-bottom .nav-scroll a:hover {
+          color: var(--color-primary);
         }
         .layout {
           display: block;
