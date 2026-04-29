@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Icon from "./Icon.svelte";
 
   type BacklinkData = {
     kind: string;
@@ -212,9 +213,13 @@
 <aside class:open={isOpen} aria-hidden={!isOpen}>
   {#if isOpen}
     <header class="sb-head">
-      <button class="back" onclick={popCard} title="뒤로 (ESC: 전체 닫기)">←</button>
+      <button class="back" onclick={popCard} title="뒤로 (ESC: 전체 닫기)" aria-label="뒤로">
+        <Icon icon="arrow-left" size={18} />
+      </button>
       <span class="title">관련 카드 {stack.length}개</span>
-      <button class="close" onclick={closeAll} title="전체 닫기">✕</button>
+      <button class="close" onclick={closeAll} title="전체 닫기" aria-label="전체 닫기">
+        <Icon icon="x" size={18} />
+      </button>
     </header>
     <div class="cards">
       {#each stack as item (item.key)}
@@ -240,7 +245,7 @@
               title="이 카드만 닫기"
               onclick={(e) => onCloseCardClick(item.key, e)}
               onkeydown={(e) => onCloseCardKey(item.key, e)}
-            >✕</span>
+            ><Icon icon="x" size={14} /></span>
           </button>
           {#if item.expanded}
             <div class="card-body">
@@ -353,12 +358,14 @@
     font-weight: 600;
   }
   .sb-head button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: 1px solid var(--color-primary, #a8352a);
     border-radius: 4px;
-    padding: 0.25rem 0.6rem;
+    padding: 0.25rem 0.4rem;
     cursor: pointer;
-    font-size: 1rem;
     color: var(--color-primary, #a8352a);
   }
   .sb-head button:hover {
@@ -411,12 +418,14 @@
     font-size: 0.78em;
   }
   .card-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: none;
     cursor: pointer;
     color: var(--muted, #888);
-    font-size: 0.95rem;
-    padding: 2px 6px;
+    padding: 2px 4px;
     border-radius: 3px;
   }
   .card-close:hover {

@@ -7,7 +7,7 @@
  * The header uses `prefix` to highlight the active section: any URL starting
  * with one of these prefixes lights up the corresponding tab.
  */
-export type SectionSlug = "scripture" | "news" | "feed" | "account";
+export type SectionSlug = "scripture" | "news" | "feed" | "calendar" | "account";
 
 export interface SectionDef {
   slug: SectionSlug;
@@ -41,6 +41,12 @@ export const HEADER_NAV: SectionDef[] = [
     label: "뉴스",
     href: "/news/",
     prefixes: ["/news/"],
+  },
+  {
+    slug: "calendar",
+    label: "달력",
+    href: "/calendar/",
+    prefixes: ["/calendar/"],
   },
 ];
 

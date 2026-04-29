@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Icon from "./Icon.svelte";
 
   type PagefindResult = {
     id: string;
@@ -157,15 +158,31 @@
     }
   }
 
+  function onAiSearch(e: Event) {
+    const ev = e as CustomEvent<{ q: string }>;
+    const q = ev.detail?.q?.trim();
+    if (!q) return;
+    open = true;
+    mode = "semantic";
+    query = q;
+    loadPagefind();
+    queueMicrotask(() => inputEl?.focus());
+    if (debouncer) clearTimeout(debouncer);
+    debouncer = setTimeout(() => dispatchSearch(q), 0);
+  }
+
   onMount(() => {
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    window.addEventListener("jsbooks:ai-search", onAiSearch);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("jsbooks:ai-search", onAiSearch);
+    };
   });
 </script>
 
-<button class="trigger" onclick={openSearch} title="검색 (/)">
-  <span aria-hidden="true">🔍</span><span class="trigger-label">검색</span>
-  <kbd>/</kbd>
+<button class="trigger" onclick={openSearch} title="검색 (/)" aria-label="검색">
+  <Icon icon="search" />
 </button>
 
 {#if open}
@@ -191,12 +208,14 @@
           oninput={onInput}
           type="search"
           placeholder={mode === "semantic"
-            ? "의미로 검색 (예: 강증산이 일본을 어떻게 봤는지)"
+            ? "의미로 검색 (예: 상제님이 일본을 어떻게 보셨는지)"
             : "검색어 (예: 이마두, 단주, 의통, 금산사)"}
           autocomplete="off"
           spellcheck="false"
         />
-        <button class="close" onclick={closeSearch} aria-label="닫기 (Esc)">✕</button>
+        <button class="close" onclick={closeSearch} aria-label="닫기 (Esc)">
+          <Icon icon="x" size={18} />
+        </button>
       </div>
 
       <div class="mode-tabs" role="tablist" aria-label="검색 방식">
@@ -242,7 +261,7 @@
       {:else}
         <p class="hint">
           {#if mode === "semantic"}
-            의미 기반으로 절·카드를 검색합니다. 예: "강증산이 일본을 어떻게 봤나"
+            의미 기반으로 절·카드를 검색합니다. 예: "상제님이 일본을 어떻게 보셨나"
           {:else}
             단축키: <kbd>/</kbd> 또는 <kbd>Cmd</kbd>+<kbd>K</kbd> 로 검색 열기
           {/if}
@@ -268,9 +287,6 @@
   .trigger:hover {
     background: var(--color-secondary-bg, #f0f7f6);
     border-color: var(--color-secondary, #1e6e6e);
-  }
-  .trigger-label {
-    color: var(--color-muted, #8a807a);
   }
   kbd {
     font: inherit;
@@ -316,12 +332,17 @@
     color: var(--color-fg, #1f1c1a);
   }
   .search-row .close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: none;
     padding: 0 1rem;
     cursor: pointer;
     color: var(--color-muted, #8a807a);
-    font-size: 1rem;
+  }
+  .search-row .close:hover {
+    color: var(--color-fg, #1f1c1a);
   }
   .mode-tabs {
     display: flex;

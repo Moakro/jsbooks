@@ -2,6 +2,7 @@
 import { resolveSection } from "../data/site-nav";
 import { SIDEBAR_BY_SECTION, shouldShowSidebar } from "../data/sidebar-nav";
 import ScripturesList from "./ScripturesList.svelte";
+import Icon from "./Icon.svelte";
 import { getCollection } from "astro:content";
 
 interface Props {
@@ -79,7 +80,8 @@ function isActiveLink(itemPath: string): boolean {
       return (
         <div class="block">
           <a class:list={["sidebar-link", { active: isActiveLink(b.path) }, b.auth ? "auth-only" : ""]} href={b.path}>
-            {b.label}
+            {b.icon && <Icon icon={b.icon} size={16} />}
+            <span>{b.label}</span>
           </a>
         </div>
       );
@@ -118,7 +120,9 @@ function isActiveLink(itemPath: string): boolean {
     gap: 0.1rem;
   }
   li a, .sidebar-link {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     padding: 0.35rem 0.5rem;
     border-radius: 4px;
     text-decoration: none;

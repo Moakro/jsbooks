@@ -17,6 +17,7 @@
   "dependencies": {
     "@astrojs/svelte": "^8.0.5",
     "astro": "^6.1.9",
+    "korean-lunar-calendar": "^0.3.6",
     "marked": "^18.0.2",
     "svelte": "^5.55.5",
     "typescript": "^5.9.3"

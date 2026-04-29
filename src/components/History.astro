@@ -1,5 +1,6 @@
 ---
 import { historyFor, commitURL, type HistoryEntry } from "../lib/history";
+import Icon from "./Icon.svelte";
 
 interface Props {
   /** Content file path relative to the repo root, e.g. "content/wiki/people/이마두.md". */
@@ -18,7 +19,7 @@ function shortDate(iso: string): string {
 {entries.length > 0 && (
   <details class="history">
     <summary>
-      <span class="hist-icon" aria-hidden="true">📝</span>
+      <span class="hist-icon" aria-hidden="true"><Icon icon="pencil-line" size={16} /></span>
       <span>수정 이력 ({entries.length})</span>
     </summary>
     <ol>
@@ -60,7 +61,9 @@ function shortDate(iso: string): string {
     color: var(--color-secondary);
   }
   .hist-icon {
-    font-size: 1em;
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-muted);
   }
   .history ol {
     list-style: none;

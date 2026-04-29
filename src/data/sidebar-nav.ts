@@ -23,6 +23,7 @@ export type SidebarBlock =
       label: string;
       path: string;
       auth?: boolean;
+      icon?: "settings";
     };
 
 export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
@@ -41,9 +42,10 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
     },
     {
       type: "link",
-      label: "⚙ 경전 설정",
+      label: "경전 설정",
       path: "/account/scriptures/",
       auth: true,
+      icon: "settings",
     },
   ],
 
@@ -104,6 +106,23 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       type: "link",
       label: "내 활동",
       path: "/feed/me/",
+      auth: true,
+    },
+  ],
+
+  calendar: [
+    {
+      type: "section",
+      label: "보기",
+      items: [
+        { label: "월간", path: "/calendar/" },
+        { label: "오늘", path: "/calendar/today/" },
+      ],
+    },
+    {
+      type: "link",
+      label: "내 일정",
+      path: "/calendar/me/",
       auth: true,
     },
   ],
