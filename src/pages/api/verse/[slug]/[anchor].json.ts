@@ -3,6 +3,8 @@ import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../../lib/manifest";
 import { renderWikilinks } from "../../../../lib/wikilink";
 
+export const prerender = true;
+
 const VERSE_RE = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
 
 type VerseProps = {

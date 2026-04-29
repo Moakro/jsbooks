@@ -8,6 +8,8 @@ import {
   type Backlink,
 } from "../../../../lib/backlinks";
 
+export const prerender = true;
+
 const KINDS = ["people", "places", "dosu", "terms", "dates"] as const;
 type Kind = (typeof KINDS)[number];
 
