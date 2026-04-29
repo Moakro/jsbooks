@@ -2,10 +2,11 @@
 import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 
-const all = await getCollection("scripture");
+const allScripture = await getCollection("scripture");
+const all = allScripture.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/"));
 
 // Preface (00_서)
-const preface = all.find((e) => e.id === "00_서");
+const preface = all.find((e) => e.id === "cheonjigaebyeokgyeong/00_서");
 
 // Group by 권
 const volumes = new Map<number, { name: string; hanja: string; year: number; ganji: string; chapters: typeof all }>();

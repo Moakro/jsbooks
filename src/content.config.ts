@@ -9,7 +9,7 @@ const CONTENT = "./content";
 const scripture = defineCollection({
   loader: glob({
     pattern: "**/*.md",
-    base: `${CONTENT}/scripture/cheonjigaebyeokgyeong`,
+    base: `${CONTENT}/scripture`,
   }),
   schema: z.object({
     scripture: z.string().optional(),
@@ -18,6 +18,7 @@ const scripture = defineCollection({
     편자_한자: z.string().optional(),
     편자_호: z.string().optional(),
     편자_호_한자: z.string().optional(),
+    편찬자_들: z.string().optional(),
     type: z.string().optional(),
     date: z.string().optional(),
     date_lunar: z.string().optional(),
@@ -27,6 +28,9 @@ const scripture = defineCollection({
     연도: z.number().optional(),
     연도_간지: z.string().optional(),
     장: z.number().optional(),
+    verse_count: z.number().optional(),
+    원본_저자_수기: z.string().optional(),
+    이전_출판: z.string().optional(),
   }),
 });
 

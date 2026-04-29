@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
   import DayBox from "./DayBox.svelte";
 
   const PLACEHOLDER = "AI로 경전을 검색하세요";
+  const PLACEHOLDER_GUEST = "AI 검색은 로그인 후에 이용 가능합니다";
 
   const SUGGESTIONS = [
     "상제님이 일본을 어떻게 보셨나",
@@ -14,6 +16,7 @@
 
   let query = $state("");
   let textareaEl: HTMLTextAreaElement | undefined = $state();
+  let isLoggedIn = $state(false);
 
   function autoResize() {
     if (!textareaEl) return;
@@ -23,6 +26,7 @@
   }
 
   function submit() {
+    if (!isLoggedIn) return;
     const q = query.trim();
     if (!q) return;
     window.dispatchEvent(
@@ -38,6 +42,7 @@
   }
 
   function pickSuggestion(s: string) {
+    if (!isLoggedIn) return;
     query = s;
     queueMicrotask(() => {
       autoResize();
@@ -45,6 +50,15 @@
     });
   }
 
+  onMount(async () => {
+    try {
+      const res = await fetch("/api/me", { credentials: "same-origin" });
+      const data = await res.json();
+      isLoggedIn = !!data.user;
+    } catch {
+      isLoggedIn = false;
+    }
+  });
 </script>
 
 <section class="ai-prompt">
@@ -56,7 +70,8 @@
       bind:value={query}
       oninput={autoResize}
       onkeydown={onKeydown}
-      placeholder={PLACEHOLDER}
+      placeholder={isLoggedIn ? PLACEHOLDER : PLACEHOLDER_GUEST}
+      disabled={!isLoggedIn}
       rows="1"
       autocomplete="off"
       spellcheck="false"
@@ -77,7 +92,7 @@
         type="button"
         class="send"
         onclick={submit}
-        disabled={!query.trim()}
+        disabled={!isLoggedIn || !query.trim()}
         aria-label="물어보기"
         title="물어보기"
       >
@@ -89,7 +104,7 @@
   <ul class="suggestions">
     {#each SUGGESTIONS as s}
       <li>
-        <button type="button" class="chip" onclick={() => pickSuggestion(s)}>
+        <button type="button" class="chip" onclick={() => pickSuggestion(s)} disabled={!isLoggedIn}>
           {s}
         </button>
       </li>
@@ -133,6 +148,11 @@
     max-height: 220px;
   }
   textarea::placeholder {
+    color: var(--color-muted, #8a807a);
+  }
+  textarea:disabled {
+    cursor: not-allowed;
+    background: transparent;
     color: var(--color-muted, #8a807a);
   }
   .bar {
@@ -213,7 +233,11 @@
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
-  .chip:hover {
+  .chip:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .chip:hover:not(:disabled) {
     background: var(--color-secondary-bg, #f0f7f6);
     border-color: var(--color-secondary, #1e6e6e);
     color: var(--color-secondary, #1e6e6e);

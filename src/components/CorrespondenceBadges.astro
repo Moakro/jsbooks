@@ -1,0 +1,103 @@
+---
+import Icon from "./Icon.svelte";
+import { targetHref, type CorrespondenceMatch } from "../lib/correspondences";
+
+interface Props {
+  matches: CorrespondenceMatch[];
+}
+
+const SCRIPTURE_LABEL: Record<string, string> = {
+  cheonjigaebyeokgyeong: "천지개벽경",
+  donggokbiseo: "동곡비서",
+};
+
+function badgeIcon(m: CorrespondenceMatch): "sparkles" | "badge-check" {
+  if (m.origin === "curator" || m.status === "confirmed") return "badge-check";
+  return "sparkles";
+}
+
+function badgeTitle(m: CorrespondenceMatch): string {
+  const label = SCRIPTURE_LABEL[m.target_slug] ?? m.target_slug;
+  const sim = m.similarity ? ` · 유사도 ${(m.similarity * 100).toFixed(0)}%` : "";
+  const originLabel =
+    m.origin === "curator"
+      ? "운영자 확정"
+      : m.origin === "community"
+        ? "회원 발견"
+        : "AI 자동 매칭";
+  const statusNote = m.status === "disputed" ? " · 검토 중" : "";
+  return `${label} (${originLabel}${sim}${statusNote})`;
+}
+
+const { matches } = Astro.props;
+const visible = matches.filter((m) => m.status !== "hidden");
+---
+
+{visible.length > 0 && (
+  <span class="badges">
+    {visible.map((m) => (
+      <a
+        class:list={["badge", "verse-compare-link", `origin-${m.origin}`, `status-${m.status}`]}
+        href={targetHref(m)}
+        data-target-slug={m.target_slug}
+        data-target-anchor={m.target_anchor}
+        data-correspondence-id={m.id}
+        data-similarity={m.similarity ?? ""}
+        data-origin={m.origin}
+        title={badgeTitle(m)}
+        aria-label={badgeTitle(m)}
+      >
+        <Icon icon={badgeIcon(m)} size={13} strokeWidth={1.7} />
+        <span class="b-label">{SCRIPTURE_LABEL[m.target_slug] ?? m.target_slug}</span>
+      </a>
+    ))}
+  </span>
+)}
+
+<style>
+  .badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.08rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 500;
+    line-height: 1.5;
+    text-decoration: none;
+    border: 1px solid var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-primary-bg);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  }
+  .badge.origin-ai {
+    border-style: dashed;
+  }
+  .badge.origin-curator,
+  .badge.status-confirmed {
+    border-style: solid;
+    background: var(--color-primary);
+    color: var(--color-bg);
+  }
+  .badge.origin-community {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+    background: var(--color-secondary-bg);
+  }
+  .badge.status-disputed {
+    opacity: 0.55;
+    border-style: dotted;
+  }
+  .badge:hover {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    transform: translateY(-1px);
+  }
+</style>

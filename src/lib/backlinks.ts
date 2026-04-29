@@ -10,8 +10,9 @@ import type { CardKind } from "./wikilink";
 export type Backlink =
   | {
       kind: "scripture";
-      vol: number;
-      chap: number;
+      scriptureSlug: string;     // e.g. "cheonjigaebyeokgyeong" | "donggokbiseo"
+      vol?: number;              // present for hierarchical scripture (권/장)
+      chap?: number;
       verseId?: string;
       title: string;
       excerpt: string;
@@ -72,17 +73,29 @@ export async function buildBacklinkIndex(): Promise<BacklinkIndex> {
   const VERSE_RE = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
   const scripture = await getCollection("scripture");
   for (const entry of scripture) {
+    // entry.id is "<scripture-slug>/<path>" — first segment is the scripture slug
+    const slashIdx = entry.id.indexOf("/");
+    const scriptureSlug = slashIdx > 0 ? entry.id.slice(0, slashIdx) : entry.id;
+
     const vol = entry.data.권;
     const chap = entry.data.장;
-    if (!vol || !chap) continue;
+    const isHierarchical = !!(vol && chap);
+    const isFlatVerses = entry.data.type === "verses";
+    if (!isHierarchical && !isFlatVerses) continue;
+
     const body = entry.body ?? "";
     let vm: RegExpExecArray | null;
     VERSE_RE.lastIndex = 0;
     while ((vm = VERSE_RE.exec(body)) !== null) {
       const verseId = vm[2];
+      const verseNum = parseInt(vm[1], 10);
       const verseBody = vm[3].trim();
       const targets = extractTargets(verseBody);
       const seen = new Set<string>();
+      const scriptureName = entry.data.scripture ?? scriptureSlug;
+      const title = isHierarchical
+        ? `권 ${vol} ${entry.data.권_이름 ?? ""} · ${chap}장 ${verseNum}절`
+        : `${scriptureName} · ${verseNum}절`;
       for (const target of targets) {
         const key = resolveKey(target, manifest);
         if (!key) continue;
@@ -90,10 +103,10 @@ export async function buildBacklinkIndex(): Promise<BacklinkIndex> {
         seen.add(key);
         add(key, {
           kind: "scripture",
-          vol,
-          chap,
+          scriptureSlug,
+          ...(isHierarchical ? { vol, chap } : {}),
           verseId,
-          title: `권 ${vol} ${entry.data.권_이름 ?? ""} · ${chap}장 ${parseInt(vm[1], 10)}절`,
+          title,
           excerpt: shortExcerpt(verseBody, target),
         });
       }

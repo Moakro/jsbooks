@@ -147,14 +147,9 @@
     font-size: 0.78rem;
     color: var(--color-muted, #8a807a);
   }
-  @media (max-width: 720px) {
+  @media (max-width: 499px) {
     .right {
-      min-width: 0;
-      padding: 0.5rem 0.85rem;
-      gap: 0.5rem;
-    }
-    .right .temp {
-      font-size: 1rem;
+      display: none;
     }
   }
   .row {

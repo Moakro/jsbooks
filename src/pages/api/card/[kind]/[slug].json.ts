@@ -80,7 +80,10 @@ export const GET: APIRoute = async ({ params }) => {
 function backlinkHref(b: Backlink): string {
   if (b.kind === "scripture") {
     const anchor = b.verseId ? `#${b.verseId}` : "";
-    return `/wiki/cheonjigaebyeokgyeong/${b.vol}/${b.chap}/${anchor}`;
+    if (b.vol && b.chap) {
+      return `/wiki/${b.scriptureSlug}/${b.vol}/${b.chap}/${anchor}`;
+    }
+    return `/wiki/${b.scriptureSlug}/${anchor}`;
   }
   return `/wiki/${b.kind}/${encodeURIComponent(b.slug)}/`;
 }

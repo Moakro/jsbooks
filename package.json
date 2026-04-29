@@ -12,7 +12,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "sync:vault": "bash scripts/sync-vault.sh",
-    "embed": "node --experimental-strip-types --no-warnings scripts/embed.ts"
+    "embed": "node --experimental-strip-types --no-warnings scripts/embed.ts",
+    "build:correspondences": "node --experimental-strip-types --no-warnings scripts/build-correspondences.ts"
   },
   "dependencies": {
     "@astrojs/svelte": "^8.0.5",

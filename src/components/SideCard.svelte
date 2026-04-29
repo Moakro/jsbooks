@@ -22,6 +22,25 @@
     backlinks?: BacklinkData[];
   };
 
+  /** Verse-comparison data shape — fetched from /api/verse/{slug}/{anchor}.json */
+  type VerseData = {
+    kind: "verse";
+    scriptureSlug: string;
+    scriptureName: string;
+    anchor: string;
+    verseNum: number;
+    vol: number | null;
+    chap: number | null;
+    title: string;
+    bodyHTML: string;
+    pageHref: string;
+    /** Set when this verse was opened via a correspondence badge. */
+    correspondenceMeta?: {
+      similarity: number | null;
+      origin: string;
+    };
+  };
+
   const KIND_PILL: Record<string, string> = {
     scripture: "경전",
     people: "인물",
@@ -32,12 +51,13 @@
   };
 
   type StackItem = {
-    key: string; // kind:slug
+    key: string; // kind:slug | "verse:slug#anchor"
     kind: string;
     slug: string;
     loading: boolean;
     error: string | null;
     data: CardData | null;
+    verseData: VerseData | null;
     expanded: boolean;
   };
 
@@ -89,6 +109,7 @@
       loading: true,
       error: null,
       data: null,
+      verseData: null,
       expanded: true,
     };
     stack = [
@@ -104,6 +125,55 @@
       );
     } catch (e: any) {
       console.error("[SideCard] fetch failed", { kind, slug, error: e });
+      stack = stack.map((s) =>
+        s.key === key
+          ? { ...s, error: e?.message ?? "load failed", loading: false }
+          : s,
+      );
+    }
+  }
+
+  async function fetchVerse(slug: string, anchor: string): Promise<VerseData> {
+    const url = `/api/verse/${encodeURIComponent(slug)}/${encodeURIComponent(anchor)}.json`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  async function pushVerse(slug: string, anchor: string, meta?: { similarity: number | null; origin: string }) {
+    const key = `verse:${slug}#${anchor}`;
+    const existing = stack.findIndex((s) => s.key === key);
+    if (existing >= 0) {
+      const item = stack[existing];
+      const rest = stack.filter((_, i) => i !== existing);
+      stack = [
+        ...rest.map((s) => ({ ...s, expanded: false })),
+        { ...item, expanded: true },
+      ];
+      syncURL();
+      return;
+    }
+    const newItem: StackItem = {
+      key,
+      kind: "verse",
+      slug: `${slug}#${anchor}`,
+      loading: true,
+      error: null,
+      data: null,
+      verseData: null,
+      expanded: true,
+    };
+    stack = [...stack.map((s) => ({ ...s, expanded: false })), newItem];
+    syncURL();
+
+    try {
+      const verseData = await fetchVerse(slug, anchor);
+      if (meta) verseData.correspondenceMeta = meta;
+      stack = stack.map((s) =>
+        s.key === key ? { ...s, verseData, loading: false } : s,
+      );
+    } catch (e: any) {
+      console.error("[SideCard] verse fetch failed", { slug, anchor, error: e });
       stack = stack.map((s) =>
         s.key === key
           ? { ...s, error: e?.message ?? "load failed", loading: false }
@@ -180,6 +250,22 @@
   function handleClick(e: MouseEvent) {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     const target = e.target as HTMLElement;
+
+    // Correspondence badges → open target verse in side card.
+    const verseLink = target.closest("a.verse-compare-link") as HTMLAnchorElement | null;
+    if (verseLink) {
+      const slug = verseLink.dataset.targetSlug;
+      const anchor = verseLink.dataset.targetAnchor;
+      if (slug && anchor) {
+        e.preventDefault();
+        const simRaw = verseLink.dataset.similarity;
+        const sim = simRaw ? parseFloat(simRaw) : null;
+        const origin = verseLink.dataset.origin ?? "ai";
+        pushVerse(slug, anchor, { similarity: Number.isFinite(sim) ? sim : null, origin });
+      }
+      return;
+    }
+
     // Only intercept side-card links. `.wikilink.page` (chapter / preface) and
     // bare `.page-link` should navigate normally.
     const a = target.closest("a.wikilink:not(.page)") as HTMLAnchorElement | null;
@@ -230,11 +316,24 @@
             onclick={() => toggleExpand(item.key)}
             aria-expanded={item.expanded}
           >
-            <span class="kind-pill">{item.data?.kindLabel ?? item.kind}</span>
+            <span class="kind-pill">
+              {#if item.kind === "verse"}
+                {item.verseData?.scriptureName ?? "경전"}
+              {:else}
+                {item.data?.kindLabel ?? item.kind}
+              {/if}
+            </span>
             <span class="card-title">
-              {item.data?.name ?? item.slug}
-              {#if item.data?.name_hanja}
-                <span class="hanja">({item.data.name_hanja})</span>
+              {#if item.kind === "verse"}
+                {item.verseData?.verseNum ? `${item.verseData.verseNum}절` : item.slug}
+                {#if item.verseData?.correspondenceMeta?.similarity}
+                  <span class="hanja">({(item.verseData.correspondenceMeta.similarity * 100).toFixed(0)}%)</span>
+                {/if}
+              {:else}
+                {item.data?.name ?? item.slug}
+                {#if item.data?.name_hanja}
+                  <span class="hanja">({item.data.name_hanja})</span>
+                {/if}
               {/if}
             </span>
             <span
@@ -253,6 +352,24 @@
                 <p class="muted">불러오는 중…</p>
               {:else if item.error}
                 <p class="muted">불러오기 실패: {item.error}</p>
+              {:else if item.kind === "verse" && item.verseData}
+                <p class="verse-meta">
+                  {item.verseData.title}
+                  {#if item.verseData.correspondenceMeta}
+                    <span class="muted">
+                      ·
+                      {item.verseData.correspondenceMeta.origin === "curator"
+                        ? "운영자 확정"
+                        : item.verseData.correspondenceMeta.origin === "community"
+                          ? "회원 발견"
+                          : "AI 자동 매칭"}
+                    </span>
+                  {/if}
+                </p>
+                <div class="card-html">{@html item.verseData.bodyHTML}</div>
+                <p class="open-full">
+                  <a href={item.verseData.pageHref}>전체 페이지로 열기 →</a>
+                </p>
               {:else if item.data}
                 {#if item.data.status === "stub"}
                   <p class="stub">※ 스텁(stub) — 보강 예정</p>
@@ -301,13 +418,13 @@
     position: fixed;
     background: var(--color-bg, #fbf8f4);
     border-left: 1px solid var(--color-rule, #e8dfd9);
-    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.06);
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.18);
     transform: translateX(100%);
     transition: transform 0.22s ease;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    z-index: 50;
+    z-index: 80;
   }
   aside.open {
     transform: translateX(0);

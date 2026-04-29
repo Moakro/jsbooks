@@ -1,0 +1,24 @@
+---
+import Base from "../../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import { buildCardManifest } from "../../../lib/manifest";
+import { renderMarkdownBody } from "../../../lib/wikilink";
+
+const all = await getCollection("scripture");
+const after = all.find((e) => e.id === "donggokbiseo/02_후기");
+if (!after) throw new Error("donggokbiseo/02_후기.md not found");
+
+const manifest = await buildCardManifest();
+const bodyHTML = renderMarkdownBody(after.body ?? "", manifest);
+---
+
+<Base title="출간 후기 — 동곡비서" scriptureSlug="donggokbiseo">
+  <p class="meta"><a href="/wiki/donggokbiseo/">← 동곡비서</a></p>
+  <article class="prose-body" set:html={bodyHTML} />
+</Base>
+
+<style>
+  .prose-body :global(p) {
+    line-height: 1.85;
+  }
+</style>

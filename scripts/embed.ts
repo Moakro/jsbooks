@@ -26,6 +26,7 @@ const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
 const NO_DELETE = args.has("--no-delete");
 const UPLOAD_ONLY = args.has("--upload-only");
+const NO_UPLOAD = args.has("--no-upload"); // embed + write NDJSON, skip Vectorize
 
 if (!DRY_RUN && (!ACCOUNT || !TOKEN)) {
   console.error("Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN env vars.");
@@ -41,10 +42,14 @@ type Record = {
     href: string;
     /** Short (~120 char) excerpt shown in search results. */
     snippet: string;
+    /** Scripture slug (for cross-scripture correspondence matching). */
+    scriptureSlug?: string;
     /** Optional verse anchors */
     vol?: number;
     chap?: number;
     verse?: number;
+    /** Block-id anchor (e.g. "1-1-1" or "047"). */
+    verseId?: string;
   };
 };
 
@@ -84,62 +89,117 @@ function snippet(text: string, max = 140): string {
 
 const records: Record[] = [];
 
-// 1a. scripture verses
-const scriptureRoot = join(CONTENT, "scripture", "cheonjigaebyeokgyeong");
-for (const volDir of readdirSync(scriptureRoot)) {
-  const volPath = join(scriptureRoot, volDir);
-  if (!statSync(volPath).isDirectory()) continue;
-  for (const fname of readdirSync(volPath)) {
-    if (!fname.endsWith(".md")) continue;
-    const { fm, body } = readMd(join(volPath, fname));
-    const vol = fm["권"];
-    const chap = fm["장"];
-    if (!vol || !chap) continue;
-    // Split body into verses
-    const verseRe = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
-    let mm: RegExpExecArray | null;
-    while ((mm = verseRe.exec(body)) !== null) {
-      const verseNum = parseInt(mm[1], 10);
-      const verseId = mm[2];
-      const verseBody = mm[3].trim();
-      const text = stripWikilinks(verseBody);
-      if (!text) continue;
-      records.push({
-        id: `scripture:${vol}:${chap}:${verseNum}`,
-        text,
-        metadata: {
-          kind: "scripture",
-          title: `권${vol} ${fm["권_이름"] ?? ""} ${chap}장 ${verseNum}절`,
-          href: `/scripture/${vol}/${chap}/#${verseId}`,
-          snippet: snippet(text),
-          vol,
-          chap,
-          verse: verseNum,
-        },
-      });
-    }
-  }
-}
+// 1a. scripture verses + preface — walk all scripture slugs under content/scripture/
+const scriptureRoot = join(CONTENT, "scripture");
+const VERSE_RE = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
 
-// 1b. preface
-const prefacePath = join(CONTENT, "scripture", "cheonjigaebyeokgyeong", "00_서.md");
-try {
-  const { body } = readMd(prefacePath);
-  const text = stripWikilinks(body);
-  if (text) {
+function processVerseFile(opts: {
+  scriptureSlug: string;
+  scriptureName: string;
+  fm: any;
+  body: string;
+  hierarchical: boolean;
+}) {
+  const { scriptureSlug, scriptureName, fm, body, hierarchical } = opts;
+  const vol = hierarchical ? fm["권"] : undefined;
+  const chap = hierarchical ? fm["장"] : undefined;
+  if (hierarchical && (!vol || !chap)) return;
+
+  VERSE_RE.lastIndex = 0;
+  let mm: RegExpExecArray | null;
+  while ((mm = VERSE_RE.exec(body)) !== null) {
+    const verseNum = parseInt(mm[1], 10);
+    const verseId = mm[2];
+    const verseBody = mm[3].trim();
+    const text = stripWikilinks(verseBody);
+    if (!text) continue;
+
+    const id = hierarchical
+      ? `scripture:${scriptureSlug}:${vol}:${chap}:${verseNum}`
+      : `scripture:${scriptureSlug}:${verseId}`;
+    const href = hierarchical
+      ? `/wiki/${scriptureSlug}/${vol}/${chap}/#${verseId}`
+      : `/wiki/${scriptureSlug}/#${verseId}`;
+    const title = hierarchical
+      ? `${scriptureName} 권${vol} ${fm["권_이름"] ?? ""} ${chap}장 ${verseNum}절`
+      : `${scriptureName} ${verseNum}절`;
+
     records.push({
-      id: "scripture:preface",
+      id,
       text,
       metadata: {
         kind: "scripture",
-        title: "천지개벽경 서(序)",
-        href: "/scripture/preface/",
+        title,
+        href,
         snippet: snippet(text),
+        scriptureSlug,
+        ...(hierarchical ? { vol, chap, verse: verseNum } : { verse: verseNum }),
+        verseId,
       },
     });
   }
-} catch {
-  // optional
+}
+
+for (const slug of readdirSync(scriptureRoot)) {
+  const slugPath = join(scriptureRoot, slug);
+  if (!statSync(slugPath).isDirectory()) continue;
+
+  // First pass: collect scripture display name from any file's frontmatter
+  let scriptureName = slug;
+  for (const item of readdirSync(slugPath)) {
+    const itemPath = join(slugPath, item);
+    if (!statSync(itemPath).isDirectory() && item.endsWith(".md")) {
+      const { fm } = readMd(itemPath);
+      if (fm.scripture) {
+        scriptureName = fm.scripture;
+        break;
+      }
+    }
+  }
+
+  // Second pass: process each .md (single file = preface/verses/afterword)
+  // and each subdirectory (hierarchical chapter files like cheonjigaebyeokgyeong).
+  for (const item of readdirSync(slugPath)) {
+    const itemPath = join(slugPath, item);
+
+    if (statSync(itemPath).isDirectory()) {
+      // hierarchical 권 directory — chapters inside
+      for (const fname of readdirSync(itemPath)) {
+        if (!fname.endsWith(".md")) continue;
+        const { fm, body } = readMd(join(itemPath, fname));
+        processVerseFile({ scriptureSlug: slug, scriptureName, fm, body, hierarchical: true });
+      }
+      continue;
+    }
+
+    if (!item.endsWith(".md")) continue;
+    const { fm, body } = readMd(itemPath);
+    const type = fm.type;
+
+    if (type === "preface") {
+      const text = stripWikilinks(body);
+      if (text) {
+        records.push({
+          id: `scripture:${slug}:preface`,
+          text,
+          metadata: {
+            kind: "scripture",
+            title: `${scriptureName} 서(序)`,
+            href: `/wiki/${slug}/preface/`,
+            snippet: snippet(text),
+            scriptureSlug: slug,
+          },
+        });
+      }
+    } else if (type === "verses") {
+      processVerseFile({ scriptureSlug: slug, scriptureName, fm, body, hierarchical: false });
+    } else if (type === "afterword") {
+      // skip — publishing note, not a doctrinal verse
+    } else if (fm["권"] || fm["장"]) {
+      // legacy format: hierarchical chapter file at top level
+      processVerseFile({ scriptureSlug: slug, scriptureName, fm, body, hierarchical: true });
+    }
+  }
 }
 
 // 1c. cards
@@ -161,7 +221,7 @@ for (const kind of cardKinds) {
       metadata: {
         kind,
         title: `${fm.name ?? slug} (${KIND_LABEL[kind]})`,
-        href: `/${kind}/${encodeURIComponent(slug)}/`,
+        href: `/wiki/${kind}/${encodeURIComponent(slug)}/`,
         snippet: snippet(text),
       },
     });
@@ -305,6 +365,10 @@ async function main() {
 
   if (DRY_RUN) {
     console.log("dry-run: skipped Vectorize upsert");
+    return;
+  }
+  if (NO_UPLOAD) {
+    console.log("no-upload: skipped Vectorize upsert (NDJSON written for downstream tools)");
     return;
   }
 

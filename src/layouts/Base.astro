@@ -100,6 +100,63 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         if (wrap.contains(target) || btn?.contains(target)) return;
         setOpen(false);
       });
+
+      // Manual smooth scroll — requestAnimationFrame so it works even if the
+      // browser/OS ignores `behavior: "smooth"` (reduced-motion etc).
+      function smoothScrollTo(targetY: number, duration = 550) {
+        const startY = window.scrollY;
+        const diff = targetY - startY;
+        if (Math.abs(diff) < 4) {
+          window.scrollTo(0, targetY);
+          return;
+        }
+        const startTime = performance.now();
+        function step(now: number) {
+          const t = Math.min(1, (now - startTime) / duration);
+          // easeInOutCubic
+          const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          window.scrollTo(0, startY + diff * eased);
+          if (t < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      }
+
+      function jumpAndFlash(id: string) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const headerOffset = 110;
+        const targetY =
+          el.getBoundingClientRect().top + window.scrollY - headerOffset;
+        smoothScrollTo(Math.max(0, targetY));
+        el.classList.remove("flash");
+        void (el as HTMLElement).offsetWidth;
+        el.classList.add("flash");
+        window.setTimeout(() => el.classList.remove("flash"), 1500);
+      }
+      function flashHashTarget() {
+        const id = decodeURIComponent(location.hash.slice(1));
+        if (id) jumpAndFlash(id);
+      }
+      // Block browser auto-restore so first scroll is ours
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+      window.addEventListener("DOMContentLoaded", () => {
+        window.setTimeout(flashHashTarget, 30);
+      });
+      window.addEventListener("hashchange", flashHashTarget);
+      document.addEventListener("click", (e) => {
+        const me = e as MouseEvent;
+        if (me.metaKey || me.ctrlKey || me.shiftKey || me.button !== 0) return;
+        const a = (e.target as HTMLElement)?.closest?.("a") as HTMLAnchorElement | null;
+        if (!a) return;
+        const href = a.getAttribute("href");
+        if (!href || !href.startsWith("#") || href.length < 2) return;
+        const id = decodeURIComponent(href.slice(1));
+        const el = document.getElementById(id);
+        if (!el) return;
+        e.preventDefault();
+        history.pushState(null, "", `#${id}`);
+        jumpAndFlash(id);
+      });
     </script>
     <style is:global>
       /* ───────── Design tokens ─────────
@@ -158,6 +215,9 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       *::after {
         box-sizing: border-box;
       }
+      html {
+        scroll-behavior: smooth;
+      }
       html,
       body {
         margin: 0;
@@ -170,6 +230,24 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
           sans-serif;
         font-size: 17px;
         line-height: 1.7;
+      }
+      /* Anchor jumps land just below the sticky header. */
+      .verse {
+        scroll-margin-top: 110px;
+      }
+      /* Outline-only flash: 단심 테두리만 짧게 깜빡 */
+      @keyframes jsb-flash {
+        0%,
+        40% {
+          box-shadow: 0 0 0 3px var(--color-primary);
+        }
+        100% {
+          box-shadow: 0 0 0 0 transparent;
+        }
+      }
+      .verse.flash {
+        animation: jsb-flash 1.5s ease-out;
+        border-radius: 4px;
       }
       header {
         background: var(--bg);
@@ -367,18 +445,9 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
           z-index: 55;
         }
       }
-      /* Desktop: when SideCard is open, give it room on the right.
-         The left sidebar already takes its own space via flex layout. */
-      @media (min-width: 1024px) {
-        body[data-sidecard="open"] main {
-          margin-right: 440px;
-        }
-      }
-      @media (max-width: 1023px) {
-        body[data-sidecard="open"] main {
-          padding-bottom: 70vh;
-        }
-      }
+      /* SideCard is an overlay — main content keeps its position.
+         (Previously pushed the layout aside; that caused jarring reflows
+         when opening cards while reading.) */
       footer {
         max-width: 800px;
         margin: 0 auto;

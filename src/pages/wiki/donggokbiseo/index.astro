@@ -1,0 +1,90 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Comments from "../../../components/Comments.svelte";
+import { getCollection } from "astro:content";
+import { buildCardManifest } from "../../../lib/manifest";
+import { renderWikilinks } from "../../../lib/wikilink";
+import { correspondencesFor } from "../../../lib/correspondences";
+import CorrespondenceBadges from "../../../components/CorrespondenceBadges.astro";
+
+const all = await getCollection("scripture");
+const verses_entry = all.find((e) => e.id === "donggokbiseo/01_본문");
+if (!verses_entry) throw new Error("donggokbiseo/01_본문.md not found");
+
+const manifest = await buildCardManifest();
+
+type Verse = { num: number; id: string; html: string };
+const body = verses_entry.body ?? "";
+const versePattern = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
+const verses: Verse[] = [];
+let m: RegExpExecArray | null;
+while ((m = versePattern.exec(body)) !== null) {
+  const num = parseInt(m[1], 10);
+  const id = m[2];
+  const raw = m[3].trim();
+  const paragraphs = raw.split(/\n\s*\n/).filter(Boolean);
+  const inner = paragraphs
+    .map((p) => renderWikilinks(p, manifest))
+    .join("\n\n");
+  verses.push({ num, id, html: inner });
+}
+---
+
+<Base title="동곡비서 (銅谷秘書) — jsbooks" scriptureSlug="donggokbiseo">
+  <p class="meta"><a href="/wiki/">← 경전 카탈로그</a></p>
+  <h1
+    data-pagefind-body
+    data-pagefind-filter="kind:경전"
+    data-pagefind-meta="title:동곡비서"
+  >동곡비서 (銅谷秘書)</h1>
+  <p class="meta">이춘풍(李春風) 엮음 · 1990년 5월 5일 (경오년)</p>
+
+  <p>
+    <a href="/wiki/donggokbiseo/preface/">서(序)</a>
+    <span class="meta"> · 1990 청죽 사본 / 김태진 수기 비전</span>
+    {" · "}
+    <a href="/wiki/donggokbiseo/afterword/">출간 후기</a>
+  </p>
+
+  <p class="meta" style="font-size: 0.9rem; margin-top: 0.5rem">
+    본문 {verses.length}절. 권·장 위계 없이 평면 시퀀스로 수록되어 있습니다.
+  </p>
+
+  <p class="ai-disclaimer">
+    <span aria-hidden="true">✦</span>
+    표시는 AI가 자동 검출한 다른 경전의 유사 절입니다. 오류가 있을 수 있으니 댓글로 알려주세요.
+  </p>
+
+  <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--rule)" />
+
+  {verses.map((v) => (
+    <section class="verse" id={v.id}>
+      <div class="verse-label">
+        <a href={`#${v.id}`}>{v.num}절</a>
+        <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
+        <CorrespondenceBadges matches={correspondencesFor("donggokbiseo", v.id)} />
+      </div>
+      <div class="verse-body" set:html={v.html} />
+    </section>
+  ))}
+
+  <Comments client:load targetKind="scripture" targetId="donggokbiseo" />
+</Base>
+
+<style>
+  .ai-disclaimer {
+    margin: 0.6rem 0 0;
+    padding: 0.5rem 0.85rem;
+    background: var(--color-secondary-bg);
+    border-left: 3px solid var(--color-secondary);
+    border-radius: 0 6px 6px 0;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    line-height: 1.55;
+  }
+  .ai-disclaimer span {
+    color: var(--color-secondary);
+    font-weight: 600;
+    margin-right: 0.2rem;
+  }
+</style>
