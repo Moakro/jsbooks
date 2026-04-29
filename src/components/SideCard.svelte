@@ -133,11 +133,20 @@
     }
   }
 
-  async function fetchVerse(slug: string, anchor: string): Promise<VerseData> {
-    const url = `/api/verse/${encodeURIComponent(slug)}/${encodeURIComponent(anchor)}.json`;
-    const res = await fetch(url);
+  let versesIndexCache: Record<string, any> | null = null;
+  async function loadVersesIndex(): Promise<Record<string, any>> {
+    if (versesIndexCache) return versesIndexCache;
+    const res = await fetch("/verses.json");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    versesIndexCache = await res.json();
+    return versesIndexCache!;
+  }
+  async function fetchVerse(slug: string, anchor: string): Promise<VerseData> {
+    const idx = await loadVersesIndex();
+    const key = `${slug}#${anchor}`;
+    const v = idx[key];
+    if (!v) throw new Error(`verse not found: ${key}`);
+    return { kind: "verse", ...v };
   }
 
   async function pushVerse(slug: string, anchor: string, meta?: { similarity: number | null; origin: string }) {
