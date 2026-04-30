@@ -259,6 +259,70 @@ mkdirSync(dirname(OUT_PATH), { recursive: true });
 writeFileSync(OUT_PATH, lines_out.join("\n"));
 console.log(`wrote ${totalEmitted} matches across ${sortedSources.length} sources → ${OUT_PATH}`);
 
+// Also emit a bidirectional JSON map for runtime lookup without fs.
+const JSON_OUT = OUT_PATH.replace(/\.yml$/, ".json");
+const jsonMap: Record<string, Array<{
+  id: string;
+  source: string;
+  target: string;
+  similarity?: number;
+  origin: string;
+  status: string;
+  note?: string;
+  source_slug: string;
+  source_anchor: string;
+  target_slug: string;
+  target_anchor: string;
+}>> = {};
+
+function pushBoth(source: string, m: any) {
+  const [s_slug, s_anchor] = source.split("#");
+  const [t_slug, t_anchor] = m.target.split("#");
+  if (!s_slug || !s_anchor || !t_slug || !t_anchor) return;
+  const id = `${s_slug}-${s_anchor}__${t_slug}-${t_anchor}`;
+  const status = m.status ?? "active";
+  if (status === "hidden") return;
+  const fwd = {
+    id,
+    source,
+    target: m.target,
+    similarity: m.similarity,
+    origin: m.origin ?? "ai",
+    status,
+    note: m.note,
+    source_slug: s_slug,
+    source_anchor: s_anchor,
+    target_slug: t_slug,
+    target_anchor: t_anchor,
+  };
+  if (!jsonMap[source]) jsonMap[source] = [];
+  jsonMap[source].push(fwd);
+  if (!jsonMap[m.target]) jsonMap[m.target] = [];
+  jsonMap[m.target].push({
+    ...fwd,
+    source: m.target,
+    target: source,
+    source_slug: t_slug,
+    source_anchor: t_anchor,
+    target_slug: s_slug,
+    target_anchor: s_anchor,
+  });
+}
+
+for (const source of sortedSources) {
+  const aiMatches = grouped.get(source) ?? [];
+  const preservedMatches = preserved.get(source) ?? [];
+  const preservedTargets = new Set(preservedMatches.map((m) => m.target));
+  for (const m of preservedMatches) pushBoth(source, m);
+  for (const m of aiMatches) {
+    if (preservedTargets.has(m.target)) continue;
+    pushBoth(source, { target: m.target, similarity: m.similarity, origin: "ai", status: "active" });
+  }
+}
+
+writeFileSync(JSON_OUT, JSON.stringify(jsonMap));
+console.log(`wrote runtime lookup map → ${JSON_OUT}`);
+
 // ── helpers ─────────────────────────────────────────────────
 function parseSimpleYaml(text: string): Existing[] {
   // Owns its own format produced above. Parses single-doc YAML of:
