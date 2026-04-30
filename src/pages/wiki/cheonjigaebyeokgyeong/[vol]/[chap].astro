@@ -7,6 +7,8 @@ import { buildCardManifest } from "../../../../lib/manifest";
 import { renderWikilinks } from "../../../../lib/wikilink";
 import { correspondencesFor } from "../../../../lib/correspondences";
 import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
+import ScriptureChapterNav from "../../../../components/ScriptureChapterNav.astro";
+import ScriptureStickyBar from "../../../../components/ScriptureStickyBar.astro";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -40,20 +42,24 @@ while ((m = versePattern.exec(body)) !== null) {
   verses.push({ num, id, html: inner });
 }
 
-// Find prev/next chapters within the same volume
+// Same-volume index (for the progress indicator at the top)
 const all = await getCollection("scripture");
 const sameVol = all
   .filter((e) => e.data.권 === 권 && e.data.장)
   .sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
 const idx = sameVol.findIndex((e) => e.id === entry.id);
-const prev = sameVol[idx - 1];
-const next = sameVol[idx + 1];
+const totalChaps = sameVol.length;
+const chapPct = Math.round(((idx + 1) / totalChaps) * 100);
 
 // entry.id is like "cheonjigaebyeokgyeong/02_임인편/02-01_장" — reconstruct the content/ path.
 const historyPath = `content/scripture/${entry.id}.md`;
 ---
 
 <Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`} scriptureSlug="cheonjigaebyeokgyeong">
+  <ScriptureStickyBar
+    scriptureName="천지개벽경"
+    context={`권 ${권} ${권_이름} · ${장}장`}
+  />
   <p class="meta">
     <a href="/wiki/cheonjigaebyeokgyeong/">천지개벽경</a> · 권 {권} · {권_이름} ({권_이름_한자}) ·
     {연도_간지} {연도}
@@ -63,6 +69,10 @@ const historyPath = `content/scripture/${entry.id}.md`;
     data-pagefind-filter="kind:경전"
     data-pagefind-meta={`title:권${권} ${권_이름} ${장}장`}
   >{장}장</h1>
+  <div class="chap-progress" aria-label={`이 권의 ${idx + 1}번째 장 / 전체 ${totalChaps}장`}>
+    <div class="bar"><div class="fill" style={`width: ${chapPct}%`}></div></div>
+    <span class="meta">{idx + 1} / {totalChaps}장</span>
+  </div>
 
   {verses.map((v) => (
     <section class="verse" id={v.id}>
@@ -75,27 +85,36 @@ const historyPath = `content/scripture/${entry.id}.md`;
     </section>
   ))}
 
-  <nav class="chapter-nav">
-    {prev && (
-      <a href={`/wiki/cheonjigaebyeokgyeong/${권}/${prev.data.장}/`}>← {prev.data.장}장</a>
-    )}
-    <span style="flex: 1" />
-    {next && (
-      <a href={`/wiki/cheonjigaebyeokgyeong/${권}/${next.data.장}/`}>{next.data.장}장 →</a>
-    )}
-  </nav>
+  <ScriptureChapterNav scriptureSlug="cheonjigaebyeokgyeong" currentId={entry.id} />
 
   <Comments client:idle target={`chapter:${권}:${장}`} />
   <History path={historyPath} />
 </Base>
 
 <style>
-  .chapter-nav {
+  .chap-progress {
     display: flex;
-    margin-top: 3rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--rule);
-    gap: 1rem;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0.4rem 0 1.5rem;
+  }
+  .chap-progress .bar {
+    flex: 1;
+    height: 4px;
+    background: var(--color-rule);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .chap-progress .fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+  .chap-progress .meta {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    flex-shrink: 0;
   }
   .verse-body :global(p) {
     margin: 0.5rem 0;

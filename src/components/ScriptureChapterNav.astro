@@ -1,0 +1,270 @@
+---
+/**
+ * Universal scripture chapter navigation footer.
+ * - Hierarchical (권/장) scriptures: accordion per volume + 서문/후기 boxes
+ * - Flat (verses) scriptures: single row with 序 / 본문 / 후기
+ *
+ * Pass `currentId` as the Astro content entry id of the page being viewed,
+ * e.g. "cheonjigaebyeokgyeong/02_임인편/02-03_장",
+ *      "cheonjigaebyeokgyeong/00_서",
+ *      "donggokbiseo/01_본문",
+ *      "donggokbiseo/02_후기".
+ */
+import { getCollection } from "astro:content";
+
+interface Props {
+  scriptureSlug: string;
+  currentId: string;
+  /** "bottom" (default) — full top border + 3rem space.
+   *  "top" — compact, no top border, smaller margin. */
+  placement?: "top" | "bottom";
+}
+
+const { scriptureSlug, currentId, placement = "bottom" } = Astro.props;
+
+const all = await getCollection("scripture");
+const own = all.filter((e) => e.id.startsWith(`${scriptureSlug}/`));
+const preface = own.find((e) => e.data.type === "preface");
+const afterword = own.find((e) => e.data.type === "afterword");
+const versesEntry = own.find((e) => e.data.type === "verses");
+const chapters = own.filter((e) => e.data.권 && e.data.장);
+
+type VolGroup = {
+  num: number;
+  name: string;
+  hanja: string;
+  ganji: string;
+  year: number;
+  chapters: typeof chapters;
+};
+const volMap = new Map<number, VolGroup>();
+for (const e of chapters) {
+  const v = e.data.권!;
+  if (!volMap.has(v)) {
+    volMap.set(v, {
+      num: v,
+      name: e.data.권_이름 ?? "",
+      hanja: e.data.권_이름_한자 ?? "",
+      ganji: e.data.연도_간지 ?? "",
+      year: e.data.연도 ?? 0,
+      chapters: [] as any,
+    });
+  }
+  volMap.get(v)!.chapters.push(e);
+}
+for (const v of volMap.values()) {
+  v.chapters.sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
+}
+const allVols = [...volMap.values()].sort((a, b) => a.num - b.num);
+
+const isHierarchical = chapters.length > 0;
+
+const currentVolNum = isHierarchical
+  ? chapters.find((c) => c.id === currentId)?.data.권 ?? null
+  : null;
+const isCurPreface = preface?.id === currentId;
+const isCurAfter = afterword?.id === currentId;
+const isCurVerses = versesEntry?.id === currentId;
+
+const versesHref = `/wiki/${scriptureSlug}/`;
+const prefaceHref = `/wiki/${scriptureSlug}/preface/`;
+const afterwordHref = `/wiki/${scriptureSlug}/afterword/`;
+---
+
+<nav class:list={["chapter-nav", `place-${placement}`]} aria-label="장 이동">
+  {isHierarchical ? (
+    <>
+      {preface && (
+        <details class="vol-acc" open={isCurPreface}>
+          <summary class:list={[{ current: isCurPreface }]}>
+            <span class="vol-num">서문</span>
+            {preface.data.date_lunar && (
+              <span class="vol-meta">· {preface.data.date_lunar}</span>
+            )}
+          </summary>
+          <div class="chap-grid">
+            <a
+              href={prefaceHref}
+              class:list={["chap-btn", { current: isCurPreface }]}
+              aria-current={isCurPreface ? "page" : undefined}
+            >序</a>
+          </div>
+        </details>
+      )}
+      {allVols.map((v) => {
+        const isCurrentVol = v.num === currentVolNum;
+        return (
+          <details class="vol-acc" open={isCurrentVol}>
+            <summary class:list={[{ current: isCurrentVol }]}>
+              <span class="vol-num">권 {v.num}</span>
+              <span class="vol-name">{v.name}</span>
+              <span class="vol-hanja">{v.hanja}</span>
+              <span class="vol-meta">· {v.ganji} {v.year}</span>
+            </summary>
+            <div class="chap-grid">
+              {v.chapters.map((c) => {
+                const isCurrent = c.id === currentId;
+                return (
+                  <a
+                    href={`/wiki/${scriptureSlug}/${v.num}/${c.data.장}/`}
+                    class:list={["chap-btn", { current: isCurrent }]}
+                    aria-current={isCurrent ? "page" : undefined}
+                  >{c.data.장}</a>
+                );
+              })}
+            </div>
+          </details>
+        );
+      })}
+      {afterword && (
+        <details class="vol-acc" open={isCurAfter}>
+          <summary class:list={[{ current: isCurAfter }]}>
+            <span class="vol-num">후기</span>
+          </summary>
+          <div class="chap-grid">
+            <a
+              href={afterwordHref}
+              class:list={["chap-btn", { current: isCurAfter }]}
+              aria-current={isCurAfter ? "page" : undefined}
+            >후기</a>
+          </div>
+        </details>
+      )}
+    </>
+  ) : (
+    <div class="chap-grid flat">
+      {preface && (
+        <a
+          href={prefaceHref}
+          class:list={["chap-btn", { current: isCurPreface }]}
+          aria-current={isCurPreface ? "page" : undefined}
+        >序</a>
+      )}
+      {versesEntry && (
+        <a
+          href={versesHref}
+          class:list={["chap-btn", { current: isCurVerses }]}
+          aria-current={isCurVerses ? "page" : undefined}
+        >본문</a>
+      )}
+      {afterword && (
+        <a
+          href={afterwordHref}
+          class:list={["chap-btn", { current: isCurAfter }]}
+          aria-current={isCurAfter ? "page" : undefined}
+        >후기</a>
+      )}
+    </div>
+  )}
+</nav>
+
+<style>
+  .chapter-nav.place-bottom {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+  }
+  .chapter-nav.place-top {
+    margin: 1rem 0 1.5rem;
+  }
+  .vol-acc {
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .vol-acc:last-child {
+    border-bottom: none;
+  }
+  .vol-acc summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 0.7rem 0.4rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+    user-select: none;
+    transition: background 0.15s ease;
+  }
+  .vol-acc summary::-webkit-details-marker {
+    display: none;
+  }
+  .vol-acc summary::before {
+    content: "▶";
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    transition: transform 0.15s ease;
+    margin-right: 0.2rem;
+  }
+  .vol-acc[open] summary::before {
+    transform: rotate(90deg);
+  }
+  .vol-acc summary:hover {
+    background: var(--color-primary-bg);
+  }
+  .vol-acc summary.current {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+  .vol-num {
+    color: var(--color-muted);
+    font-size: 0.85rem;
+  }
+  .vol-acc summary.current .vol-num {
+    color: var(--color-primary);
+  }
+  .vol-hanja {
+    color: var(--color-hanja);
+    font-size: 0.85em;
+    font-weight: normal;
+  }
+  .vol-meta {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+    font-weight: normal;
+  }
+  .chap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+    gap: 0.35rem;
+    padding: 0.5rem 0 1rem;
+  }
+  .chap-grid.flat {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    padding: 0;
+  }
+  .chap-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  .chap-grid.flat .chap-btn {
+    min-height: 40px;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.95rem;
+  }
+  .chap-btn:hover {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    transform: translateY(-1px);
+  }
+  .chap-btn.current {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-bg);
+    font-weight: 600;
+    cursor: default;
+  }
+  .chap-btn.current:hover {
+    transform: none;
+  }
+</style>

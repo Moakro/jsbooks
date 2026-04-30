@@ -65,12 +65,12 @@
 </script>
 
 <div class="block">
-  <h3>내 경전</h3>
+  <h3>내 책장</h3>
 
   {#if loading}
     <p class="muted small">불러오는 중…</p>
   {:else if visible.length === 0}
-    <p class="muted small">표시할 경전이 없습니다.</p>
+    <p class="muted small">책장이 비어 있습니다.</p>
   {:else}
     <ul class="scriptures">
       {#each visible as s (s.slug)}
@@ -88,7 +88,7 @@
 
   {#if !user}
     <p class="login-hint">
-      로그인 후 경전 목록을 설정할 수 있습니다.
+      로그인하시면 책장을 직접 정리하실 수 있습니다.
     </p>
   {/if}
 </div>

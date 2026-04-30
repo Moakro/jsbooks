@@ -12,7 +12,7 @@ interface Props {
   /** Slug of the scripture currently being viewed, for sidebar highlight. */
   scriptureSlug?: string | null;
 }
-const { title, description = "증산계열 경전 디지털 라이브러리", scriptureSlug = null } = Astro.props;
+const { title, description = "증산계열 경전 도서관 · 북리더 앱", scriptureSlug = null } = Astro.props;
 const path = Astro.url.pathname;
 const activeSection = resolveSection(path);
 const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
@@ -75,7 +75,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       </main>
     </div>
     <footer>
-      <small>증산계열 경전 디지털 라이브러리 · 학술 친화 자료</small>
+      <small>증산계열 경전 도서관 · 누구나 무료로 사용, 후원으로 운영합니다</small>
     </footer>
     <SideCard client:load />
     <script>
@@ -100,6 +100,47 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         if (wrap.contains(target) || btn?.contains(target)) return;
         setOpen(false);
       });
+
+      // Auto-hide header on scroll-down, reveal on scroll-up.
+      const headerEl = document.querySelector("header");
+      let lastY = window.scrollY;
+      let ticking = false;
+      function syncHeaderH() {
+        if (!headerEl) return;
+        const h = headerEl.classList.contains("is-hidden")
+          ? 0
+          : headerEl.getBoundingClientRect().height;
+        document.documentElement.style.setProperty("--header-h", h + "px");
+      }
+      function onScrollDir() {
+        if (!headerEl) return;
+        const y = window.scrollY;
+        const dy = y - lastY;
+        if (Math.abs(dy) < 6) return;
+        if (y < 80) {
+          headerEl.classList.remove("is-hidden");
+        } else if (dy > 0) {
+          headerEl.classList.add("is-hidden");
+        } else {
+          headerEl.classList.remove("is-hidden");
+        }
+        lastY = y;
+        syncHeaderH();
+      }
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (ticking) return;
+          ticking = true;
+          requestAnimationFrame(() => {
+            onScrollDir();
+            ticking = false;
+          });
+        },
+        { passive: true },
+      );
+      window.addEventListener("resize", syncHeaderH);
+      window.addEventListener("DOMContentLoaded", syncHeaderH);
 
       // Manual smooth scroll — requestAnimationFrame so it works even if the
       // browser/OS ignores `behavior: "smooth"` (reduced-motion etc).
@@ -249,12 +290,24 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         animation: jsb-flash 1.5s ease-out;
         border-radius: 4px;
       }
+      :root {
+        --header-h: 64px;
+      }
+      @media (max-width: 1023px) {
+        :root {
+          --header-h: 110px;
+        }
+      }
       header {
         background: var(--bg);
         border-bottom: 1px solid var(--rule);
         position: sticky;
         top: 0;
         z-index: 10;
+        transition: transform 0.22s ease;
+      }
+      header.is-hidden {
+        transform: translateY(-100%);
       }
       .header-row.top {
         display: flex;
@@ -499,17 +552,23 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         cursor: help;
       }
       .verse {
-        margin: 1.4rem 0;
-        padding-left: 0.75rem;
+        margin: 1.8rem 0;
+        padding-left: 1rem;
         border-left: 2px solid var(--rule);
       }
       .verse-label {
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         color: var(--muted);
-        margin-bottom: 0.3rem;
+        margin-bottom: 0.45rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
       }
       .verse-body {
         white-space: pre-line;
+        line-height: 1.95;
+        font-size: 1.02rem;
       }
       .index-list {
         list-style: none;

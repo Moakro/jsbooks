@@ -3,6 +3,7 @@ import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderMarkdownBody } from "../../../lib/wikilink";
+import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 
 const all = await getCollection("scripture");
 const preface = all.find((e) => e.id === "donggokbiseo/00_서");
@@ -23,6 +24,8 @@ const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
     전주동곡 이제원에서<br />
     <strong>이춘풍(李春風) 엮음</strong>
   </p>
+
+  <ScriptureChapterNav scriptureSlug="donggokbiseo" currentId={preface.id} />
 </Base>
 
 <style>

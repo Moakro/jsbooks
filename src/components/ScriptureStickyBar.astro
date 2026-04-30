@@ -1,0 +1,123 @@
+---
+/**
+ * Sticky reading-context bar shown under the site header on scripture pages.
+ * - Static prefix: scripture name + chapter context (e.g. "권 8 무신편 · 3장")
+ * - Dynamic suffix: current verse number, updated by IntersectionObserver
+ *   as the user scrolls through `<section class="verse" id="...">` blocks.
+ *
+ * The verse number element has class `js-sticky-verse` and is updated by
+ * the inline script below. If the page has no verses, only the prefix shows.
+ */
+interface Props {
+  scriptureName: string;
+  /** Optional context line (e.g. "권 8 무신편 · 3장"). */
+  context?: string;
+  /** Mark to prefix the verse number. Default: "§". */
+  versePrefix?: string;
+}
+const { scriptureName, context, versePrefix = "§" } = Astro.props;
+---
+
+<div class="sticky-bar" data-sticky-bar>
+  <span class="s-name">{scriptureName}</span>
+  {context && (
+    <>
+      <span class="s-sep" aria-hidden="true">·</span>
+      <span class="s-context">{context}</span>
+    </>
+  )}
+  <span class="s-verse js-sticky-verse" aria-live="polite"></span>
+  <span class="s-prefix-hidden" data-verse-prefix>{versePrefix}</span>
+</div>
+
+<script>
+  (function () {
+    const bar = document.querySelector("[data-sticky-bar]") as HTMLElement | null;
+    if (!bar) return;
+    const verseEl = bar.querySelector(".js-sticky-verse") as HTMLElement | null;
+    const prefixEl = bar.querySelector("[data-verse-prefix]") as HTMLElement | null;
+    if (!verseEl || !prefixEl) return;
+    const prefix = prefixEl.textContent ?? "§";
+    const verses = Array.from(document.querySelectorAll<HTMLElement>("section.verse[id]"));
+    if (verses.length === 0) return;
+
+    function verseNumberFrom(el: HTMLElement): string {
+      const label = el.querySelector(".verse-label a");
+      if (label) {
+        const m = label.textContent?.match(/(\d+)/);
+        if (m) return m[1];
+      }
+      return el.id;
+    }
+
+    const visible = new Set<HTMLElement>();
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) visible.add(e.target as HTMLElement);
+          else visible.delete(e.target as HTMLElement);
+        }
+        if (visible.size === 0) return;
+        // Pick the verse closest to the top of the viewport
+        const topMost = [...visible].reduce((best, el) => {
+          const r = el.getBoundingClientRect();
+          if (!best) return { el, top: r.top };
+          return r.top < best.top && r.top > -100
+            ? { el, top: r.top }
+            : best;
+        }, null as { el: HTMLElement; top: number } | null);
+        if (!topMost) return;
+        const num = verseNumberFrom(topMost.el);
+        verseEl.textContent = ` · ${prefix}${num}`;
+      },
+      {
+        rootMargin: "-80px 0px -60% 0px",
+        threshold: [0, 0.5, 1],
+      },
+    );
+    verses.forEach((v) => obs.observe(v));
+  })();
+</script>
+
+<style>
+  .sticky-bar {
+    position: sticky;
+    top: var(--header-h, 0px);
+    z-index: 5;
+    background: var(--color-bg, #fbf8f4);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+    padding: 0.45rem 0.85rem;
+    margin: -1rem -1.25rem 1rem;
+    font-size: 0.82rem;
+    color: var(--color-muted, #8a807a);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    transition: top 0.2s ease;
+  }
+  .s-name {
+    color: var(--color-fg, #1f1c1a);
+    font-weight: 500;
+  }
+  .s-sep {
+    color: var(--color-disabled, #b8b0aa);
+  }
+  .s-context {
+    color: var(--color-muted, #8a807a);
+  }
+  .s-verse {
+    color: var(--color-primary, #a8352a);
+    font-weight: 500;
+    margin-left: auto;
+  }
+  .s-prefix-hidden {
+    display: none;
+  }
+  @media (min-width: 800px) {
+    .sticky-bar {
+      margin: -1rem -2rem 1rem;
+      padding: 0.45rem 2rem;
+    }
+  }
+</style>

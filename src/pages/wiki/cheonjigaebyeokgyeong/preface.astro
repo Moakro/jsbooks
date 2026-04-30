@@ -3,6 +3,7 @@ import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderMarkdownBody } from "../../../lib/wikilink";
+import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 
 const all = await getCollection("scripture");
 const preface = all.find((e) => e.id === "cheonjigaebyeokgyeong/00_서");
@@ -10,6 +11,7 @@ if (!preface) throw new Error("cheonjigaebyeokgyeong/00_서.md not found");
 
 const manifest = await buildCardManifest();
 const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
+
 ---
 
 <Base title="서(序) — 천지개벽경" scriptureSlug="cheonjigaebyeokgyeong">
@@ -22,6 +24,8 @@ const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
     포교 87년 병술 4월 27일<br />
     <strong>이중성(李重盛) 序</strong>
   </p>
+
+  <ScriptureChapterNav scriptureSlug="cheonjigaebyeokgyeong" currentId={preface.id} />
 </Base>
 
 <style>

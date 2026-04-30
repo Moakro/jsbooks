@@ -1,0 +1,32 @@
+---
+/**
+ * Notice banner that explains the ✦ sparkles badge — shown on every
+ * scripture page so users learn what the AI auto-matching badge means.
+ */
+import Icon from "./Icon.svelte";
+---
+
+<p class="ai-match-notice">
+  <Icon client:visible icon="sparkles" size={14} strokeWidth={1.7} />
+  <span>표시는 AI가 자동 검출한 다른 경전의 유사 절입니다. 오류가 있을 수 있으니 댓글로 알려주세요.</span>
+</p>
+
+<style>
+  .ai-match-notice {
+    margin: 0.6rem 0 1.2rem;
+    padding: 0.55rem 0.85rem;
+    background: var(--color-secondary-bg);
+    border-left: 3px solid var(--color-secondary);
+    border-radius: 0 6px 6px 0;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    line-height: 1.55;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .ai-match-notice :global(svg) {
+    color: var(--color-secondary);
+    flex-shrink: 0;
+  }
+</style>
