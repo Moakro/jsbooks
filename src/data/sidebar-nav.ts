@@ -27,17 +27,19 @@ export type SidebarBlock =
     };
 
 export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
+  home: [],
+
   scripture: [
     { type: "scriptures-list" },
     {
       type: "section",
       label: "참조",
       items: [
-        { label: "인물", path: "/wiki/people/" },
-        { label: "지명", path: "/wiki/places/" },
-        { label: "도수", path: "/wiki/dosu/" },
-        { label: "용어", path: "/wiki/terms/" },
-        { label: "시기", path: "/wiki/dates/" },
+        { label: "인물", path: "/library/people/" },
+        { label: "지명", path: "/library/places/" },
+        { label: "도수", path: "/library/dosu/" },
+        { label: "용어", path: "/library/terms/" },
+        { label: "시기", path: "/library/dates/" },
       ],
     },
     {
@@ -143,6 +145,7 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
 
 /** Pages that intentionally render full-width with no sidebar. */
 export const NO_SIDEBAR_PATHS: ReadonlyArray<string> = [
+  "/",
   "/search/",
   "/about/",
   "/changelog/",

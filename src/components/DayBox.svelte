@@ -45,7 +45,7 @@
   {#if info}
     <div class="left">
       <div class="row top">
-        <span class="solar">{info.solar.ymd}</span>
+        <span class="solar">{info.solar.ymdNumeric}</span>
         <span class="weekday">({info.solar.weekday})</span>
         {#if info.lunarKo}
           <span class="dot" aria-hidden="true">·</span>
@@ -90,22 +90,24 @@
     align-items: stretch;
     gap: 0;
     padding: 0;
-    background: linear-gradient(120deg, #f3dcd5 0%, #dbeae8 100%);
-    border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 10px;
+    background: linear-gradient(120deg, #5a2620 0%, #143838 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md, 10px);
     text-decoration: none;
-    color: var(--color-fg, #1f1c1a);
+    color: rgba(255, 255, 255, 0.92);
     overflow: hidden;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    box-shadow: var(--shadow-sm, 0 1px 3px rgba(60, 40, 25, 0.08));
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
   @media (prefers-color-scheme: dark) {
     .daybox {
-      background: linear-gradient(120deg, #3a1d18 0%, #173030 100%);
+      background: linear-gradient(120deg, #3a1d18 0%, #143030 100%);
+      border-color: rgba(255, 255, 255, 0.06);
     }
   }
   .daybox:hover {
-    border-color: var(--color-secondary, #1e6e6e);
-    box-shadow: 0 2px 12px rgba(30, 110, 110, 0.08);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(60, 40, 25, 0.1));
   }
   .left {
     flex: 1;
@@ -122,12 +124,8 @@
     align-items: center;
     gap: 0.7rem;
     padding: 0.6rem 1.1rem;
-    border-left: 1px solid var(--color-rule, #e8dfd9);
     color: var(--color-secondary, #1e6e6e);
     min-width: 180px;
-  }
-  .daybox:hover .right {
-    border-left-color: var(--color-secondary, #1e6e6e);
   }
   .right :global(svg) {
     flex-shrink: 0;
@@ -138,14 +136,17 @@
     gap: 0.05rem;
     line-height: 1.15;
   }
+  .right {
+    color: rgba(255, 255, 255, 0.85);
+  }
   .right .temp {
     font-size: 1.15rem;
-    font-weight: 500;
-    color: var(--color-fg, #1f1c1a);
+    font-weight: 600;
+    color: #ffffff;
   }
   .right .region {
     font-size: 0.78rem;
-    color: var(--color-muted, #8a807a);
+    color: rgba(255, 255, 255, 0.65);
   }
   @media (max-width: 499px) {
     .right {
@@ -161,38 +162,47 @@
   .row.top {
     font-size: 0.95rem;
     font-weight: 500;
+    align-items: center;
   }
   .solar {
-    color: var(--color-fg, #1f1c1a);
+    color: #ffffff;
+    font-family: "Anton", Impact, "Haettenschweiler", "Arial Narrow Bold",
+      "Bebas Neue", system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 1.4rem;
+    letter-spacing: 0.04em;
+    line-height: 1;
   }
   .weekday {
-    color: var(--color-muted, #8a807a);
-    font-size: 0.9em;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.15rem;
+    line-height: 1;
   }
   .dot {
-    color: var(--color-disabled, #b8b0aa);
+    color: rgba(255, 255, 255, 0.35);
   }
   .lunar {
-    color: var(--color-secondary, #1e6e6e);
+    color: #9ed8d4;
+    font-size: 1.1rem;
   }
   .row.sub {
     font-size: 0.8rem;
-    color: var(--color-muted, #8a807a);
+    color: rgba(255, 255, 255, 0.7);
     align-items: center;
   }
   .hanja {
-    color: var(--color-hanja, #5b504a);
+    color: rgba(255, 255, 255, 0.75);
     letter-spacing: 0.03em;
   }
   .jeolgi-text {
-    color: var(--color-muted, #8a807a);
+    color: rgba(255, 255, 255, 0.7);
   }
   .jeolgi-name {
-    color: var(--color-primary, #a8352a);
+    color: #f0b8a8;
     font-weight: 500;
   }
   .hanja-sub {
-    color: var(--color-hanja, #5b504a);
+    color: rgba(255, 255, 255, 0.65);
     font-size: 0.92em;
     margin-left: 0.05rem;
   }
@@ -202,16 +212,16 @@
   .row.memorials {
     margin-top: 0.15rem;
     padding-top: 0.3rem;
-    border-top: 1px dashed var(--color-rule, #e8dfd9);
+    border-top: 1px dashed rgba(255, 255, 255, 0.18);
     font-size: 0.8rem;
     align-items: center;
   }
   .memo-label {
-    color: var(--color-muted, #8a807a);
+    color: rgba(255, 255, 255, 0.55);
     font-size: 0.78rem;
   }
   .memo-name {
-    color: var(--color-fg, #1f1c1a);
+    color: #ffffff;
   }
 
   @media (max-width: 640px) {

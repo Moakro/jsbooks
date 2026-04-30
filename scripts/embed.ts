@@ -118,8 +118,8 @@ function processVerseFile(opts: {
       ? `scripture:${scriptureSlug}:${vol}:${chap}:${verseNum}`
       : `scripture:${scriptureSlug}:${verseId}`;
     const href = hierarchical
-      ? `/wiki/${scriptureSlug}/${vol}/${chap}/#${verseId}`
-      : `/wiki/${scriptureSlug}/#${verseId}`;
+      ? `/library/${scriptureSlug}/${vol}/${chap}/#${verseId}`
+      : `/library/${scriptureSlug}/#${verseId}`;
     const title = hierarchical
       ? `${scriptureName} 권${vol} ${fm["권_이름"] ?? ""} ${chap}장 ${verseNum}절`
       : `${scriptureName} ${verseNum}절`;
@@ -185,7 +185,7 @@ for (const slug of readdirSync(scriptureRoot)) {
           metadata: {
             kind: "scripture",
             title: `${scriptureName} 서(序)`,
-            href: `/wiki/${slug}/preface/`,
+            href: `/library/${slug}/preface/`,
             snippet: snippet(text),
             scriptureSlug: slug,
           },
@@ -221,7 +221,7 @@ for (const kind of cardKinds) {
       metadata: {
         kind,
         title: `${fm.name ?? slug} (${KIND_LABEL[kind]})`,
-        href: `/wiki/${kind}/${encodeURIComponent(slug)}/`,
+        href: `/library/${kind}/${encodeURIComponent(slug)}/`,
         snippet: snippet(text),
       },
     });

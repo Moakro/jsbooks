@@ -32,7 +32,7 @@ const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
 ---
 
 <Base title="천지개벽경 — jsbooks" scriptureSlug="cheonjigaebyeokgyeong">
-  <p class="meta"><a href="/wiki/">← 경전 카탈로그</a></p>
+  <p class="meta"><a href="/library/">← 서재</a></p>
   <h1>천지개벽경 (天地開闢經)</h1>
   <p class="meta">학암 이중성(李重盛) 편술 · 1946년</p>
 
@@ -45,7 +45,7 @@ const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
         <span class="vol-meta">{preface.data.date_lunar}</span>
       </h2>
       <div class="chap-grid">
-        <a class="chap-btn" href="/wiki/cheonjigaebyeokgyeong/preface/">序</a>
+        <a class="chap-btn" href="/library/cheonjigaebyeokgyeong/preface/">序</a>
       </div>
     </section>
   )}
@@ -58,7 +58,7 @@ const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
       </h2>
       <div class="chap-grid">
         {vol.chapters.map((c) => (
-          <a class="chap-btn" href={`/wiki/cheonjigaebyeokgyeong/${num}/${c.data.장}/`}>
+          <a class="chap-btn" href={`/library/cheonjigaebyeokgyeong/${num}/${c.data.장}/`}>
             {c.data.장}
           </a>
         ))}

@@ -7,7 +7,7 @@
  * The header uses `prefix` to highlight the active section: any URL starting
  * with one of these prefixes lights up the corresponding tab.
  */
-export type SectionSlug = "scripture" | "news" | "feed" | "calendar" | "account";
+export type SectionSlug = "home" | "scripture" | "news" | "feed" | "calendar" | "account";
 
 export interface SectionDef {
   slug: SectionSlug;
@@ -24,11 +24,19 @@ export interface SectionDef {
 /** ── Header order (rearrangeable) ── */
 export const HEADER_NAV: SectionDef[] = [
   {
+    slug: "home",
+    label: "홈",
+    href: "/",
+    // Only the exact root acts as the home tab; non-root pages are matched by
+    // their own section's prefixes below.
+    prefixes: [],
+  },
+  {
     slug: "scripture",
-    label: "위키",
-    href: "/wiki/",
-    // /wiki/* covers scripture body, cards, and the home page (`/` is the wiki root).
-    prefixes: ["/wiki/"],
+    label: "서재",
+    href: "/library/",
+    // /library/* covers scripture body, cards, and the catalog page.
+    prefixes: ["/library/"],
   },
   {
     slug: "feed",
@@ -60,8 +68,7 @@ export const ACCOUNT_SECTION: SectionDef = {
 
 /** Resolve which section a URL path belongs to (or null for fully neutral pages). */
 export function resolveSection(pathname: string): SectionSlug | null {
-  // Site root acts as the wiki home.
-  if (pathname === "/") return "scripture";
+  if (pathname === "/") return "home";
   for (const def of HEADER_NAV) {
     if (def.prefixes.some((p) => pathname.startsWith(p))) return def.slug;
   }

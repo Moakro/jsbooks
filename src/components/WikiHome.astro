@@ -1,9 +1,10 @@
 ---
 /**
- * Wiki home content — shown both at `/` (site root) and `/wiki/` (section root).
- * Shows the scripture catalog and a prompt-style entry point.
+ * Wiki home content — shown both at `/` (site root) and `/library/` (section root).
+ * Renders the scripture catalog. AI search and DayBox are placed in the
+ * Base layout's `pre-main` slot by the calling page so they sit outside
+ * the main card surface.
  */
-import AIPrompt from "./AIPrompt.svelte";
 
 interface ScriptureCard {
   slug: string;
@@ -46,17 +47,14 @@ const scriptures: ScriptureCard[] = [
 ];
 ---
 
-<AIPrompt client:load />
-
 <section class="catalog-section">
-  <h2>서가</h2>
   <ul class="catalog">
     {scriptures
       .slice()
       .sort((a, b) => b.year - a.year)
       .map((s) => (
       <li class={`card ${s.status}`}>
-        <a href={`/wiki/${s.slug}/`} class="card-link">
+        <a href={`/library/${s.slug}/`} class="card-link">
           <div class="spine"></div>
           <div class="card-body">
             <h3>
@@ -80,12 +78,6 @@ const scriptures: ScriptureCard[] = [
 </section>
 
 <style>
-  .catalog-section h2 {
-    font-size: 1rem;
-    color: var(--color-muted);
-    margin: 0 0 0.8rem;
-    font-weight: 600;
-  }
   .catalog {
     list-style: none;
     padding: 0;
@@ -101,20 +93,16 @@ const scriptures: ScriptureCard[] = [
   }
   .card {
     border: 1px solid var(--color-rule);
-    border-radius: 4px;
-    background: var(--color-bg);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
     overflow: hidden;
-    box-shadow:
-      0 1px 0 var(--color-rule),
-      0 6px 14px -8px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--shadow-sm);
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   }
   .card:hover {
     border-color: var(--color-primary);
     transform: translateY(-2px);
-    box-shadow:
-      0 1px 0 var(--color-primary-soft),
-      0 12px 24px -10px rgba(168, 53, 42, 0.18);
+    box-shadow: var(--shadow-md);
   }
   .card-link {
     display: flex;

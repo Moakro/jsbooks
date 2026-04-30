@@ -1,8 +1,12 @@
 ---
 import Base from "../layouts/Base.astro";
-import WikiHome from "../components/WikiHome.astro";
+import DayBox from "../components/DayBox.svelte";
+import AIPrompt from "../components/AIPrompt.svelte";
 ---
 
-<Base title="jsbooks — 증산계열 경전 디지털 라이브러리">
-  <WikiHome />
+<Base title="jsbooks — 증산계열 경전 디지털 라이브러리" bare>
+  <Fragment slot="pre-main">
+    <DayBox client:load />
+    <AIPrompt client:load />
+  </Fragment>
 </Base>

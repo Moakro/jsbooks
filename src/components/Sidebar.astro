@@ -44,7 +44,7 @@ if (section === "scripture" && blocks.some((b) => b.type === "scriptures-list"))
       name_hanja: "天地開闢經",
       editor: "이중성",
       edition_date: "1946-04-27",
-      href: "/wiki/cheonjigaebyeokgyeong/",
+      href: "/library/cheonjigaebyeokgyeong/",
     },
     {
       slug: "donggokbiseo",
@@ -52,7 +52,7 @@ if (section === "scripture" && blocks.some((b) => b.type === "scriptures-list"))
       name_hanja: "銅谷秘書",
       editor: "이춘풍",
       edition_date: "1990-05-05",
-      href: "/wiki/donggokbiseo/",
+      href: "/library/donggokbiseo/",
     },
   ];
 }
@@ -101,10 +101,15 @@ function isActiveLink(itemPath: string): boolean {
   .sidebar {
     width: 240px;
     flex-shrink: 0;
-    border-right: 1px solid var(--color-rule);
-    background: var(--color-bg);
+    background: var(--color-surface-2);
     padding: 0.5rem 0 1rem;
     overflow-y: auto;
+  }
+  @media (max-width: 1023px) {
+    .sidebar {
+      background: var(--color-bg);
+      width: 100%;
+    }
   }
   .block {
     padding: 0.6rem 0.85rem;

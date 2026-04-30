@@ -3,6 +3,8 @@ import Base from "../../layouts/Base.astro";
 import WikiHome from "../../components/WikiHome.astro";
 ---
 
-<Base title="위키 — jsbooks">
-  <WikiHome />
+<Base title="서재 — jsbooks" bare>
+  <Fragment slot="pre-main">
+    <WikiHome />
+  </Fragment>
 </Base>

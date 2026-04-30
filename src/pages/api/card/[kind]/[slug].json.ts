@@ -66,7 +66,7 @@ export const GET: APIRoute = async ({ params }) => {
       meta: extractMeta(entry.data, kind),
       status: entry.data.status ?? null,
       bodyHTML,
-      pageHref: `/wiki/${kind}/${encodeURIComponent(slug)}/`,
+      pageHref: `/library/${kind}/${encodeURIComponent(slug)}/`,
       backlinks: backlinks.map((b) => ({
         ...b,
         href: backlinkHref(b),
@@ -83,11 +83,11 @@ function backlinkHref(b: Backlink): string {
   if (b.kind === "scripture") {
     const anchor = b.verseId ? `#${b.verseId}` : "";
     if (b.vol && b.chap) {
-      return `/wiki/${b.scriptureSlug}/${b.vol}/${b.chap}/${anchor}`;
+      return `/library/${b.scriptureSlug}/${b.vol}/${b.chap}/${anchor}`;
     }
-    return `/wiki/${b.scriptureSlug}/${anchor}`;
+    return `/library/${b.scriptureSlug}/${anchor}`;
   }
-  return `/wiki/${b.kind}/${encodeURIComponent(b.slug)}/`;
+  return `/library/${b.kind}/${encodeURIComponent(b.slug)}/`;
 }
 
 function extractMeta(data: any, kind: Kind): { label: string; value: string }[] {

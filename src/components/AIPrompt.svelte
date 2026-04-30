@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
-  import DayBox from "./DayBox.svelte";
 
   const PLACEHOLDER = "AI로 경전을 검색하세요";
   const PLACEHOLDER_GUEST = "AI 검색은 로그인 후에 이용 가능합니다";
@@ -53,6 +52,9 @@
   onMount(async () => {
     try {
       const res = await fetch("/api/me", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) return;
       const data = await res.json();
       isLoggedIn = !!data.user;
     } catch {
@@ -62,8 +64,6 @@
 </script>
 
 <section class="ai-prompt">
-  <DayBox />
-
   <div class="box">
     <textarea
       bind:this={textareaEl}
@@ -114,23 +114,28 @@
 
 <style>
   .ai-prompt {
-    margin: -1rem 0 2.5rem;
+    margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 1.8rem;
+    gap: 1.2rem;
     align-items: stretch;
   }
   .box {
     border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 16px;
-    background: var(--color-bg, #fbf8f4);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    border-radius: var(--radius-lg, 14px);
+    background: var(--color-surface, #fdfaf4);
+    box-shadow: var(--shadow-md, 0 2px 4px rgba(60, 40, 25, 0.05), 0 4px 12px rgba(60, 40, 25, 0.08));
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
     overflow: hidden;
+  }
+  .box:hover {
+    box-shadow: var(--shadow-lg, 0 4px 8px rgba(60, 40, 25, 0.06), 0 12px 28px rgba(60, 40, 25, 0.1));
   }
   .box:focus-within {
     border-color: var(--color-primary, #a8352a);
-    box-shadow: 0 2px 14px rgba(168, 53, 42, 0.08);
+    box-shadow:
+      0 0 0 3px var(--color-primary-bg, #fbf3f1),
+      var(--shadow-md, 0 4px 12px rgba(60, 40, 25, 0.08));
   }
   textarea {
     display: block;

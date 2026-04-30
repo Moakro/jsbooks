@@ -9,7 +9,7 @@ import { renderMarkdownBody } from "../../../lib/wikilink";
 import { buildBacklinkIndex, backlinksFor } from "../../../lib/backlinks";
 
 export async function getStaticPaths() {
-  const entries = await getCollection("places");
+  const entries = await getCollection("dates");
   return entries.map((entry) => ({
     params: { slug: entry.id },
     props: { entry },
@@ -19,13 +19,13 @@ export async function getStaticPaths() {
 const { entry } = Astro.props;
 const manifest = await buildCardManifest();
 const bodyHTML = renderMarkdownBody(entry.body ?? "", manifest);
-const backlinks = backlinksFor(await buildBacklinkIndex(), "places", entry.id);
-const historyPath = `content/places/${entry.id}.md`;
+const backlinks = backlinksFor(await buildBacklinkIndex(), "dates", entry.id);
+const historyPath = `content/dates/${entry.id}.md`;
 ---
 
-<Base title={`${entry.data.name} — 지명`}>
-  <p class="meta"><a href="/wiki/places/">← 지명</a></p>
-  <h1 data-pagefind-body data-pagefind-filter="kind:지명" data-pagefind-meta={`title:${entry.data.name} (지명)`}>
+<Base title={`${entry.data.name} — 시기`}>
+  <p class="meta"><a href="/library/dates/">← 시기</a></p>
+  <h1 data-pagefind-body data-pagefind-filter="kind:시기" data-pagefind-meta={`title:${entry.data.name} (시기)`}>
     {entry.data.name}
     {entry.data.name_hanja && (
       <span style="font-size: 0.75em; color: var(--hanja); font-weight: normal">
@@ -41,6 +41,6 @@ const historyPath = `content/places/${entry.id}.md`;
   )}
   <article class="prose-body" set:html={bodyHTML} />
   <Backlinks backlinks={backlinks} />
-  <Comments client:idle target={`card:places:${entry.id}`} />
+  <Comments client:idle target={`card:dates:${entry.id}`} />
   <History path={historyPath} />
 </Base>

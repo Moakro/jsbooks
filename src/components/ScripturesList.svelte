@@ -30,6 +30,15 @@
   async function load() {
     try {
       const me = await fetch("/api/me", { credentials: "same-origin" });
+      if (!me.ok) {
+        user = null;
+        return;
+      }
+      const ct = me.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) {
+        user = null;
+        return;
+      }
       const meData = await me.json();
       user = meData.user ? { id: meData.user.id } : null;
       // /api/me/scriptures is reserved for Phase B (per-user library prefs).
@@ -38,6 +47,8 @@
       // suppress. Default behavior (= show all scriptures, default order)
       // already handles both logged-in and logged-out cases here.
       prefs = null;
+    } catch {
+      user = null;
     } finally {
       loading = false;
     }

@@ -35,11 +35,11 @@ export function correspondencesFor(slug: string, anchor: string): Correspondence
 
 /** Build the URL fragment for a target verse. */
 export function targetHref(m: CorrespondenceMatch): string {
-  // Hierarchical anchors: e.g. "8-3-10" => /wiki/<slug>/8/3/#8-3-10
+  // Hierarchical anchors: e.g. "8-3-10" => /library/<slug>/8/3/#8-3-10
   const parts = m.target_anchor.split("-");
   if (parts.length === 3 && parts.every((p) => /^\d+$/.test(p))) {
-    return `/wiki/${m.target_slug}/${parseInt(parts[0], 10)}/${parseInt(parts[1], 10)}/#${m.target_anchor}`;
+    return `/library/${m.target_slug}/${parseInt(parts[0], 10)}/${parseInt(parts[1], 10)}/#${m.target_anchor}`;
   }
-  // Flat: /wiki/<slug>/#<anchor>
-  return `/wiki/${m.target_slug}/#${m.target_anchor}`;
+  // Flat: /library/<slug>/#<anchor>
+  return `/library/${m.target_slug}/#${m.target_anchor}`;
 }

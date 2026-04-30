@@ -15,6 +15,15 @@
   async function load() {
     try {
       const res = await fetch("/api/me", { credentials: "same-origin" });
+      if (!res.ok) {
+        user = null;
+        return;
+      }
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) {
+        user = null;
+        return;
+      }
       const data = await res.json();
       user = data.user;
     } catch {

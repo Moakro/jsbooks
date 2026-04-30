@@ -144,13 +144,17 @@ const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
 
 export function formatSolar(date: Date): {
   ymd: string;
+  ymdNumeric: string;
   weekday: string;
 } {
   const y = date.getFullYear();
   const m = date.getMonth() + 1;
   const d = date.getDate();
+  const mm = String(m).padStart(2, "0");
+  const dd = String(d).padStart(2, "0");
   return {
     ymd: `${y}년 ${m}월 ${d}일`,
+    ymdNumeric: `${y}.${mm}.${dd}`,
     weekday: WEEKDAY_KO[date.getDay()],
   };
 }
@@ -166,7 +170,7 @@ export function formatLunarKo(l: LunarInfo): string {
 
 export type DayInfo = {
   date: Date;
-  solar: { ymd: string; weekday: string };
+  solar: { ymd: string; ymdNumeric: string; weekday: string };
   lunar: LunarInfo | null;
   lunarKo: string | null;
   jeolgi: JeolgiInfo;

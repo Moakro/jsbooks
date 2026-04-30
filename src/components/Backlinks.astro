@@ -20,11 +20,11 @@ function hrefFor(b: Backlink): string {
   if (b.kind === "scripture") {
     const anchor = b.verseId ? `#${b.verseId}` : "";
     if (b.vol && b.chap) {
-      return `/wiki/${b.scriptureSlug}/${b.vol}/${b.chap}/${anchor}`;
+      return `/library/${b.scriptureSlug}/${b.vol}/${b.chap}/${anchor}`;
     }
-    return `/wiki/${b.scriptureSlug}/${anchor}`;
+    return `/library/${b.scriptureSlug}/${anchor}`;
   }
-  return `/wiki/${b.kind}/${encodeURIComponent(b.slug)}/`;
+  return `/library/${b.kind}/${encodeURIComponent(b.slug)}/`;
 }
 ---
 

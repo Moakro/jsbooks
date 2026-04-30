@@ -66,9 +66,9 @@ const isCurPreface = preface?.id === currentId;
 const isCurAfter = afterword?.id === currentId;
 const isCurVerses = versesEntry?.id === currentId;
 
-const versesHref = `/wiki/${scriptureSlug}/`;
-const prefaceHref = `/wiki/${scriptureSlug}/preface/`;
-const afterwordHref = `/wiki/${scriptureSlug}/afterword/`;
+const versesHref = `/library/${scriptureSlug}/`;
+const prefaceHref = `/library/${scriptureSlug}/preface/`;
+const afterwordHref = `/library/${scriptureSlug}/afterword/`;
 ---
 
 <nav class:list={["chapter-nav", `place-${placement}`]} aria-label="장 이동">
@@ -106,7 +106,7 @@ const afterwordHref = `/wiki/${scriptureSlug}/afterword/`;
                 const isCurrent = c.id === currentId;
                 return (
                   <a
-                    href={`/wiki/${scriptureSlug}/${v.num}/${c.data.장}/`}
+                    href={`/library/${scriptureSlug}/${v.num}/${c.data.장}/`}
                     class:list={["chap-btn", { current: isCurrent }]}
                     aria-current={isCurrent ? "page" : undefined}
                   >{c.data.장}</a>

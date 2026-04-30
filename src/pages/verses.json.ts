@@ -49,8 +49,8 @@ export const GET: APIRoute = async () => {
         ? `${scriptureName} 권${vol} ${volName ?? ""} · ${chap}장 ${verseNum}절`
         : `${scriptureName} · ${verseNum}절`;
       const pageHref = isHierarchical
-        ? `/wiki/${slug}/${vol}/${chap}/#${anchor}`
-        : `/wiki/${slug}/#${anchor}`;
+        ? `/library/${slug}/${vol}/${chap}/#${anchor}`
+        : `/library/${slug}/#${anchor}`;
       out[`${slug}#${anchor}`] = {
         scriptureSlug: slug,
         scriptureName,
