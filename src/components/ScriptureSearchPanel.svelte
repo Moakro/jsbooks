@@ -190,6 +190,23 @@
     results = [];
     lastClickedKey = null;
     clearSession();
+    clearInPageHighlight();
+  }
+
+  function clearInPageHighlight() {
+    if (typeof window === "undefined") return;
+    const u = new URL(window.location.href);
+    if (u.searchParams.has("q")) {
+      u.searchParams.delete("q");
+      history.replaceState(null, "", u.pathname + u.search + u.hash);
+    }
+    document.querySelectorAll("mark.pagefind-highlight").forEach((m) => {
+      const parent = m.parentNode;
+      if (!parent) return;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+      (parent as Element).normalize?.();
+    });
   }
 
   // After panel opens with restored results, scroll the last-clicked item into view.
