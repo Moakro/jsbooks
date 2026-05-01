@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { confirmDialog } from "../lib/confirmDialog";
 
   interface Props {
     scriptureSlug: string;
@@ -25,11 +26,16 @@
   let open = $state(false);
   let results = $state<ResultRow[]>([]);
   let loading = $state(false);
+  let lastClickedKey = $state<string | null>(null);
 
   let inputEl: HTMLInputElement | undefined = $state();
   let panelEl: HTMLElement | undefined = $state();
   let triggerEl: HTMLButtonElement | undefined = $state();
   let debouncer: ReturnType<typeof setTimeout> | undefined;
+
+  function buildItemKey(pageUrl: string, sub: SubResult): string {
+    return sub.anchor ? `${pageUrl}#${sub.anchor.id}` : sub.url;
+  }
 
   async function loadPagefind() {
     if (pagefind) return;
@@ -136,7 +142,10 @@
     if (typeof sessionStorage === "undefined") return;
     if (query && results.length > 0) {
       try {
-        sessionStorage.setItem(sessionKey(), JSON.stringify({ query, results }));
+        sessionStorage.setItem(
+          sessionKey(),
+          JSON.stringify({ query, results, lastClickedKey }),
+        );
       } catch {}
     } else {
       sessionStorage.removeItem(sessionKey());
@@ -155,9 +164,41 @@
       if (obj && typeof obj.query === "string" && Array.isArray(obj.results)) {
         query = obj.query;
         results = obj.results;
+        lastClickedKey =
+          typeof obj.lastClickedKey === "string" ? obj.lastClickedKey : null;
       }
     } catch {}
   }
+
+  function onResultClick(itemKey: string) {
+    lastClickedKey = itemKey;
+    saveSession();
+    closePanel();
+  }
+
+  async function resetSearch() {
+    const ok = await confirmDialog({
+      title: "검색 결과 초기화",
+      message: "저장된 검색 결과를 모두 비웁니다. 계속할까요?",
+      confirmLabel: "초기화",
+      danger: true,
+    });
+    if (!ok) return;
+    if (debouncer) clearTimeout(debouncer);
+    query = "";
+    results = [];
+    lastClickedKey = null;
+    clearSession();
+  }
+
+  // After panel opens with restored results, scroll the last-clicked item into view.
+  $effect(() => {
+    if (!open || !lastClickedKey || !panelEl) return;
+    requestAnimationFrame(() => {
+      const el = panelEl?.querySelector("a.last-clicked") as HTMLElement | null;
+      el?.scrollIntoView({ block: "center", behavior: "auto" });
+    });
+  });
 
   onMount(() => {
     document.addEventListener("click", onDocClick);
@@ -238,6 +279,12 @@
       {/if}
     </div>
 
+    {#if results.length > 0}
+      <button type="button" class="reset-bar" onclick={resetSearch}>
+        검색 결과 초기화
+      </button>
+    {/if}
+
     {#if pagefindError}
       <p class="hint">{pagefindError}</p>
     {:else if loading}
@@ -251,10 +298,12 @@
             <div class="page-title">{r.pageTitle}</div>
             <ul class="sub-list">
               {#each r.subs as s, i (r.pageUrl + (s.anchor?.id ?? i))}
+                {@const itemKey = buildItemKey(r.pageUrl, s)}
                 <li>
                   <a
                     href={`${s.anchor ? r.pageUrl : s.url}?q=${encodeURIComponent(query)}${s.anchor ? `#${s.anchor.id}` : ""}`}
-                    onclick={closePanel}
+                    class:last-clicked={itemKey === lastClickedKey}
+                    onclick={() => onResultClick(itemKey)}
                   >
                     {#if s.title && s.title !== r.pageTitle}
                       <span class="s-title">{@html s.title}</span>
@@ -440,6 +489,37 @@
   .sub-list li a:hover {
     background: rgba(255, 255, 255, 0.06);
     border-left-color: var(--color-primary, #a8352a);
+  }
+  .sub-list li a.last-clicked {
+    background: rgba(255, 138, 122, 0.1);
+    border-left-color: var(--color-primary, #a8352a);
+  }
+  .sub-list li a.last-clicked .s-title {
+    color: #ffb3a6;
+  }
+
+  .reset-bar {
+    width: 100%;
+    padding: 0.4rem 1rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(244, 236, 226, 0.65);
+    font: inherit;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+  .reset-bar:hover {
+    background: rgba(168, 53, 42, 0.18);
+    color: #ffb3a6;
+  }
+  .reset-bar:focus-visible {
+    outline: 2px solid var(--color-primary, #a8352a);
+    outline-offset: -2px;
   }
   .s-title {
     font-size: 0.85rem;
