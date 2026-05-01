@@ -77,6 +77,7 @@
           subs,
         };
       });
+      if (results.length > 0) inputEl?.blur();
     } catch (e) {
       results = [];
     } finally {
@@ -168,6 +169,31 @@
         autocomplete="off"
         spellcheck="false"
       />
+      {#if results.length > 0}
+        <button
+          type="button"
+          class="close-btn"
+          onclick={closePanel}
+          aria-label="검색 닫기"
+          title="검색 닫기"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      {/if}
     </div>
 
     {#if pagefindError}
@@ -237,8 +263,8 @@
   }
 
   .search-panel {
-    position: absolute;
-    top: 100%;
+    position: fixed;
+    top: calc(var(--header-h, 0px) + 2.75rem);
     left: 0;
     right: 0;
     background: rgba(22, 20, 18, 0.92);
@@ -247,10 +273,10 @@
     color: #f4ece2;
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-    max-height: 70vh;
+    max-height: calc(100vh - var(--header-h, 0px) - 2.75rem);
     display: flex;
     flex-direction: column;
-    z-index: 6;
+    z-index: 200;
     animation: slide-down 0.15s ease;
   }
   @keyframes slide-down {
@@ -265,11 +291,15 @@
   }
 
   .search-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 0.6rem 0.85rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
   .search-row input {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     padding: 0.5rem 0.7rem;
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 6px;
@@ -278,6 +308,31 @@
     font-size: 0.95rem;
     background: rgba(255, 255, 255, 0.06);
     color: #f4ece2;
+  }
+  .close-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #f4ece2;
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .close-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  .close-btn:focus-visible {
+    outline: 2px solid var(--color-primary, #a8352a);
+    outline-offset: 2px;
   }
   .search-row input::placeholder {
     color: rgba(244, 236, 226, 0.45);
