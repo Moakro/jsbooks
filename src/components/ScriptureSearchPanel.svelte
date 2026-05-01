@@ -48,6 +48,7 @@
     if (!pagefind) return;
     if (!q.trim()) {
       results = [];
+      saveSession();
       return;
     }
     loading = true;
@@ -78,6 +79,7 @@
         };
       });
       if (results.length > 0) inputEl?.blur();
+      saveSession();
     } catch (e) {
       results = [];
     } finally {
@@ -87,6 +89,11 @@
 
   function onInput() {
     if (debouncer) clearTimeout(debouncer);
+    if (!query.trim()) {
+      results = [];
+      clearSession();
+      return;
+    }
     debouncer = setTimeout(() => runSearch(query), 1000);
   }
 
@@ -99,9 +106,8 @@
     queueMicrotask(() => inputEl?.focus());
   }
   function closePanel() {
+    // Preserve query + results in sessionStorage; just collapse the panel.
     open = false;
-    query = "";
-    results = [];
   }
   function togglePanel() {
     if (open) closePanel();
@@ -123,9 +129,41 @@
     }
   }
 
+  // ---- Session persistence (per-scripture) ----
+  function sessionKey() {
+    return `jsbooks:scripture-search:${scriptureSlug}`;
+  }
+  function saveSession() {
+    if (typeof sessionStorage === "undefined") return;
+    if (query && results.length > 0) {
+      try {
+        sessionStorage.setItem(sessionKey(), JSON.stringify({ query, results }));
+      } catch {}
+    } else {
+      sessionStorage.removeItem(sessionKey());
+    }
+  }
+  function clearSession() {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.removeItem(sessionKey());
+  }
+  function restoreSession() {
+    if (typeof sessionStorage === "undefined") return;
+    const raw = sessionStorage.getItem(sessionKey());
+    if (!raw) return;
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj.query === "string" && Array.isArray(obj.results)) {
+        query = obj.query;
+        results = obj.results;
+      }
+    } catch {}
+  }
+
   onMount(() => {
     document.addEventListener("click", onDocClick);
     document.addEventListener("keydown", onKey);
+    restoreSession();
     return () => {
       document.removeEventListener("click", onDocClick);
       document.removeEventListener("keydown", onKey);
@@ -138,9 +176,9 @@
   type="button"
   class="s-search-btn"
   class:active={open}
-  aria-label="경전 본문 검색"
+  aria-label={results.length > 0 ? `경전 본문 검색 (이전 결과 ${results.length}건)` : "경전 본문 검색"}
   aria-expanded={open}
-  title="경전 본문 검색"
+  title={results.length > 0 ? `이전 검색: '${query}' (${results.length}건)` : "경전 본문 검색"}
   onclick={togglePanel}
 >
   <svg
@@ -158,6 +196,9 @@
     <circle cx="11" cy="11" r="7"></circle>
     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
   </svg>
+  {#if results.length > 0 && !open}
+    <span class="dot-badge" aria-hidden="true"></span>
+  {/if}
 </button>
 
 {#if open}
@@ -177,8 +218,8 @@
           type="button"
           class="close-btn"
           onclick={closePanel}
-          aria-label="검색 닫기"
-          title="검색 닫기"
+          aria-label="검색 접기"
+          title="검색 접기"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -192,8 +233,7 @@
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <polyline points="18 15 12 9 6 15"></polyline>
           </svg>
         </button>
       {/if}
@@ -236,6 +276,7 @@
 
 <style>
   .s-search-btn {
+    position: relative;
     flex: 0 0 auto;
     margin-left: auto;
     display: inline-flex;
@@ -253,6 +294,17 @@
       color 0.15s ease,
       background 0.15s ease,
       border-color 0.15s ease;
+  }
+  .dot-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-primary, #a8352a);
+    box-shadow: 0 0 0 2px var(--color-bg, #fbf8f4);
+    pointer-events: none;
   }
   .s-search-btn:hover,
   .s-search-btn.active {
