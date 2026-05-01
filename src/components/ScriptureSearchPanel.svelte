@@ -103,7 +103,6 @@
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("jsbooks:minimize-sidecard"));
     }
-    queueMicrotask(() => inputEl?.focus());
   }
   function closePanel() {
     // Preserve query + results in sessionStorage; just collapse the panel.
