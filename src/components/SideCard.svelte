@@ -743,17 +743,18 @@
     }
   }
 
-  /* Mobile: bottom-edge half-circle */
+  /* Mobile: bottom-edge half-circle (flush) */
   @media (max-width: 1023px) {
     .reopen-handle {
-      bottom: 24px;
+      bottom: 0;
       left: 50%;
       transform: translateX(-50%);
-      width: 56px;
-      height: 28px;
-      border-radius: 56px 56px 0 0;
+      width: 64px;
+      height: 32px;
+      border-radius: 64px 64px 0 0;
       box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.18);
       padding-bottom: 4px;
+      font-size: 1rem;
     }
     @keyframes handle-in {
       from {
@@ -773,11 +774,12 @@
       right: 0;
       top: 50%;
       transform: translateY(-50%);
-      width: 28px;
-      height: 56px;
-      border-radius: 56px 0 0 56px;
-      box-shadow: -4px 0 12px rgba(0, 0, 0, 0.18);
-      padding-right: 4px;
+      width: 38px;
+      height: 76px;
+      border-radius: 76px 0 0 76px;
+      box-shadow: -4px 0 14px rgba(0, 0, 0, 0.22);
+      padding-right: 6px;
+      font-size: 1.05rem;
     }
     .reopen-handle:hover {
       transform: translate(-4px, -50%);
@@ -800,7 +802,7 @@
   }
   @media (max-width: 1023px) {
     :global(body[data-sidecard="minimized"]) {
-      padding-bottom: 72px;
+      padding-bottom: 56px;
     }
   }
 
