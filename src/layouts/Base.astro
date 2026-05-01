@@ -33,6 +33,14 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       href="https://fonts.googleapis.com/css2?family=Anton&display=swap"
       rel="stylesheet"
     />
+    <script is:inline src="/pagefind/pagefind-highlight.js" defer></script>
+    <script is:inline>
+      window.addEventListener("DOMContentLoaded", () => {
+        if (typeof PagefindHighlight === "function") {
+          new PagefindHighlight({ highlightParam: "q" });
+        }
+      });
+    </script>
   </head>
   <body>
     <header>
@@ -312,6 +320,16 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       .verse.flash {
         animation: jsb-flash 1.5s ease-out;
         border-radius: 4px;
+      }
+      /* Pagefind highlight — applied via ?q=검색어 URL param */
+      mark.pagefind-highlight,
+      .pagefind-highlight {
+        background: #fff3a8;
+        color: inherit;
+        padding: 0 1px;
+        border-radius: 2px;
+        font-weight: 600;
+        box-shadow: 0 0 0 1px rgba(168, 53, 42, 0.2);
       }
       :root {
         --header-h: 64px;

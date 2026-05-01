@@ -214,7 +214,7 @@
               {#each r.subs as s, i (r.pageUrl + (s.anchor?.id ?? i))}
                 <li>
                   <a
-                    href={s.anchor ? `${r.pageUrl}#${s.anchor.id}` : s.url}
+                    href={`${s.anchor ? r.pageUrl : s.url}?q=${encodeURIComponent(query)}${s.anchor ? `#${s.anchor.id}` : ""}`}
                     onclick={closePanel}
                   >
                     {#if s.title && s.title !== r.pageTitle}
