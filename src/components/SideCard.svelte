@@ -312,6 +312,10 @@
     }
   }
 
+  function onMinimizeRequest() {
+    if (sheetVisible) minimizeSheet();
+  }
+
   let resizeObs: ResizeObserver | null = null;
   $effect(() => {
     if (!cardsEl) return;
@@ -330,10 +334,12 @@
   onMount(() => {
     document.addEventListener("click", handleClick);
     document.addEventListener("keydown", handleKey);
+    window.addEventListener("jsbooks:minimize-sidecard", onMinimizeRequest);
     loadFromURL();
     return () => {
       document.removeEventListener("click", handleClick);
       document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("jsbooks:minimize-sidecard", onMinimizeRequest);
     };
   });
 </script>

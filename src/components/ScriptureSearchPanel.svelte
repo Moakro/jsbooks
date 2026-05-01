@@ -87,12 +87,15 @@
 
   function onInput() {
     if (debouncer) clearTimeout(debouncer);
-    debouncer = setTimeout(() => runSearch(query), 180);
+    debouncer = setTimeout(() => runSearch(query), 1000);
   }
 
   function openPanel() {
     open = true;
     loadPagefind();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("jsbooks:minimize-sidecard"));
+    }
     queueMicrotask(() => inputEl?.focus());
   }
   function closePanel() {
@@ -263,8 +266,8 @@
   }
 
   .search-panel {
-    position: fixed;
-    top: calc(var(--header-h, 0px) + 2.75rem);
+    position: absolute;
+    top: 100%;
     left: 0;
     right: 0;
     background: rgba(22, 20, 18, 0.92);
@@ -273,10 +276,10 @@
     color: #f4ece2;
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-    max-height: calc(100vh - var(--header-h, 0px) - 2.75rem);
+    max-height: 70vh;
     display: flex;
     flex-direction: column;
-    z-index: 200;
+    z-index: 6;
     animation: slide-down 0.15s ease;
   }
   @keyframes slide-down {
