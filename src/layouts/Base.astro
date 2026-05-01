@@ -33,12 +33,10 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       href="https://fonts.googleapis.com/css2?family=Anton&display=swap"
       rel="stylesheet"
     />
-    <script is:inline src="/pagefind/pagefind-highlight.js" defer></script>
-    <script is:inline>
+    <script is:inline type="module">
+      import PagefindHighlight from "/pagefind/pagefind-highlight.js";
       window.addEventListener("DOMContentLoaded", () => {
-        if (typeof PagefindHighlight === "function") {
-          new PagefindHighlight({ highlightParam: "q" });
-        }
+        new PagefindHighlight({ highlightParam: "q" });
       });
     </script>
   </head>
