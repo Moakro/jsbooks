@@ -2,6 +2,7 @@
 import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import AiMatchNotice from "../../../components/AiMatchNotice.astro";
+import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 
 const allScripture = await getCollection("scripture");
 const all = allScripture.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/"));
@@ -32,6 +33,7 @@ const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
 ---
 
 <Base title="천지개벽경 — jsbooks" scriptureSlug="cheonjigaebyeokgyeong">
+  <ScriptureStickyBar scriptureName="천지개벽경" scriptureSlug="cheonjigaebyeokgyeong" />
   <p class="meta"><a href="/library/">← 서재</a></p>
   <h1>천지개벽경 (天地開闢經)</h1>
   <p class="meta">학암 이중성(李重盛) 편술 · 1946년</p>

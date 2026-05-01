@@ -58,32 +58,38 @@ const historyPath = `content/scripture/${entry.id}.md`;
 <Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`} scriptureSlug="cheonjigaebyeokgyeong">
   <ScriptureStickyBar
     scriptureName="천지개벽경"
+    scriptureSlug="cheonjigaebyeokgyeong"
+    scriptureHref="/library/cheonjigaebyeokgyeong/"
     context={`권 ${권} ${권_이름} · ${장}장`}
   />
-  <p class="meta">
-    <a href="/library/cheonjigaebyeokgyeong/">천지개벽경</a> · 권 {권} · {권_이름} ({권_이름_한자}) ·
-    {연도_간지} {연도}
-  </p>
-  <h1
-    data-pagefind-body
-    data-pagefind-filter="kind:경전"
-    data-pagefind-meta={`title:권${권} ${권_이름} ${장}장`}
-  >{장}장</h1>
+  <div class="chap-head">
+    <h1>{장}장</h1>
+    <p class="meta">{연도_간지} {연도}</p>
+  </div>
   <div class="chap-progress" aria-label={`이 권의 ${idx + 1}번째 장 / 전체 ${totalChaps}장`}>
     <div class="bar"><div class="fill" style={`width: ${chapPct}%`}></div></div>
     <span class="meta">{idx + 1} / {totalChaps}장</span>
   </div>
 
-  {verses.map((v) => (
-    <section class="verse" id={v.id}>
-      <div class="verse-label">
-        <a href={`#${v.id}`}>{v.num}절</a>
-        <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
-        <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", v.id)} />
-      </div>
-      <div class="verse-body" set:html={v.html} />
-    </section>
-  ))}
+  <div
+    data-pagefind-body
+    data-pagefind-filter="scripture:cheonjigaebyeokgyeong"
+    data-pagefind-meta={`title:권 ${권} ${권_이름} ${장}장`}
+  >
+    <span hidden data-pagefind-filter="kind:경전"></span>
+    <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
+    {verses.map((v) => (
+      <section class="verse">
+        <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
+        <div class="verse-label" data-pagefind-ignore>
+          <a href={`#${v.id}`}>{v.num}절</a>
+          <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
+          <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", v.id)} />
+        </div>
+        <div class="verse-body" set:html={v.html} />
+      </section>
+    ))}
+  </div>
 
   <ScriptureChapterNav scriptureSlug="cheonjigaebyeokgyeong" currentId={entry.id} />
 
@@ -92,6 +98,18 @@ const historyPath = `content/scripture/${entry.id}.md`;
 </Base>
 
 <style>
+  .chap-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .chap-head h1 {
+    margin: 0;
+  }
+  .chap-head .meta {
+    margin: 0;
+  }
   .chap-progress {
     display: flex;
     align-items: center;
@@ -118,5 +136,16 @@ const historyPath = `content/scripture/${entry.id}.md`;
   }
   .verse-body :global(p) {
     margin: 0.5rem 0;
+  }
+  .verse-anchor-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>

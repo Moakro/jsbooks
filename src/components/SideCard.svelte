@@ -76,7 +76,7 @@
   // Wikilink intercept: pages render `<a class="wikilink" href="/library/people/이마두/">…</a>`
   // We intercept clicks and translate the href to a card-stack push.
   function hrefToCardRef(href: string): { kind: string; slug: string } | null {
-    const m = href.match(/^\/wiki\/(people|places|dosu|terms|dates)\/([^/]+)\/?$/);
+    const m = href.match(/^\/library\/(people|places|dosu|terms|dates)\/([^/]+)\/?$/);
     if (!m) return null;
     return { kind: m[1], slug: decodeURIComponent(m[2]) };
   }

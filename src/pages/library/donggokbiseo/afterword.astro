@@ -4,6 +4,7 @@ import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderMarkdownBody } from "../../../lib/wikilink";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
+import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 
 const all = await getCollection("scripture");
 const after = all.find((e) => e.id === "donggokbiseo/02_후기");
@@ -14,8 +15,21 @@ const bodyHTML = renderMarkdownBody(after.body ?? "", manifest);
 ---
 
 <Base title="출간 후기 — 동곡비서" scriptureSlug="donggokbiseo">
-  <p class="meta"><a href="/library/donggokbiseo/">← 동곡비서</a></p>
-  <article class="prose-body" set:html={bodyHTML} />
+  <ScriptureStickyBar
+    scriptureName="동곡비서"
+    scriptureSlug="donggokbiseo"
+    scriptureHref="/library/donggokbiseo/"
+    context="출간 후기"
+  />
+  <div
+    data-pagefind-body
+    data-pagefind-filter="scripture:donggokbiseo"
+    data-pagefind-meta="title:출간 후기"
+  >
+    <span hidden data-pagefind-filter="kind:경전"></span>
+    <span hidden data-pagefind-meta="scriptureName:동곡비서"></span>
+    <article class="prose-body" set:html={bodyHTML} />
+  </div>
 
   <ScriptureChapterNav scriptureSlug="donggokbiseo" currentId={after.id} />
 </Base>

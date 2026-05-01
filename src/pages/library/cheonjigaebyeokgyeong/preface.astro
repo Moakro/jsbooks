@@ -4,6 +4,7 @@ import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderMarkdownBody } from "../../../lib/wikilink";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
+import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 
 const all = await getCollection("scripture");
 const preface = all.find((e) => e.id === "cheonjigaebyeokgyeong/00_서");
@@ -15,10 +16,23 @@ const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
 ---
 
 <Base title="서(序) — 천지개벽경" scriptureSlug="cheonjigaebyeokgyeong">
-  <p class="meta"><a href="/library/cheonjigaebyeokgyeong/">← 천지개벽경</a></p>
+  <ScriptureStickyBar
+    scriptureName="천지개벽경"
+    scriptureSlug="cheonjigaebyeokgyeong"
+    scriptureHref="/library/cheonjigaebyeokgyeong/"
+    context="서(序)"
+  />
   <h1>천지개벽경 서(序)</h1>
   <p class="meta">{preface.data.date_lunar}</p>
-  <article class="prose-body" set:html={bodyHTML} />
+  <div
+    data-pagefind-body
+    data-pagefind-filter="scripture:cheonjigaebyeokgyeong"
+    data-pagefind-meta="title:서(序)"
+  >
+    <span hidden data-pagefind-filter="kind:경전"></span>
+    <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
+    <article class="prose-body" set:html={bodyHTML} />
+  </div>
 
   <p style="text-align: right; margin-top: 3rem;">
     포교 87년 병술 4월 27일<br />

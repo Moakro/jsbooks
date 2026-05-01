@@ -8,26 +8,51 @@
  * The verse number element has class `js-sticky-verse` and is updated by
  * the inline script below. If the page has no verses, only the prefix shows.
  */
+import ScriptureSearchPanel from "./ScriptureSearchPanel.svelte";
+
 interface Props {
   scriptureName: string;
   /** Optional context line (e.g. "권 8 무신편 · 3장"). */
   context?: string;
-  /** Mark to prefix the verse number. Default: "§". */
-  versePrefix?: string;
+  /** Suffix appended after the verse number. Default: "절". */
+  verseSuffix?: string;
+  /** Scripture home URL (e.g. "/library/cheonjigaebyeokgyeong/"). */
+  scriptureHref?: string;
+  /** Pagefind filter slug (e.g. "cheonjigaebyeokgyeong"). When set, a search button is shown. */
+  scriptureSlug?: string;
 }
-const { scriptureName, context, versePrefix = "§" } = Astro.props;
+const {
+  scriptureName,
+  context,
+  verseSuffix = "절",
+  scriptureHref,
+  scriptureSlug,
+} = Astro.props;
 ---
 
 <div class="sticky-bar" data-sticky-bar>
-  <span class="s-name">{scriptureName}</span>
-  {context && (
-    <>
-      <span class="s-sep" aria-hidden="true">·</span>
-      <span class="s-context">{context}</span>
-    </>
+  <div class="s-left">
+    {scriptureHref ? (
+      <a class="s-name" href={scriptureHref}>{scriptureName}</a>
+    ) : (
+      <span class="s-name">{scriptureName}</span>
+    )}
+    {context && (
+      <>
+        <span class="s-sep" aria-hidden="true">·</span>
+        <a class="s-context" href="#top" data-sticky-top>{context}</a>
+      </>
+    )}
+    <span class="s-verse js-sticky-verse" aria-live="polite"></span>
+  </div>
+  {scriptureSlug && (
+    <ScriptureSearchPanel
+      client:load
+      scriptureSlug={scriptureSlug}
+      scriptureName={scriptureName}
+    />
   )}
-  <span class="s-verse js-sticky-verse" aria-live="polite"></span>
-  <span class="s-prefix-hidden" data-verse-prefix>{versePrefix}</span>
+  <span class="s-prefix-hidden" data-verse-suffix>{verseSuffix}</span>
 </div>
 
 <script>
@@ -35,10 +60,10 @@ const { scriptureName, context, versePrefix = "§" } = Astro.props;
     const bar = document.querySelector("[data-sticky-bar]") as HTMLElement | null;
     if (!bar) return;
     const verseEl = bar.querySelector(".js-sticky-verse") as HTMLElement | null;
-    const prefixEl = bar.querySelector("[data-verse-prefix]") as HTMLElement | null;
-    if (!verseEl || !prefixEl) return;
-    const prefix = prefixEl.textContent ?? "§";
-    const verses = Array.from(document.querySelectorAll<HTMLElement>("section.verse[id]"));
+    const suffixEl = bar.querySelector("[data-verse-suffix]") as HTMLElement | null;
+    if (!verseEl || !suffixEl) return;
+    const suffix = suffixEl.textContent ?? "절";
+    const verses = Array.from(document.querySelectorAll<HTMLElement>("section.verse"));
     if (verses.length === 0) return;
 
     function verseNumberFrom(el: HTMLElement): string {
@@ -47,7 +72,8 @@ const { scriptureName, context, versePrefix = "§" } = Astro.props;
         const m = label.textContent?.match(/(\d+)/);
         if (m) return m[1];
       }
-      return el.id;
+      const heading = el.querySelector("h3[id]") as HTMLElement | null;
+      return heading?.id ?? "";
     }
 
     const visible = new Set<HTMLElement>();
@@ -68,7 +94,7 @@ const { scriptureName, context, versePrefix = "§" } = Astro.props;
         }, null as { el: HTMLElement; top: number } | null);
         if (!topMost) return;
         const num = verseNumberFrom(topMost.el);
-        verseEl.textContent = ` · ${prefix}${num}`;
+        verseEl.textContent = `${num}${suffix}`;
       },
       {
         rootMargin: "-80px 0px -60% 0px",
@@ -76,6 +102,14 @@ const { scriptureName, context, versePrefix = "§" } = Astro.props;
       },
     );
     verses.forEach((v) => obs.observe(v));
+
+    const topLink = bar.querySelector("[data-sticky-top]") as HTMLAnchorElement | null;
+    if (topLink) {
+      topLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
   })();
 </script>
 
@@ -86,30 +120,45 @@ const { scriptureName, context, versePrefix = "§" } = Astro.props;
     z-index: 5;
     background: var(--color-bg, #fbf8f4);
     border-bottom: 1px solid var(--color-rule, #e8dfd9);
-    padding: 0.45rem 0.85rem;
+    padding: 0.75rem 0.85rem;
     margin: -1rem -1.25rem 1rem;
-    font-size: 0.82rem;
+    min-height: 2.75rem;
+    font-size: 0.95rem;
     color: var(--color-muted, #8a807a);
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    flex-wrap: wrap;
     transition: top 0.2s ease;
+  }
+  .s-left {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .s-name {
     color: var(--color-fg, #1f1c1a);
-    font-weight: 500;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  a.s-name:hover {
+    color: var(--color-primary, #a8352a);
   }
   .s-sep {
     color: var(--color-disabled, #b8b0aa);
   }
   .s-context {
     color: var(--color-muted, #8a807a);
+    text-decoration: none;
+  }
+  a.s-context:hover {
+    color: var(--color-primary, #a8352a);
   }
   .s-verse {
     color: var(--color-primary, #a8352a);
     font-weight: 500;
-    margin-left: auto;
   }
   .s-prefix-hidden {
     display: none;
@@ -117,7 +166,7 @@ const { scriptureName, context, versePrefix = "§" } = Astro.props;
   @media (min-width: 800px) {
     .sticky-bar {
       margin: -1rem -2rem 1rem;
-      padding: 0.45rem 2rem;
+      padding: 0.75rem 2rem;
     }
   }
 </style>

@@ -34,13 +34,13 @@ while ((m = versePattern.exec(body)) !== null) {
 ---
 
 <Base title="동곡비서 (銅谷秘書) — jsbooks" scriptureSlug="donggokbiseo">
-  <ScriptureStickyBar scriptureName="동곡비서" context="본문" />
+  <ScriptureStickyBar
+    scriptureName="동곡비서"
+    scriptureSlug="donggokbiseo"
+    context="본문"
+  />
   <p class="meta"><a href="/library/">← 서재</a></p>
-  <h1
-    data-pagefind-body
-    data-pagefind-filter="kind:경전"
-    data-pagefind-meta="title:동곡비서"
-  >동곡비서 (銅谷秘書)</h1>
+  <h1>동곡비서 (銅谷秘書)</h1>
   <p class="meta">이춘풍(李春風) 엮음 · 1990년 5월 5일 (경오년)</p>
 
   <p class="meta" style="font-size: 0.9rem; margin-top: 0.5rem">
@@ -53,19 +53,42 @@ while ((m = versePattern.exec(body)) !== null) {
 
   <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--rule)" />
 
-  {verses.map((v) => (
-    <section class="verse" id={v.id}>
-      <div class="verse-label">
-        <a href={`#${v.id}`}>{v.num}절</a>
-        <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
-        <CorrespondenceBadges matches={correspondencesFor("donggokbiseo", v.id)} />
-      </div>
-      <div class="verse-body" set:html={v.html} />
-    </section>
-  ))}
+  <div
+    data-pagefind-body
+    data-pagefind-filter="scripture:donggokbiseo"
+    data-pagefind-meta="title:동곡비서"
+  >
+    <span hidden data-pagefind-filter="kind:경전"></span>
+    <span hidden data-pagefind-meta="scriptureName:동곡비서"></span>
+    {verses.map((v) => (
+      <section class="verse">
+        <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
+        <div class="verse-label" data-pagefind-ignore>
+          <a href={`#${v.id}`}>{v.num}절</a>
+          <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
+          <CorrespondenceBadges matches={correspondencesFor("donggokbiseo", v.id)} />
+        </div>
+        <div class="verse-body" set:html={v.html} />
+      </section>
+    ))}
+  </div>
 
   <ScriptureChapterNav scriptureSlug="donggokbiseo" currentId={verses_entry.id} />
 
   <Comments client:load targetKind="scripture" targetId="donggokbiseo" />
 </Base>
+
+<style>
+  .verse-anchor-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
 
