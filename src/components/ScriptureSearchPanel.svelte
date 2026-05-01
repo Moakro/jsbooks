@@ -31,7 +31,19 @@
   let inputEl: HTMLInputElement | undefined = $state();
   let panelEl: HTMLElement | undefined = $state();
   let triggerEl: HTMLButtonElement | undefined = $state();
-  let debouncer: ReturnType<typeof setTimeout> | undefined;
+  let isFocused = $state(false);
+
+  function submit() {
+    const q = query.trim();
+    if (!q) return;
+    runSearch(q);
+  }
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter" && !e.isComposing) {
+      e.preventDefault();
+      submit();
+    }
+  }
 
   function buildItemKey(pageUrl: string, sub: SubResult): string {
     return sub.anchor ? `${pageUrl}#${sub.anchor.id}` : sub.url;
@@ -91,16 +103,6 @@
     } finally {
       loading = false;
     }
-  }
-
-  function onInput() {
-    if (debouncer) clearTimeout(debouncer);
-    if (!query.trim()) {
-      results = [];
-      clearSession();
-      return;
-    }
-    debouncer = setTimeout(() => runSearch(query), 1000);
   }
 
   function openPanel() {
@@ -184,7 +186,6 @@
       danger: true,
     });
     if (!ok) return;
-    if (debouncer) clearTimeout(debouncer);
     query = "";
     results = [];
     lastClickedKey = null;
@@ -244,22 +245,29 @@
 {#if open}
   <div class="search-panel" bind:this={panelEl} role="dialog" aria-label="경전 본문 검색">
     <div class="search-row">
-      <input
-        bind:this={inputEl}
-        bind:value={query}
-        oninput={onInput}
-        type="search"
-        placeholder={`${scriptureName ?? "이 경전"} 본문에서 검색`}
-        autocomplete="off"
-        spellcheck="false"
-      />
-      {#if results.length > 0}
+      <div class="input-wrap" class:focused={isFocused}>
+        <input
+          bind:this={inputEl}
+          bind:value={query}
+          onkeydown={onKeydown}
+          onfocus={() => (isFocused = true)}
+          onblur={() => (isFocused = false)}
+          type="search"
+          placeholder={`${scriptureName ?? "이 경전"} 본문에서 검색`}
+          autocomplete="off"
+          spellcheck="false"
+        />
         <button
           type="button"
-          class="close-btn"
-          onclick={closePanel}
-          aria-label="검색 접기"
-          title="검색 접기"
+          class="submit-btn"
+          aria-disabled={!isFocused}
+          aria-label="검색"
+          title="검색 (Enter)"
+          onpointerdown={(e) => {
+            if (!isFocused) return;
+            e.preventDefault();
+            submit();
+          }}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -273,10 +281,33 @@
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <polyline points="18 15 12 9 6 15"></polyline>
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
         </button>
-      {/if}
+      </div>
+      <button
+        type="button"
+        class="close-btn"
+        onclick={closePanel}
+        aria-label="검색 접기"
+        title="검색 접기"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+      </button>
     </div>
 
     {#if results.length > 0}
@@ -400,17 +431,52 @@
     padding: 0.6rem 0.85rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
+  .input-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: stretch;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .input-wrap.focused {
+    border-color: var(--color-primary, #a8352a);
+    background: rgba(255, 255, 255, 0.1);
+  }
   .search-row input {
     flex: 1;
     min-width: 0;
     padding: 0.5rem 0.7rem;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 6px;
+    border: none;
     outline: none;
     font: inherit;
     font-size: 0.95rem;
-    background: rgba(255, 255, 255, 0.06);
+    background: transparent;
     color: #f4ece2;
+  }
+  .submit-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    padding: 0;
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: rgba(244, 236, 226, 0.35);
+    cursor: not-allowed;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .input-wrap.focused .submit-btn {
+    color: var(--color-primary, #a8352a);
+    cursor: pointer;
+  }
+  .input-wrap.focused .submit-btn:hover {
+    background: rgba(168, 53, 42, 0.16);
   }
   .close-btn {
     flex: 0 0 auto;
@@ -439,10 +505,6 @@
   }
   .search-row input::placeholder {
     color: rgba(244, 236, 226, 0.45);
-  }
-  .search-row input:focus {
-    border-color: var(--color-primary, #a8352a);
-    background: rgba(255, 255, 255, 0.1);
   }
 
   .hint {

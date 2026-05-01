@@ -1,47 +1,51 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
+  import { confirmDialog } from "../lib/confirmDialog";
 
-  type PagefindResult = {
-    id: string;
-    score: number;
-    data: () => Promise<{
-      url: string;
-      excerpt: string;
-      meta: Record<string, string>;
-      filters: Record<string, string[]>;
-    }>;
-  };
-
-  type SearchMode = "keyword" | "semantic";
-  type ResultRow = {
+  type SubResult = {
     url: string;
     title: string;
-    kind: string;
     excerpt: string;
-    score?: number;
+    anchor?: { element: string; id: string; text?: string; location: number };
+  };
+  type ResultRow = {
+    pageUrl: string;
+    pageTitle: string;
+    scriptureName: string | null;
+    subs: SubResult[];
+  };
+
+  /** slug → 한글 경전명. 새 경전이 추가되면 여기에 함께 등록. */
+  const SCRIPTURE_NAMES: Record<string, string> = {
+    cheonjigaebyeokgyeong: "천지개벽경",
+    donggokbiseo: "동곡비서",
   };
 
   let pagefind = $state<any>(null);
   let pagefindError = $state<string | null>(null);
   let query = $state("");
   let open = $state(false);
-  let mode = $state<SearchMode>("keyword");
   let results = $state<ResultRow[]>([]);
   let loading = $state(false);
-  let semanticError = $state<string | null>(null);
+  let lastClickedKey = $state<string | null>(null);
+  let isFocused = $state(false);
 
   let inputEl: HTMLInputElement | undefined = $state();
-  let debouncer: ReturnType<typeof setTimeout> | undefined;
+  let panelEl: HTMLElement | undefined = $state();
+  let triggerEl: HTMLButtonElement | undefined = $state();
+
+  function buildItemKey(pageUrl: string, sub: SubResult): string {
+    return sub.anchor ? `${pageUrl}#${sub.anchor.id}` : sub.url;
+  }
 
   async function loadPagefind() {
     if (pagefind) return;
     try {
-      // Use a runtime-built URL so Vite/Rollup don't try to resolve at build time.
       const url = new URL("/pagefind/pagefind.js", window.location.href).toString();
       const m = await import(/* @vite-ignore */ url);
       pagefind = m;
-      await pagefind.options({ excerptLength: 30 });
+      await pagefind.options({ excerptLength: 28 });
       pagefindError = null;
     } catch {
       pagefindError = "검색 인덱스를 불러올 수 없습니다 (빌드 후에만 작동)";
@@ -52,19 +56,38 @@
     if (!pagefind) return;
     if (!q.trim()) {
       results = [];
+      saveSession();
       return;
     }
     loading = true;
     try {
       const r = await pagefind.search(q);
-      const top = r.results.slice(0, 20);
-      const data = await Promise.all(top.map((x: PagefindResult) => x.data()));
-      results = data.map((d: any) => ({
-        url: d.url,
-        excerpt: d.excerpt,
-        title: d.meta?.title ?? d.url,
-        kind: d.filters?.kind?.[0] ?? "",
-      }));
+      const top = r.results.slice(0, 30);
+      const data = await Promise.all(top.map((x: any) => x.data()));
+      results = data.map((d: any) => {
+        const subs: SubResult[] = (d.sub_results ?? []).map((s: any) => ({
+          url: s.url,
+          title: s.title ?? "",
+          excerpt: s.excerpt ?? "",
+          anchor: s.anchor,
+        }));
+        if (subs.length === 0) {
+          subs.push({
+            url: d.url,
+            title: d.meta?.title ?? "",
+            excerpt: d.excerpt,
+          });
+        }
+        const slug = d.filters?.scripture?.[0] ?? null;
+        return {
+          pageUrl: d.url,
+          pageTitle: d.meta?.title ?? d.url,
+          scriptureName: slug ? SCRIPTURE_NAMES[slug] ?? null : null,
+          subs,
+        };
+      });
+      if (results.length > 0) inputEl?.blur();
+      saveSession();
     } catch (e) {
       results = [];
     } finally {
@@ -72,347 +95,522 @@
     }
   }
 
-  async function runSemanticSearch(q: string) {
-    if (!q.trim()) {
-      results = [];
-      semanticError = null;
-      return;
-    }
-    loading = true;
-    semanticError = null;
-    try {
-      const url = `/api/semantic-search?q=${encodeURIComponent(q)}&topK=15`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        results = [];
-        semanticError = `검색 실패 (${res.status}) — 서버 인덱스가 아직 준비되지 않았을 수 있습니다.`;
-        return;
-      }
-      const data = await res.json();
-      const KIND_MAP: Record<string, string> = {
-        scripture: "경전",
-        people: "인물",
-        places: "지명",
-        dosu: "도수",
-        terms: "용어",
-        dates: "시기",
-      };
-      results = (data.results ?? []).map((r: any) => ({
-        url: r.href,
-        title: r.title,
-        kind: KIND_MAP[r.kind] ?? r.kind,
-        excerpt: r.snippet ?? "",
-        score: r.score,
-      }));
-    } catch (e: any) {
-      results = [];
-      semanticError = e?.message ?? "검색 실패";
-    } finally {
-      loading = false;
+  function submit() {
+    const q = query.trim();
+    if (!q) return;
+    runSearch(q);
+  }
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter" && !e.isComposing) {
+      e.preventDefault();
+      submit();
     }
   }
 
-  function dispatchSearch(q: string) {
-    if (mode === "semantic") return runSemanticSearch(q);
-    return runSearch(q);
-  }
-
-  function onInput() {
-    if (debouncer) clearTimeout(debouncer);
-    const delay = mode === "semantic" ? 350 : 180;
-    debouncer = setTimeout(() => dispatchSearch(query), delay);
-  }
-
-  function setMode(next: SearchMode) {
-    if (mode === next) return;
-    mode = next;
-    semanticError = null;
-    results = [];
-    if (query.trim()) dispatchSearch(query);
-  }
-
-  function openSearch() {
+  function openPanel() {
     open = true;
     loadPagefind();
-    queueMicrotask(() => inputEl?.focus());
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("jsbooks:minimize-sidecard"));
+    }
   }
-  function closeSearch() {
+  function closePanel() {
+    // Preserve query + results in sessionStorage; just collapse the panel.
     open = false;
-    query = "";
-    results = [];
+  }
+  function togglePanel() {
+    if (open) closePanel();
+    else openPanel();
   }
 
-  function stopProp(e: Event) {
-    e.stopPropagation();
+  function onDocClick(e: MouseEvent) {
+    if (!open) return;
+    const t = e.target as Node;
+    if (panelEl?.contains(t)) return;
+    if (triggerEl?.contains(t)) return;
+    closePanel();
   }
-
   function onKey(e: KeyboardEvent) {
     if ((e.key === "/" || (e.key === "k" && (e.metaKey || e.ctrlKey))) && !open) {
       const tag = (document.activeElement as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       e.preventDefault();
-      openSearch();
+      openPanel();
     } else if (e.key === "Escape" && open) {
       e.preventDefault();
-      closeSearch();
+      closePanel();
+      triggerEl?.focus();
     }
   }
 
-  function onAiSearch(e: Event) {
-    const ev = e as CustomEvent<{ q: string }>;
-    const q = ev.detail?.q?.trim();
-    if (!q) return;
-    open = true;
-    mode = "semantic";
-    query = q;
-    loadPagefind();
-    queueMicrotask(() => inputEl?.focus());
-    if (debouncer) clearTimeout(debouncer);
-    debouncer = setTimeout(() => dispatchSearch(q), 0);
+  // ---- Session persistence (site-wide) ----
+  const SESSION_KEY = "jsbooks:site-search";
+  function saveSession() {
+    if (typeof sessionStorage === "undefined") return;
+    if (query && results.length > 0) {
+      try {
+        sessionStorage.setItem(
+          SESSION_KEY,
+          JSON.stringify({ query, results, lastClickedKey }),
+        );
+      } catch {}
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  }
+  function clearSession() {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.removeItem(SESSION_KEY);
+  }
+  function restoreSession() {
+    if (typeof sessionStorage === "undefined") return;
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj.query === "string" && Array.isArray(obj.results)) {
+        query = obj.query;
+        results = obj.results;
+        lastClickedKey =
+          typeof obj.lastClickedKey === "string" ? obj.lastClickedKey : null;
+      }
+    } catch {}
   }
 
+  function onResultClick(itemKey: string) {
+    lastClickedKey = itemKey;
+    saveSession();
+    closePanel();
+  }
+
+  async function resetSearch() {
+    const ok = await confirmDialog({
+      title: "검색 결과 초기화",
+      message: "저장된 검색 결과를 모두 비웁니다. 계속할까요?",
+      confirmLabel: "초기화",
+      danger: true,
+    });
+    if (!ok) return;
+    query = "";
+    results = [];
+    lastClickedKey = null;
+    clearSession();
+  }
+
+  // After panel opens with restored results, scroll the last-clicked item into view.
+  $effect(() => {
+    if (!open || !lastClickedKey || !panelEl) return;
+    requestAnimationFrame(() => {
+      const el = panelEl?.querySelector("a.last-clicked") as HTMLElement | null;
+      el?.scrollIntoView({ block: "center", behavior: "auto" });
+    });
+  });
+
   onMount(() => {
+    document.addEventListener("click", onDocClick);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("jsbooks:ai-search", onAiSearch);
+    restoreSession();
     return () => {
+      document.removeEventListener("click", onDocClick);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("jsbooks:ai-search", onAiSearch);
     };
   });
 </script>
 
-<button class="trigger" onclick={openSearch} title="검색 (/)" aria-label="검색">
+<button
+  bind:this={triggerEl}
+  type="button"
+  class="trigger"
+  class:active={open}
+  aria-label={results.length > 0 ? `사이트 검색 (이전 결과 ${results.length}건)` : "사이트 검색"}
+  aria-expanded={open}
+  title={results.length > 0 ? `이전 검색: '${query}' (${results.length}건)` : "사이트 검색 (/)"}
+  onclick={togglePanel}
+>
   <Icon icon="search" />
+  {#if results.length > 0 && !open}
+    <span class="dot-badge" aria-hidden="true"></span>
+  {/if}
 </button>
 
 {#if open}
-  <div
-    class="overlay"
-    role="presentation"
-    onclick={closeSearch}
-    onkeydown={null}
-  >
-    <div
-      class="modal"
-      role="dialog"
-      tabindex="-1"
-      aria-modal="true"
-      aria-label="사이트 검색"
-      onclick={stopProp}
-      onkeydown={null}
-    >
-      <div class="search-row">
+  <div class="search-panel" bind:this={panelEl} role="dialog" aria-label="사이트 검색">
+    <div class="search-row">
+      <div class="input-wrap" class:focused={isFocused}>
         <input
           bind:this={inputEl}
           bind:value={query}
-          oninput={onInput}
+          onkeydown={onKeydown}
+          onfocus={() => (isFocused = true)}
+          onblur={() => (isFocused = false)}
           type="search"
-          placeholder={mode === "semantic"
-            ? "의미로 검색 (예: 상제님이 일본을 어떻게 보셨는지)"
-            : "검색어 (예: 이마두, 단주, 의통, 금산사)"}
+          placeholder="사이트 전체에서 검색"
           autocomplete="off"
           spellcheck="false"
         />
-        <button class="close" onclick={closeSearch} aria-label="닫기 (Esc)">
-          <Icon icon="x" size={18} />
+        <button
+          type="button"
+          class="submit-btn"
+          aria-disabled={!isFocused}
+          aria-label="검색"
+          title="검색 (Enter)"
+          onpointerdown={(e) => {
+            if (!isFocused) return;
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
         </button>
       </div>
-
-      <div class="mode-tabs" role="tablist" aria-label="검색 방식">
-        <button
-          type="button"
-          class:active={mode === "keyword"}
-          role="tab"
-          aria-selected={mode === "keyword"}
-          onclick={() => setMode("keyword")}
-        >키워드</button>
-        <button
-          type="button"
-          class:active={mode === "semantic"}
-          role="tab"
-          aria-selected={mode === "semantic"}
-          onclick={() => setMode("semantic")}
-        >의미 (AI)</button>
-      </div>
-
-      {#if mode === "keyword" && pagefindError}
-        <p class="hint">{pagefindError}</p>
-      {:else if mode === "semantic" && semanticError}
-        <p class="hint">{semanticError}</p>
-      {:else if loading}
-        <p class="hint">검색 중…</p>
-      {:else if query && results.length === 0}
-        <p class="hint">결과 없음</p>
-      {:else if results.length > 0}
-        <ul class="results">
-          {#each results as r (r.url)}
-            <li>
-              <a href={r.url} onclick={closeSearch}>
-                <span class="r-kind">{r.kind || "—"}</span>
-                <span class="r-title">{@html r.title}</span>
-                <span class="r-excerpt">{@html r.excerpt}</span>
-                {#if r.score !== undefined}
-                  <span class="r-score" title="유사도">{(r.score * 100).toFixed(0)}%</span>
-                {/if}
-              </a>
-            </li>
-          {/each}
-        </ul>
-      {:else}
-        <p class="hint">
-          {#if mode === "semantic"}
-            의미 기반으로 절·카드를 검색합니다. 예: "상제님이 일본을 어떻게 보셨나"
-          {:else}
-            단축키: <kbd>/</kbd> 또는 <kbd>Cmd</kbd>+<kbd>K</kbd> 로 검색 열기
-          {/if}
-        </p>
-      {/if}
+      <button
+        type="button"
+        class="close-btn"
+        onclick={closePanel}
+        aria-label="검색 접기"
+        title="검색 접기"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+      </button>
     </div>
+
+    {#if results.length > 0}
+      <button type="button" class="reset-bar" onclick={resetSearch}>
+        검색 결과 초기화
+      </button>
+    {/if}
+
+    {#if pagefindError}
+      <p class="hint">{pagefindError}</p>
+    {:else if loading}
+      <p class="hint">검색 중…</p>
+    {:else if query && results.length === 0}
+      <p class="hint">결과 없음</p>
+    {:else if results.length > 0}
+      <ul class="results">
+        {#each results as r (r.pageUrl)}
+          <li class="page-group">
+            <div class="page-title">
+              {#if r.scriptureName}
+                <span class="scripture-name">{r.scriptureName}</span>
+                <span class="page-sep" aria-hidden="true">·</span>
+              {/if}
+              <span>{r.pageTitle}</span>
+            </div>
+            <ul class="sub-list">
+              {#each r.subs as s, i (r.pageUrl + (s.anchor?.id ?? i))}
+                {@const itemKey = buildItemKey(r.pageUrl, s)}
+                <li>
+                  <a
+                    href={`${s.anchor ? r.pageUrl : s.url}?q=${encodeURIComponent(query)}${s.anchor ? `#${s.anchor.id}` : ""}`}
+                    class:last-clicked={itemKey === lastClickedKey}
+                    onclick={() => onResultClick(itemKey)}
+                  >
+                    {#if s.title && s.title !== r.pageTitle}
+                      <span class="s-title">{@html s.title}</span>
+                    {/if}
+                    <span class="s-excerpt">{@html s.excerpt}</span>
+                  </a>
+                </li>
+              {/each}
+            </ul>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="hint">검색어를 입력하세요</p>
+    {/if}
   </div>
 {/if}
 
 <style>
   .trigger {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.3rem 0.7rem;
-    border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 6px;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
     background: transparent;
-    cursor: pointer;
     color: var(--color-fg, #1f1c1a);
-    font-size: 0.92rem;
+    cursor: pointer;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
-  .trigger:hover {
-    background: var(--color-secondary-bg, #f0f7f6);
-    border-color: var(--color-secondary, #1e6e6e);
+  .trigger:hover,
+  .trigger.active {
+    color: var(--color-primary, #a8352a);
+    background: var(--color-primary-bg, #fbf3f1);
+    border-color: var(--color-rule, #e8dfd9);
   }
-  kbd {
-    font: inherit;
-    font-size: 0.78em;
-    padding: 0 6px;
-    border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 4px;
-    color: var(--color-muted, #8a807a);
+  .trigger:focus-visible {
+    outline: 2px solid var(--color-primary, #a8352a);
+    outline-offset: 2px;
+  }
+  .dot-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-primary, #a8352a);
+    box-shadow: 0 0 0 2px var(--color-bg, #fbf8f4);
+    pointer-events: none;
   }
 
-  .overlay {
+  .search-panel {
     position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 100;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 10vh;
-  }
-  .modal {
-    background: var(--color-bg, #fbf8f4);
-    width: min(640px, 92vw);
-    max-height: 78vh;
-    border-radius: 10px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+    top: var(--header-h, 64px);
+    right: 1rem;
+    width: min(640px, calc(100vw - 2rem));
+    max-height: 70vh;
+    background: rgba(22, 20, 18, 0.92);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: #f4ece2;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    z-index: 50;
+    animation: slide-down 0.15s ease;
   }
+  @keyframes slide-down {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (max-width: 640px) {
+    .search-panel {
+      right: 0.5rem;
+      left: 0.5rem;
+      width: auto;
+    }
+  }
+
   .search-row {
     display: flex;
-    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .input-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: stretch;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .input-wrap.focused {
+    border-color: var(--color-primary, #a8352a);
+    background: rgba(255, 255, 255, 0.1);
   }
   .search-row input {
     flex: 1;
-    padding: 0.9rem 1rem;
+    min-width: 0;
+    padding: 0.5rem 0.7rem;
     border: none;
     outline: none;
     font: inherit;
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     background: transparent;
-    color: var(--color-fg, #1f1c1a);
+    color: #f4ece2;
   }
-  .search-row .close {
+  .search-row input::placeholder {
+    color: rgba(244, 236, 226, 0.45);
+  }
+  .submit-btn {
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
+    width: 2.25rem;
+    padding: 0;
     border: none;
-    padding: 0 1rem;
-    cursor: pointer;
-    color: var(--color-muted, #8a807a);
-  }
-  .search-row .close:hover {
-    color: var(--color-fg, #1f1c1a);
-  }
-  .mode-tabs {
-    display: flex;
-    gap: 0.25rem;
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid var(--color-rule, #e8dfd9);
-  }
-  .mode-tabs button {
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: 5px;
-    padding: 0.25rem 0.7rem;
-    cursor: pointer;
-    color: var(--color-muted, #8a807a);
-    font: inherit;
-    font-size: 0.85rem;
+    color: rgba(244, 236, 226, 0.35);
+    cursor: not-allowed;
+    transition: color 0.15s ease, background 0.15s ease;
   }
-  .mode-tabs button.active {
+  .input-wrap.focused .submit-btn {
     color: var(--color-primary, #a8352a);
-    border-color: var(--color-primary, #a8352a);
-    background: var(--color-primary-bg, #fbf3f1);
+    cursor: pointer;
   }
-  .r-score {
-    font-size: 0.72rem;
-    color: var(--color-muted, #8a807a);
-    margin-left: 0.4rem;
+  .input-wrap.focused .submit-btn:hover {
+    background: rgba(168, 53, 42, 0.16);
   }
+  .close-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #f4ece2;
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .close-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  .close-btn:focus-visible {
+    outline: 2px solid var(--color-primary, #a8352a);
+    outline-offset: 2px;
+  }
+
+  .reset-bar {
+    width: 100%;
+    padding: 0.4rem 1rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(244, 236, 226, 0.65);
+    font: inherit;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+  .reset-bar:hover {
+    background: rgba(168, 53, 42, 0.18);
+    color: #ffb3a6;
+  }
+  .reset-bar:focus-visible {
+    outline: 2px solid var(--color-primary, #a8352a);
+    outline-offset: -2px;
+  }
+
+  .hint {
+    padding: 0.9rem 1rem;
+    margin: 0;
+    color: rgba(244, 236, 226, 0.6);
+    font-size: 0.9rem;
+  }
+
   .results {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 0.3rem 0;
     overflow-y: auto;
   }
-  .results li a {
-    display: grid;
-    grid-template-columns: 4.5em 1fr;
-    column-gap: 0.7rem;
-    row-gap: 0.2rem;
-    padding: 0.6rem 1rem;
-    border-bottom: 1px solid var(--color-rule, #e8dfd9);
-    text-decoration: none;
-    color: var(--color-fg, #1f1c1a);
+  .page-group {
+    padding: 0.3rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
-  .results li a:hover {
-    background: var(--color-primary-bg, #fbf3f1);
+  .page-group:last-child {
+    border-bottom: none;
   }
-  .r-kind {
+  .page-title {
+    padding: 0.3rem 1rem;
     font-size: 0.78rem;
-    color: var(--color-secondary, #1e6e6e);
-    grid-row: 1 / span 2;
-    align-self: center;
-  }
-  .r-title {
+    color: rgba(244, 236, 226, 0.55);
     font-weight: 600;
+    letter-spacing: 0.02em;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: baseline;
   }
-  .r-excerpt {
-    grid-column: 2;
-    font-size: 0.88rem;
-    color: var(--color-muted, #8a807a);
-    line-height: 1.5;
+  .page-title .scripture-name {
+    color: #ffb3a6;
   }
-  .r-excerpt :global(mark) {
-    background: var(--color-primary-bg, #fbf3f1);
-    color: var(--color-primary, #a8352a);
+  .page-title .page-sep {
+    color: rgba(244, 236, 226, 0.3);
+  }
+  .sub-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .sub-list li a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    color: #f4ece2;
+    border-left: 3px solid transparent;
+  }
+  .sub-list li a:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-left-color: var(--color-primary, #a8352a);
+  }
+  .sub-list li a.last-clicked {
+    background: rgba(255, 138, 122, 0.1);
+    border-left-color: var(--color-primary, #a8352a);
+  }
+  .sub-list li a.last-clicked .s-title {
+    color: #ffb3a6;
+  }
+  .s-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #ff8a7a;
+  }
+  .s-excerpt {
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: #f4ece2;
+  }
+  .s-excerpt :global(mark) {
+    background: rgba(255, 138, 122, 0.22);
+    color: #ffb3a6;
     padding: 0 2px;
     border-radius: 2px;
-  }
-  .hint {
-    padding: 1rem;
-    color: var(--color-muted, #8a807a);
-    font-size: 0.92rem;
+    font-weight: 600;
   }
 </style>
