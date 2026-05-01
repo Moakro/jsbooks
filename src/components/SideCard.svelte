@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import Icon from "./Icon.svelte";
 
   type BacklinkData = {
@@ -58,23 +58,28 @@
     error: string | null;
     data: CardData | null;
     verseData: VerseData | null;
-    expanded: boolean;
   };
 
   let stack = $state<StackItem[]>([]);
-  let isOpen = $derived(stack.length > 0);
+  let sheetOpen = $state(true);
+  let currentIndex = $state(0);
+  let cardsEl: HTMLElement | undefined = $state();
+
+  let hasStack = $derived(stack.length > 0);
+  let sheetVisible = $derived(sheetOpen && hasStack);
+  let handleVisible = $derived(!sheetOpen && hasStack);
 
   $effect(() => {
     if (typeof document === "undefined") return;
-    if (isOpen) {
+    if (sheetVisible) {
       document.body.setAttribute("data-sidecard", "open");
+    } else if (handleVisible) {
+      document.body.setAttribute("data-sidecard", "minimized");
     } else {
       document.body.removeAttribute("data-sidecard");
     }
   });
 
-  // Wikilink intercept: pages render `<a class="wikilink" href="/library/people/이마두/">…</a>`
-  // We intercept clicks and translate the href to a card-stack push.
   function hrefToCardRef(href: string): { kind: string; slug: string } | null {
     const m = href.match(/^\/library\/(people|places|dosu|terms|dates)\/([^/]+)\/?$/);
     if (!m) return null;
@@ -88,17 +93,28 @@
     return await res.json();
   }
 
+  function scrollToIndex(idx: number, smooth = true) {
+    if (!cardsEl) return;
+    const w = cardsEl.clientWidth;
+    if (w === 0) return;
+    cardsEl.scrollTo({ left: idx * w, behavior: smooth ? "smooth" : "auto" });
+  }
+
+  async function focusIndex(idx: number, smooth = true) {
+    sheetOpen = true;
+    await tick();
+    // DOM may need an extra frame after sheet opens (transform → measurable width)
+    requestAnimationFrame(() => {
+      currentIndex = idx;
+      scrollToIndex(idx, smooth);
+    });
+  }
+
   async function pushCard(kind: string, slug: string) {
     const key = `${kind}:${slug}`;
-    // If already in stack, just expand it (collapse others) and move to top
     const existing = stack.findIndex((s) => s.key === key);
     if (existing >= 0) {
-      const item = stack[existing];
-      const rest = stack.filter((_, i) => i !== existing);
-      stack = [
-        ...rest.map((s) => ({ ...s, expanded: false })),
-        { ...item, expanded: true },
-      ];
+      focusIndex(existing);
       syncURL();
       return;
     }
@@ -110,25 +126,18 @@
       error: null,
       data: null,
       verseData: null,
-      expanded: true,
     };
-    stack = [
-      ...stack.map((s) => ({ ...s, expanded: false })),
-      newItem,
-    ];
+    stack = [...stack, newItem];
     syncURL();
+    focusIndex(stack.length - 1);
 
     try {
       const data = await fetchCard(kind, slug);
-      stack = stack.map((s) =>
-        s.key === key ? { ...s, data, loading: false } : s,
-      );
+      stack = stack.map((s) => (s.key === key ? { ...s, data, loading: false } : s));
     } catch (e: any) {
       console.error("[SideCard] fetch failed", { kind, slug, error: e });
       stack = stack.map((s) =>
-        s.key === key
-          ? { ...s, error: e?.message ?? "load failed", loading: false }
-          : s,
+        s.key === key ? { ...s, error: e?.message ?? "load failed", loading: false } : s,
       );
     }
   }
@@ -149,16 +158,15 @@
     return { kind: "verse", ...v };
   }
 
-  async function pushVerse(slug: string, anchor: string, meta?: { similarity: number | null; origin: string }) {
+  async function pushVerse(
+    slug: string,
+    anchor: string,
+    meta?: { similarity: number | null; origin: string },
+  ) {
     const key = `verse:${slug}#${anchor}`;
     const existing = stack.findIndex((s) => s.key === key);
     if (existing >= 0) {
-      const item = stack[existing];
-      const rest = stack.filter((_, i) => i !== existing);
-      stack = [
-        ...rest.map((s) => ({ ...s, expanded: false })),
-        { ...item, expanded: true },
-      ];
+      focusIndex(existing);
       syncURL();
       return;
     }
@@ -170,10 +178,10 @@
       error: null,
       data: null,
       verseData: null,
-      expanded: true,
     };
-    stack = [...stack.map((s) => ({ ...s, expanded: false })), newItem];
+    stack = [...stack, newItem];
     syncURL();
+    focusIndex(stack.length - 1);
 
     try {
       const verseData = await fetchVerse(slug, anchor);
@@ -184,26 +192,22 @@
     } catch (e: any) {
       console.error("[SideCard] verse fetch failed", { slug, anchor, error: e });
       stack = stack.map((s) =>
-        s.key === key
-          ? { ...s, error: e?.message ?? "load failed", loading: false }
-          : s,
+        s.key === key ? { ...s, error: e?.message ?? "load failed", loading: false } : s,
       );
     }
-  }
-
-  function popCard() {
-    if (stack.length === 0) return;
-    stack = stack.slice(0, -1);
-    if (stack.length > 0) stack[stack.length - 1].expanded = true;
-    syncURL();
   }
 
   function closeCard(key: string) {
     const idx = stack.findIndex((s) => s.key === key);
     if (idx < 0) return;
     stack = stack.filter((s) => s.key !== key);
-    if (stack.length > 0) stack[stack.length - 1].expanded = true;
     syncURL();
+    if (stack.length === 0) return;
+    const nextIdx = Math.min(currentIndex, stack.length - 1);
+    requestAnimationFrame(() => {
+      currentIndex = nextIdx;
+      scrollToIndex(nextIdx, false);
+    });
   }
 
   function onCloseCardClick(key: string, e: MouseEvent) {
@@ -219,14 +223,31 @@
     }
   }
 
-  function closeAll() {
-    stack = [];
-    syncURL();
+  function minimizeSheet() {
+    sheetOpen = false;
   }
 
-  function toggleExpand(key: string) {
-    stack.forEach((s) => (s.expanded = s.key === key ? !s.expanded : false));
-    stack = [...stack];
+  function reopenSheet() {
+    focusIndex(currentIndex);
+  }
+
+  function goPrev() {
+    if (currentIndex <= 0) return;
+    focusIndex(currentIndex - 1);
+  }
+  function goNext() {
+    if (currentIndex >= stack.length - 1) return;
+    focusIndex(currentIndex + 1);
+  }
+
+  function onCardsScroll() {
+    if (!cardsEl) return;
+    const w = cardsEl.clientWidth;
+    if (w === 0) return;
+    const idx = Math.round(cardsEl.scrollLeft / w);
+    if (idx !== currentIndex && idx >= 0 && idx < stack.length) {
+      currentIndex = idx;
+    }
   }
 
   // ---- URL sync ----
@@ -260,7 +281,6 @@
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     const target = e.target as HTMLElement;
 
-    // Correspondence badges → open target verse in side card.
     const verseLink = target.closest("a.verse-compare-link") as HTMLAnchorElement | null;
     if (verseLink) {
       const slug = verseLink.dataset.targetSlug;
@@ -275,8 +295,6 @@
       return;
     }
 
-    // Only intercept side-card links. `.wikilink.page` (chapter / preface) and
-    // bare `.page-link` should navigate normally.
     const a = target.closest("a.wikilink:not(.page)") as HTMLAnchorElement | null;
     if (!a) return;
     const href = a.getAttribute("href");
@@ -288,11 +306,26 @@
   }
 
   function handleKey(e: KeyboardEvent) {
-    if (e.key === "Escape" && isOpen) {
+    if (e.key === "Escape" && sheetVisible) {
       e.preventDefault();
-      closeAll();
+      minimizeSheet();
     }
   }
+
+  let resizeObs: ResizeObserver | null = null;
+  $effect(() => {
+    if (!cardsEl) return;
+    if (resizeObs) resizeObs.disconnect();
+    resizeObs = new ResizeObserver(() => {
+      // Re-snap to currentIndex on width change
+      scrollToIndex(currentIndex, false);
+    });
+    resizeObs.observe(cardsEl);
+    return () => {
+      resizeObs?.disconnect();
+      resizeObs = null;
+    };
+  });
 
   onMount(() => {
     document.addEventListener("click", handleClick);
@@ -305,57 +338,63 @@
   });
 </script>
 
-<aside class:open={isOpen} aria-hidden={!isOpen}>
-  {#if isOpen}
+<aside class:open={sheetVisible} aria-hidden={!sheetVisible}>
+  {#if hasStack}
     <header class="sb-head">
-      <button class="back" onclick={popCard} title="뒤로 (ESC: 전체 닫기)" aria-label="뒤로">
-        <Icon icon="arrow-left" size={18} />
-      </button>
       <span class="title">관련 카드 {stack.length}개</span>
-      <button class="close" onclick={closeAll} title="전체 닫기" aria-label="전체 닫기">
+      <button class="close" onclick={minimizeSheet} title="시트 닫기 (스택 유지)" aria-label="시트 닫기">
         <Icon icon="x" size={18} />
       </button>
     </header>
-    <div class="cards">
-      {#each stack as item (item.key)}
-        <article class="card" class:expanded={item.expanded}>
-          <button
-            class="card-head"
-            type="button"
-            onclick={() => toggleExpand(item.key)}
-            aria-expanded={item.expanded}
-          >
-            <span class="kind-pill">
-              {#if item.kind === "verse"}
-                {item.verseData?.scriptureName ?? "경전"}
-              {:else}
-                {item.data?.kindLabel ?? item.kind}
-              {/if}
-            </span>
-            <span class="card-title">
-              {#if item.kind === "verse"}
-                {item.verseData?.verseNum ? `${item.verseData.verseNum}절` : item.slug}
-                {#if item.verseData?.correspondenceMeta?.similarity}
-                  <span class="hanja">({(item.verseData.correspondenceMeta.similarity * 100).toFixed(0)}%)</span>
+
+    <div class="carousel-wrap">
+      {#if stack.length > 1}
+        <button
+          class="nav prev"
+          type="button"
+          onclick={goPrev}
+          disabled={currentIndex <= 0}
+          aria-label="이전 카드"
+        >
+          <Icon icon="arrow-left" size={20} />
+        </button>
+      {/if}
+
+      <div class="cards" bind:this={cardsEl} onscroll={onCardsScroll}>
+        {#each stack as item (item.key)}
+          <article class="card">
+            <div class="card-head">
+              <span class="kind-pill">
+                {#if item.kind === "verse"}
+                  {item.verseData?.scriptureName ?? "경전"}
+                {:else}
+                  {item.data?.kindLabel ?? item.kind}
                 {/if}
-              {:else}
-                {item.data?.name ?? item.slug}
-                {#if item.data?.name_hanja}
-                  <span class="hanja">({item.data.name_hanja})</span>
+              </span>
+              <span class="card-title">
+                {#if item.kind === "verse"}
+                  {item.verseData?.verseNum ? `${item.verseData.verseNum}절` : item.slug}
+                  {#if item.verseData?.correspondenceMeta?.similarity}
+                    <span class="hanja"
+                      >({(item.verseData.correspondenceMeta.similarity * 100).toFixed(0)}%)</span
+                    >
+                  {/if}
+                {:else}
+                  {item.data?.name ?? item.slug}
+                  {#if item.data?.name_hanja}
+                    <span class="hanja">({item.data.name_hanja})</span>
+                  {/if}
                 {/if}
-              {/if}
-            </span>
-            <span
-              class="card-close"
-              role="button"
-              tabindex="0"
-              aria-label="이 카드만 닫기"
-              title="이 카드만 닫기"
-              onclick={(e) => onCloseCardClick(item.key, e)}
-              onkeydown={(e) => onCloseCardKey(item.key, e)}
-            ><Icon icon="x" size={14} /></span>
-          </button>
-          {#if item.expanded}
+              </span>
+              <button
+                class="card-close"
+                type="button"
+                aria-label="이 카드만 닫기"
+                title="이 카드만 닫기"
+                onclick={(e) => onCloseCardClick(item.key, e)}
+                onkeydown={(e) => onCloseCardKey(item.key, e)}
+              ><Icon icon="x" size={14} /></button>
+            </div>
             <div class="card-body">
               {#if item.loading}
                 <p class="muted">불러오는 중…</p>
@@ -415,12 +454,48 @@
                 </p>
               {/if}
             </div>
-          {/if}
-        </article>
-      {/each}
+          </article>
+        {/each}
+      </div>
+
+      {#if stack.length > 1}
+        <button
+          class="nav next"
+          type="button"
+          onclick={goNext}
+          disabled={currentIndex >= stack.length - 1}
+          aria-label="다음 카드"
+        >
+          <Icon icon="arrow-right" size={20} />
+        </button>
+      {/if}
     </div>
+
+    {#if stack.length > 1}
+      <footer class="indicator">
+        {#if stack.length <= 5}
+          {#each stack as _, i}
+            <span class="dot" class:active={i === currentIndex} aria-hidden="true"></span>
+          {/each}
+        {:else}
+          <span class="count-text">{currentIndex + 1} / {stack.length}</span>
+        {/if}
+      </footer>
+    {/if}
   {/if}
 </aside>
+
+{#if handleVisible}
+  <button
+    class="reopen-handle"
+    type="button"
+    onclick={reopenSheet}
+    aria-label={`관련 카드 ${stack.length}개 다시 열기`}
+    title={`관련 카드 ${stack.length}개`}
+  >
+    {stack.length}
+  </button>
+{/if}
 
 <style>
   aside {
@@ -499,31 +574,83 @@
     color: var(--color-bg, #fbf8f4);
   }
 
-  .cards {
-    overflow-y: auto;
+  .carousel-wrap {
     flex: 1;
+    position: relative;
+    min-height: 0;
+    display: flex;
+  }
+  .cards {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+  }
+  .cards::-webkit-scrollbar {
+    display: none;
+  }
+  .card {
+    flex: 0 0 100%;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
     display: flex;
     flex-direction: column;
   }
-  .card {
-    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+
+  .nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--color-rule, #e8dfd9);
+    background: var(--color-bg, #fbf8f4);
+    color: var(--color-primary, #a8352a);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    transition:
+      background 0.15s ease,
+      opacity 0.15s ease,
+      transform 0.15s ease;
   }
+  .nav.prev {
+    left: 6px;
+  }
+  .nav.next {
+    right: 6px;
+  }
+  .nav:hover:not(:disabled) {
+    background: var(--color-primary-bg, #fbf3f1);
+  }
+  .nav:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+
   .card-head {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.55rem 0.85rem;
-    cursor: pointer;
     background: var(--color-bg, #fbf8f4);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
     user-select: none;
-    width: 100%;
-    border: none;
-    text-align: left;
-    font: inherit;
-    color: inherit;
-  }
-  .card-head:hover {
-    background: var(--color-primary-bg, #fbf3f1);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
   .kind-pill {
     font-size: 0.72rem;
@@ -563,6 +690,120 @@
     font-size: 0.95rem;
     line-height: 1.6;
   }
+
+  .indicator {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    border-top: 1px solid var(--color-rule, #e8dfd9);
+    background: var(--color-bg, #fbf8f4);
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-disabled, #b8b0aa);
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  .dot.active {
+    background: var(--color-primary, #a8352a);
+    transform: scale(1.3);
+  }
+  .count-text {
+    font-size: 0.82rem;
+    color: var(--color-muted, #8a807a);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reopen-handle {
+    position: fixed;
+    z-index: 70;
+    background: var(--color-primary, #a8352a);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    transition: transform 0.18s ease, opacity 0.2s ease;
+    animation: handle-in 0.25s ease both;
+  }
+  @keyframes handle-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Mobile: bottom-edge half-circle */
+  @media (max-width: 1023px) {
+    .reopen-handle {
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 56px;
+      height: 28px;
+      border-radius: 56px 56px 0 0;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.18);
+      padding-bottom: 4px;
+    }
+    @keyframes handle-in {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) scale(0.6);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+      }
+    }
+  }
+
+  /* Desktop: right-edge half-circle */
+  @media (min-width: 1024px) {
+    .reopen-handle {
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 56px;
+      border-radius: 56px 0 0 56px;
+      box-shadow: -4px 0 12px rgba(0, 0, 0, 0.18);
+      padding-right: 4px;
+    }
+    .reopen-handle:hover {
+      transform: translate(-4px, -50%);
+    }
+    @keyframes handle-in {
+      from {
+        opacity: 0;
+        transform: translateY(-50%) scale(0.6);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+      }
+    }
+  }
+
+  /* Body padding to keep mobile bottom content above the reopen handle */
+  :global(body[data-sidecard="minimized"]) {
+    padding-bottom: 0;
+  }
+  @media (max-width: 1023px) {
+    :global(body[data-sidecard="minimized"]) {
+      padding-bottom: 72px;
+    }
+  }
+
   .meta-list {
     margin: 0.4rem 0 1rem;
     display: grid;
