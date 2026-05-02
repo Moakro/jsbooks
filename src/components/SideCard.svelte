@@ -349,7 +349,7 @@
     <header class="sb-head">
       <span class="title">관련 카드 {stack.length}개</span>
       <button class="close" onclick={minimizeSheet} title="시트 닫기 (스택 유지)" aria-label="시트 닫기">
-        <Icon icon="x" size={18} />
+        <Icon icon="chevron-down" size={20} />
       </button>
     </header>
 
@@ -578,6 +578,13 @@
   .sb-head button:hover {
     background: var(--color-primary, #a8352a);
     color: var(--color-bg, #fbf8f4);
+  }
+  /* Desktop (right side panel): rotate chevron-down → chevron-right
+     since the panel slides off to the right when dismissed. */
+  @media (min-width: 1024px) {
+    .sb-head button.close :global(svg) {
+      transform: rotate(-90deg);
+    }
   }
 
   .carousel-wrap {
