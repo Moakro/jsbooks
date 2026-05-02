@@ -1,11 +1,16 @@
 ---
 import Base from "../../layouts/Base.astro";
-import Placeholder from "../../components/Placeholder.astro";
+import AdminUsersTable from "../../components/AdminUsersTable.svelte";
 ---
 
 <Base title="회원관리 — 관리자">
-  <Placeholder
-    title="회원관리"
-    note="등록 회원 목록·등급 변경·시드 계정 플래그·정지 등을 관리하는 자리. 추후 D1 users 테이블을 SSR 또는 admin API로 조회해 표시합니다."
-  />
+  <h1>회원관리</h1>
+  <AdminUsersTable client:load />
 </Base>
+
+<style>
+  h1 {
+    font-size: 1.5rem;
+    margin: 0 0 1.2rem;
+  }
+</style>

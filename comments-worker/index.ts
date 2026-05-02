@@ -53,6 +53,9 @@ export default {
       if (path === "/api/me") return getMe(req, env);
       if (path === "/api/me/nickname") return setNickname(req, env);
 
+      // ──── Admin (level >= 4) ────
+      if (path === "/api/admin/users" && req.method === "GET") return adminListUsers(req, env);
+
       // ──── Comments ────
       if (path === "/api/comments" && req.method === "GET") return listComments(req, env);
       if (path === "/api/comments" && req.method === "POST") return createComment(req, env);
@@ -371,6 +374,53 @@ async function setNickname(req: Request, env: Env): Promise<Response> {
   }
 
   return json({ ok: true });
+}
+
+// ───────────────────── admin ─────────────────────
+
+interface AdminUserRow {
+  id: string;
+  created_at: string;
+  avatar_url: string | null;
+  display_name: string | null;
+  email: string;
+  level: number;
+  is_seed: number;
+  last_seen_at: string | null;
+  comments_count: number;
+  flags_received: number;
+}
+
+async function adminListUsers(req: Request, env: Env): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "unauthenticated" }, 401);
+  const me = await loadUser(env, uid);
+  if (!me || me.level < 4) return json({ error: "forbidden" }, 403);
+
+  const rs = await env.DB.prepare(
+    `
+    SELECT
+      u.id,
+      u.created_at,
+      u.avatar_url,
+      u.display_name,
+      u.email,
+      u.level,
+      u.is_seed,
+      u.last_seen_at,
+      (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.id AND c.status = 'published') AS comments_count,
+      (SELECT COUNT(*) FROM flags f
+         JOIN comments c ON c.id = f.comment_id
+        WHERE c.user_id = u.id AND f.status = 'open') AS flags_received
+    FROM users u
+    ORDER BY
+      CASE WHEN u.last_seen_at IS NULL THEN 1 ELSE 0 END,
+      u.last_seen_at DESC,
+      u.created_at DESC
+    `,
+  ).all<AdminUserRow>();
+
+  return json({ users: rs.results ?? [] });
 }
 
 // ───────────────────── comments ─────────────────────

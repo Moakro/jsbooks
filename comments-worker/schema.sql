@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   display_name  TEXT,                             -- nickname, NULL until set
   avatar_url    TEXT,
   affiliation   TEXT,                             -- 단체 자가 표시 (선택)
-  level         INTEGER NOT NULL DEFAULT 0,       -- 0=대기, 1=일반, 2=검증, 3=큐레이터
+  level         INTEGER NOT NULL DEFAULT 0,       -- 0=대기, 1=일반, 2=검증, 3=큐레이터, 4=운영자
+  is_seed       INTEGER NOT NULL DEFAULT 0,       -- 1=운영자 시드 계정 (콘텐츠 누적용 가짜 회원)
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
   last_seen_at  TEXT

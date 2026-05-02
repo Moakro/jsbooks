@@ -23,6 +23,10 @@ zone_name = "jsbooks.wiki"
 pattern = "jsbooks.wiki/api/me*"
 zone_name = "jsbooks.wiki"
 
+[[routes]]
+pattern = "jsbooks.wiki/api/admin/*"
+zone_name = "jsbooks.wiki"
+
 [observability]
 enabled = true
 
