@@ -143,6 +143,11 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
   admin: [
     {
       type: "link",
+      label: "메인",
+      path: "/admin/",
+    },
+    {
+      type: "link",
       label: "회원관리",
       path: "/admin/users/",
     },
