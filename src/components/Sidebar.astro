@@ -94,8 +94,35 @@ function isActiveLink(itemPath: string): boolean {
         </div>
       );
     })}
+
+    <div class="block admin-block" data-admin-only hidden>
+      <a class:list={["sidebar-link", "admin-link", { active: isActiveLink("/admin/") }]} href="/admin/">
+        <Icon icon="shield" size={16} />
+        <span>관리자</span>
+      </a>
+    </div>
   </aside>
 )}
+
+<script>
+  // Reveal admin-only sidebar items if logged-in user has level >= 4.
+  (async function () {
+    try {
+      const res = await fetch("/api/me", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) return;
+      const data = await res.json();
+      if (data?.user && (data.user.level ?? 0) >= 4) {
+        document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((el) => {
+          el.removeAttribute("hidden");
+        });
+      }
+    } catch {
+      // silent
+    }
+  })();
+</script>
 
 <style>
   .sidebar {
@@ -104,6 +131,9 @@ function isActiveLink(itemPath: string): boolean {
     background: var(--color-surface-2);
     padding: 0.5rem 0 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
   }
   @media (max-width: 1023px) {
     .sidebar {
@@ -117,6 +147,17 @@ function isActiveLink(itemPath: string): boolean {
   }
   .block:last-child {
     border-bottom: none;
+  }
+  .admin-block {
+    margin-top: auto;
+    border-top: 1px solid var(--color-rule);
+    border-bottom: none;
+  }
+  .admin-link {
+    color: var(--color-muted);
+  }
+  .admin-link:hover {
+    color: var(--color-secondary);
   }
   h3 {
     font-size: 0.78rem;

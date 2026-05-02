@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Icon from "./Icon.svelte";
 
   type User = {
     id: string;
@@ -69,7 +70,9 @@
       <span class="badge-dot" aria-label="닉네임 설정 필요"></span>
     {/if}
   </a>
-  <button class="auth-btn ghost" type="button" onclick={logout} title="로그아웃">↩</button>
+  <button class="auth-btn ghost" type="button" onclick={logout} title="로그아웃" aria-label="로그아웃">
+    <Icon icon="log-out" size={16} />
+  </button>
 {/if}
 
 <style>
@@ -95,7 +98,10 @@
   .auth-btn.ghost {
     border-color: var(--color-rule, #e8dfd9);
     color: var(--color-muted, #8a807a);
-    padding: 0.25rem 0.5rem;
+    padding: 0.25rem 0.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
   .auth-btn.ghost:hover {
     background: var(--color-secondary-bg, #f0f7f6);
