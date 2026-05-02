@@ -7,7 +7,7 @@
  * The header uses `prefix` to highlight the active section: any URL starting
  * with one of these prefixes lights up the corresponding tab.
  */
-export type SectionSlug = "home" | "scripture" | "news" | "feed" | "calendar" | "account";
+export type SectionSlug = "home" | "scripture" | "news" | "feed" | "calendar" | "account" | "admin";
 
 export interface SectionDef {
   slug: SectionSlug;
@@ -66,6 +66,14 @@ export const ACCOUNT_SECTION: SectionDef = {
   prefixes: ["/account/"],
 };
 
+/** Admin section is reachable from the sidebar bottom link (level >= 4 only). */
+export const ADMIN_SECTION: SectionDef = {
+  slug: "admin",
+  label: "관리자",
+  href: "/admin/",
+  prefixes: ["/admin/"],
+};
+
 /** Resolve which section a URL path belongs to (or null for fully neutral pages). */
 export function resolveSection(pathname: string): SectionSlug | null {
   if (pathname === "/") return "home";
@@ -73,5 +81,6 @@ export function resolveSection(pathname: string): SectionSlug | null {
     if (def.prefixes.some((p) => pathname.startsWith(p))) return def.slug;
   }
   if (ACCOUNT_SECTION.prefixes.some((p) => pathname.startsWith(p))) return "account";
+  if (ADMIN_SECTION.prefixes.some((p) => pathname.startsWith(p))) return "admin";
   return null;
 }

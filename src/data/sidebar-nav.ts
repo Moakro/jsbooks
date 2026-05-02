@@ -139,6 +139,14 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       ],
     },
   ],
+
+  admin: [
+    {
+      type: "link",
+      label: "회원관리",
+      path: "/admin/users/",
+    },
+  ],
 };
 
 /** Pages that intentionally render full-width with no sidebar. */
