@@ -5,8 +5,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "jsbooks-comments"
-database_id = "3ee537bc-5410-41d3-af72-d3051e847924"
+database_name = "jsbooks-db"
+database_id = "607b2cf3-8754-4e87-9d1b-a68a35cc8052"
 
 # Routes attached to the jsbooks.wiki zone for everything under /api/auth/*
 # and /api/comments*. Wildcards ensure they win over Pages routing even with
