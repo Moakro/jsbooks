@@ -54,8 +54,8 @@
   <a
     class="auth-user"
     class:needs-nickname={user.needs_nickname}
-    href={user.needs_nickname ? "/account/nickname" : "/account/"}
-    title={user.needs_nickname ? "닉네임 설정 필요" : "내 계정"}
+    href={user.needs_nickname ? "/account/nickname" : "/account/library/"}
+    title={user.needs_nickname ? "닉네임 설정 필요" : "내 서재"}
   >
     {#if user.avatar_url}
       <img src={user.avatar_url} alt="" class="avatar" />

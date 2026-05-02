@@ -45,7 +45,7 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
     {
       type: "link",
       label: "경전 설정",
-      path: "/account/scriptures/",
+      path: "/account/library/",
       auth: true,
       icon: "settings",
     },
@@ -134,10 +134,8 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       type: "section",
       label: "계정",
       items: [
-        { label: "요약", path: "/account/" },
         { label: "닉네임", path: "/account/nickname/" },
-        { label: "경전 라이브러리", path: "/account/scriptures/" },
-        { label: "설정", path: "/account/preferences/" },
+        { label: "내 서재", path: "/account/library/" },
       ],
     },
   ],
