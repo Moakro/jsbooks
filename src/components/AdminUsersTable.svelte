@@ -105,7 +105,7 @@
             <td class="email">{u.email}</td>
             <td>{fmtDate(u.last_seen_at)}</td>
             <td class="num">{u.comments_count}</td>
-            <td class:num class:flagged={u.flags_received > 0}>{u.flags_received}</td>
+            <td class="num" class:flagged={u.flags_received > 0}>{u.flags_received}</td>
             <td>{u.is_seed ? "✓" : ""}</td>
           </tr>
         {/each}
