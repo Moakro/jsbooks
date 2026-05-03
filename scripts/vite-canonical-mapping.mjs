@@ -281,10 +281,32 @@ async function saveChapterHandler(body) {
 // ─── Vite plugin ────────────────────────────────────────────────────────────
 
 export default function canonicalMappingDev() {
+  let viteServer = null;
+  function triggerReload(changedPaths = []) {
+    if (!viteServer) return;
+    try {
+      // 1) Notify Vite's file watcher about each changed path so any module
+      //    that depends on the file (e.g., Astro content collection loader)
+      //    invalidates its cache.
+      for (const p of changedPaths) {
+        try {
+          viteServer.watcher.emit("change", p);
+        } catch {
+          // best-effort
+        }
+      }
+      // 2) Tell connected browsers to do a full page reload — picks up content
+      //    collection changes that Astro might otherwise serve from cache.
+      viteServer.ws.send({ type: "full-reload", path: "*" });
+    } catch {
+      // ignore
+    }
+  }
   return {
     name: "jsbooks-canonical-mapping-dev",
     apply: "serve",
     configureServer(server) {
+      viteServer = server;
       server.middlewares.use(async (req, res, next) => {
         if (!req.url) return next();
         if (req.method !== "POST") return next();
@@ -298,6 +320,7 @@ export default function canonicalMappingDev() {
             const mapping = await loadMapping();
             applyMappingEntry(mapping, body);
             await persistMapping(mapping);
+            triggerReload([CONTENT_MAPPING, VAULT_MAPPING]);
             return json(res, 200, { ok: true, count: Object.keys(mapping.verses).length });
           }
           if (isMappingBulk) {
@@ -305,10 +328,22 @@ export default function canonicalMappingDev() {
             const mapping = await loadMapping();
             for (const e of entries) applyMappingEntry(mapping, e);
             await persistMapping(mapping);
+            triggerReload([CONTENT_MAPPING, VAULT_MAPPING]);
             return json(res, 200, { ok: true, count: Object.keys(mapping.verses).length });
           }
           if (isChapterSave) {
             const out = await saveChapterHandler(body);
+            // Markdown was rewritten — invalidate Astro content collection cache
+            // by triggering Vite watcher events + full browser reload.
+            const changed = [
+              entryIdToContentPath(body.hanja.entryId),
+              entryIdToVaultPath(body.hanja.entryId),
+            ];
+            if (body.hangeul?.entryId) {
+              changed.push(entryIdToContentPath(body.hangeul.entryId));
+              changed.push(entryIdToVaultPath(body.hangeul.entryId));
+            }
+            triggerReload(changed);
             return json(res, 200, out);
           }
         } catch (err) {
