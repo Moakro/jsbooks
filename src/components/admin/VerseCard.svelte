@@ -31,6 +31,22 @@
     draft = verse.text;
     editing = false;
   }
+
+  // Svelte action: auto-grow textarea to fit content (no scroll, no cap).
+  function autosize(node: HTMLTextAreaElement) {
+    const resize = () => {
+      node.style.height = "auto";
+      node.style.height = node.scrollHeight + "px";
+    };
+    // Delay one frame so the browser has rendered the textarea before measuring.
+    requestAnimationFrame(resize);
+    node.addEventListener("input", resize);
+    return {
+      destroy() {
+        node.removeEventListener("input", resize);
+      },
+    };
+  }
 </script>
 
 <div class="card" class:hangeul={side === "hangeul"} class:empty={!verse.text.trim()}>
@@ -45,8 +61,9 @@
 
   {#if editing}
     <textarea
+      use:autosize
       bind:value={draft}
-      rows={Math.max(2, Math.min(8, draft.split("\n").length + 1))}
+      rows="2"
       placeholder={verse.text ? "" : "본문을 입력하세요"}
     ></textarea>
     <div class="edit-actions">
@@ -132,8 +149,10 @@
     padding: 0.4rem 0.5rem;
     font: inherit;
     line-height: 1.7;
-    resize: vertical;
+    resize: none;
+    overflow: hidden;
     box-sizing: border-box;
+    min-height: 2.4em;
   }
   .edit-actions {
     display: flex;
