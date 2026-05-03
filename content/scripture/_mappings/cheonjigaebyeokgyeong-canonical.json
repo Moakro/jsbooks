@@ -1,6 +1,10 @@
 {
   "version": 1,
   "scripture": "cheonjigaebyeokgyeong-canonical",
+  "source_slug": "cheonjigaebyeokgyeong-canonical",
+  "target_slug": "cheonjigaebyeokgyeong",
+  "source_label": "한자 원문",
+  "target_label": "임시 한글본",
   "description": "Maps each 한자 절 anchor (canonical) to one or more 한글 절 anchors in the temp 한글본 (cheonjigaebyeokgyeong/).",
   "verses": {
     "1-1-1": {

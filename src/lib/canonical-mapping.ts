@@ -17,6 +17,12 @@ export type VerseMapping = {
 export type MappingFile = {
   version: number;
   scripture: string;
+  /** Slug of the source scripture (canonical, e.g. "cheonjigaebyeokgyeong-canonical"). */
+  source_slug?: string;
+  /** Slug of the target scripture (translation/temp, e.g. "cheonjigaebyeokgyeong"). */
+  target_slug?: string;
+  source_label?: string;
+  target_label?: string;
   description?: string;
   verses: Record<string, VerseMapping>;
 };
