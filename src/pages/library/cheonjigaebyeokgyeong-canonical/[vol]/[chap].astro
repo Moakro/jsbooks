@@ -108,7 +108,12 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
                 <span class="badge unmapped">한글 미매핑</span>
               )}
             </span>
-            <button type="button" class="verse-toggle" data-toggle-all>전체보기</button>
+            <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
+              <span class="vt-label">전체보기</span>
+              <span class="vt-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+              </span>
+            </button>
           </div>
           <div class="original-box" data-layer="hanja" set:html={v.hanjaHTML} />
           {v.hangeul.length > 0 && (
@@ -134,8 +139,6 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
           // Mode 변경 시 절별 force-all 해제 (다른 절 상태 잔류 방지)
           document.querySelectorAll("section.verse.force-all").forEach((el) => {
             el.classList.remove("force-all");
-            const btn = el.querySelector("[data-toggle-all]");
-            if (btn) btn.textContent = "전체보기";
           });
         };
         wrap.addEventListener("change", update);
@@ -147,9 +150,7 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
           if (!btn) return;
           const verse = btn.closest("section.verse");
           if (!verse) return;
-          const next = !verse.classList.contains("force-all");
-          verse.classList.toggle("force-all", next);
-          btn.textContent = next ? "축약" : "전체보기";
+          verse.classList.toggle("force-all");
         });
       })();
     </script>
@@ -250,6 +251,8 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
   }
   .verse-toggle {
     display: none;
+    align-items: center;
+    justify-content: center;
     font-size: 0.72em;
     padding: 0.18rem 0.55rem;
     border: 1px solid var(--color-rule);
@@ -259,6 +262,20 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
     cursor: pointer;
     flex-shrink: 0;
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .verse-toggle .vt-icon {
+    display: none;
+    line-height: 0;
+  }
+  /* force-all일 때는 라벨 대신 undo 아이콘만 */
+  .verse.force-all .verse-toggle .vt-label {
+    display: none;
+  }
+  .verse.force-all .verse-toggle .vt-icon {
+    display: inline-flex;
+  }
+  .verse.force-all .verse-toggle {
+    padding: 0.22rem 0.45rem;
   }
   .verse-toggle:hover {
     background: var(--color-primary-bg);
