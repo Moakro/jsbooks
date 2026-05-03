@@ -38,6 +38,20 @@
     return `:new:${Math.random().toString(36).slice(2, 9)}`;
   }
 
+  // Re-pair mappings 1:1 by row index, starting at `from` (0-based).
+  // Rows before `from` keep their existing mapping unchanged.
+  function repairMappingsFrom(from: number) {
+    const prefix = mapState.slice(0, from);
+    const suffix = hanja.slice(from).map((_, k) => {
+      const target = hangeul[from + k];
+      return {
+        hangeul: target && target.id ? [target.id] : [],
+        reviewed: false,
+      };
+    });
+    mapState = [...prefix, ...suffix];
+  }
+
   // ─── hanja mutators ───
   function updateHanja(i: number, ev: CustomEvent<{ text: string }>) {
     hanja[i] = { ...hanja[i], text: ev.detail.text };
@@ -51,13 +65,9 @@
       { id: hanja[i - 1].id, text: merged },
       ...hanja.slice(i + 1),
     ];
-    // mapping: combine hangeul arrays of i-1 and i, reviewed = false (need re-check)
-    const combined = [...new Set([...mapState[i - 1].hangeul, ...mapState[i].hangeul])];
-    mapState = [
-      ...mapState.slice(0, i - 1),
-      { hangeul: combined, reviewed: false },
-      ...mapState.slice(i + 1),
-    ];
+    // 매핑은 병합 지점(i-1)부터 1:1로 자동 재정렬. 사용자가 의도적으로
+    // 불일치 매핑을 만들어둔 경우라면 저장 전 체크박스로 다시 조정 가능.
+    repairMappingsFrom(i - 1);
   }
   function mergeHanjaDown(i: number) {
     if (i >= hanja.length - 1) return;
@@ -66,12 +76,12 @@
   function deleteHanja(i: number) {
     if (!confirm(`${i + 1}절을 삭제하시겠습니까?`)) return;
     hanja = [...hanja.slice(0, i), ...hanja.slice(i + 1)];
-    mapState = [...mapState.slice(0, i), ...mapState.slice(i + 1)];
+    repairMappingsFrom(i);
   }
   function insertHanja(i: number, where: "above" | "below") {
     const at = where === "above" ? i : i + 1;
     hanja = [...hanja.slice(0, at), { text: "" }, ...hanja.slice(at)];
-    mapState = [...mapState.slice(0, at), { hangeul: [], reviewed: false }, ...mapState.slice(at)];
+    repairMappingsFrom(at);
   }
 
   // ─── hangeul mutators ───
@@ -82,7 +92,6 @@
   }
   function mergeHangeulUp(i: number) {
     if (i === 0) return;
-    const lostId = hangeul[i].id;
     const keptId = hangeul[i - 1].id;
     const merged = (hangeul[i - 1].text + "\n" + hangeul[i].text).trim();
     hangeul = [
@@ -90,15 +99,8 @@
       { id: keptId, text: merged },
       ...hangeul.slice(i + 1),
     ];
-    // mapping: any reference to lostId becomes keptId; dedupe
-    if (lostId) {
-      mapState = mapState.map((m) => ({
-        ...m,
-        hangeul: [
-          ...new Set(m.hangeul.map((h) => (h === lostId ? (keptId ?? h) : h))),
-        ],
-      }));
-    }
+    // 한글 병합 후 매핑도 i-1부터 1:1로 재정렬
+    repairMappingsFrom(i - 1);
   }
   function mergeHangeulDown(i: number) {
     if (i >= hangeul.length - 1) return;
@@ -106,18 +108,13 @@
   }
   function deleteHangeul(i: number) {
     if (!confirm(`한글 ${i + 1}절을 삭제하시겠습니까?`)) return;
-    const lostId = hangeul[i].id;
     hangeul = [...hangeul.slice(0, i), ...hangeul.slice(i + 1)];
-    if (lostId) {
-      mapState = mapState.map((m) => ({
-        ...m,
-        hangeul: m.hangeul.filter((h) => h !== lostId),
-      }));
-    }
+    repairMappingsFrom(Math.max(0, i - 1));
   }
   function insertHangeul(i: number, where: "above" | "below") {
     const at = where === "above" ? i : i + 1;
     hangeul = [...hangeul.slice(0, at), { text: "" }, ...hangeul.slice(at)];
+    repairMappingsFrom(Math.max(0, at - 1));
   }
   function appendHangeul() {
     hangeul = [...hangeul, { text: "" }];
