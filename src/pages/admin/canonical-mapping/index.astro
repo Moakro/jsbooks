@@ -15,7 +15,6 @@ type ChapStat = {
   volName: string;
   total: number;
   mapped: number;
-  reviewed: number;
 };
 
 const chapters: ChapStat[] = [];
@@ -23,12 +22,10 @@ for (const e of canon) {
   if (!e.data.권 || !e.data.장) continue;
   const verses = parseVerses(e.body ?? "");
   let mapped = 0;
-  let reviewed = 0;
   for (const v of verses) {
     const m = mapping.verses[v.id];
     if (!m) continue;
     if (m.hangeul.length > 0) mapped++;
-    if (m.reviewed) reviewed++;
   }
   chapters.push({
     vol: e.data.권,
@@ -36,7 +33,6 @@ for (const e of canon) {
     volName: e.data.권_이름 ?? "",
     total: verses.length,
     mapped,
-    reviewed,
   });
 }
 chapters.sort((a, b) => a.vol - b.vol || a.chap - b.chap);
@@ -49,20 +45,18 @@ for (const c of chapters) {
 
 const totalVerses = chapters.reduce((s, c) => s + c.total, 0);
 const totalMapped = chapters.reduce((s, c) => s + c.mapped, 0);
-const totalReviewed = chapters.reduce((s, c) => s + c.reviewed, 0);
 ---
 
 <Base title="canonical mapping — admin">
   <AdminGate>
     <h1>천지개벽경 정식판 매핑</h1>
     <p class="meta">
-      한자 절 ↔ 임시 한글본 절 매핑 검수 도구. 로컬 dev 모드에서만 저장됩니다.
+      한자 절 ↔ 임시 한글본 절 매핑 도구. 로컬 dev 모드에서만 저장됩니다.
     </p>
 
     <div class="summary">
       <div><strong>{totalVerses}</strong> 절</div>
       <div>매핑 <strong>{totalMapped}</strong> ({Math.round((totalMapped / totalVerses) * 100)}%)</div>
-      <div>검수 <strong>{totalReviewed}</strong> ({Math.round((totalReviewed / totalVerses) * 100)}%)</div>
     </div>
 
     {[...byVol.entries()].map(([vol, chs]) => (
@@ -70,12 +64,12 @@ const totalReviewed = chapters.reduce((s, c) => s + c.reviewed, 0);
         <h2>권 {vol} · {chs[0].volName}</h2>
         <div class="grid">
           {chs.map((c) => {
-            const pct = c.total > 0 ? Math.round((c.reviewed / c.total) * 100) : 0;
+            const pct = c.total > 0 ? Math.round((c.mapped / c.total) * 100) : 0;
             return (
               <a class="cell" href={`/admin/canonical-mapping/${c.vol}/${c.chap}/`}>
                 <div class="num">{c.chap}장</div>
                 <div class="bar"><div class="fill" style={`width: ${pct}%`}></div></div>
-                <div class="counts">{c.reviewed}/{c.mapped}/{c.total}</div>
+                <div class="counts">{c.mapped}/{c.total}</div>
               </a>
             );
           })}
@@ -84,7 +78,7 @@ const totalReviewed = chapters.reduce((s, c) => s + c.reviewed, 0);
     ))}
 
     <p class="legend">
-      셀 표기: 검수 / 매핑 / 전체 절 수. 진행률 막대는 검수 완료 비율.
+      셀 표기: 매핑 / 전체 절 수. 진행률 막대는 매핑 완료 비율.
     </p>
   </AdminGate>
 </Base>

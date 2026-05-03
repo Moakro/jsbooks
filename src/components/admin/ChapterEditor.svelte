@@ -133,9 +133,6 @@
       return m;
     });
   }
-  function setReviewed(i: number, value: boolean) {
-    mapState = mapState.map((m, j) => (j === i ? { ...m, reviewed: value } : m));
-  }
   function autoPair() {
     mapState = hanja.map((_, i) => {
       const hg = hangeul[i];
@@ -168,13 +165,14 @@
       const hanjaMigrations = new Map<string, string>(chapterOut.hanja.migrations);
       const hangeulMigrations = new Map<string, string>(chapterOut.hangeul?.migrations ?? []);
 
+      // 章 전체 저장 = 검수 완료. 매핑이 있는 row는 자동 reviewed=true.
       const mappingEntries = mapState.map((m, i) => {
         const anchor = newHanjaAnchors[i];
         const hangeulIds = m.hangeul.map((h) => hangeulMigrations.get(h) ?? h);
         return {
           anchor,
           hangeul: hangeulIds,
-          reviewed: m.reviewed,
+          reviewed: hangeulIds.length > 0,
           ...(m.confidence != null ? { confidence: m.confidence } : {}),
         };
       });
@@ -208,9 +206,8 @@
 
   $: progress = (() => {
     const total = mapState.length;
-    const reviewed = mapState.filter((m) => m.reviewed).length;
     const mapped = mapState.filter((m) => m.hangeul.length > 0).length;
-    return { total, reviewed, mapped };
+    return { total, mapped };
   })();
 </script>
 
@@ -222,14 +219,14 @@
     <button type="button" on:click={autoPair}>1:1 자동매핑</button>
     <span class="status">{saveStatus}</span>
     <span class="progress">
-      검수 {progress.reviewed}/{progress.mapped}/{progress.total}
+      매핑 {progress.mapped}/{progress.total}
     </span>
   </div>
 
   <div class="grid">
     <header><strong>한자 원문</strong> ({hanja.length}절)</header>
     <header><strong>임시 한글본</strong> ({hangeul.length}절)</header>
-    <header class="map-hd">매핑 / 검수</header>
+    <header class="map-hd">매핑</header>
 
     {#each hanja as hv, i (i)}
       <div class="col-hanja">
@@ -286,14 +283,6 @@
             </label>
           {/each}
         </div>
-        <label class="reviewed-toggle">
-          <input
-            type="checkbox"
-            checked={mapState[i].reviewed}
-            on:change={(e) => setReviewed(i, (e.target as HTMLInputElement).checked)}
-          />
-          검수
-        </label>
       </div>
     {/each}
 

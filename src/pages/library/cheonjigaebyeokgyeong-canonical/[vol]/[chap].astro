@@ -97,16 +97,13 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
 
     <div>
       {verses.map((v) => (
-        <section class="verse" data-reviewed={v.reviewed ? "true" : "false"}>
+        <section class="verse">
           <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
           <div class="verse-label">
             <a href={`#${v.id}`}>{v.num}절</a>
             <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
             {v.hangeul.length === 0 && (
               <span class="badge unmapped">한글 미매핑</span>
-            )}
-            {v.hangeul.length > 0 && !v.reviewed && (
-              <span class="badge unreviewed">검수전</span>
             )}
           </div>
           <div class="verse-body hanja" data-layer="hanja" set:html={v.hanjaHTML} />
@@ -231,10 +228,6 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
   .badge.unmapped {
     background: var(--color-rule);
     color: var(--color-muted);
-  }
-  .badge.unreviewed {
-    background: var(--color-secondary-bg, #fff3e0);
-    color: var(--color-secondary, #d97706);
   }
   .verse-anchor-heading {
     position: absolute;
