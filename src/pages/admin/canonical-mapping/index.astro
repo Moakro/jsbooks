@@ -1,0 +1,131 @@
+---
+import Base from "../../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import { parseVerses } from "../../../lib/verse-parser";
+import { getAllMappings } from "../../../lib/canonical-mapping";
+import AdminGate from "../../../components/AdminGate.astro";
+
+const all = await getCollection("scripture");
+const canon = all.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-canonical/"));
+const mapping = getAllMappings();
+
+type ChapStat = {
+  vol: number;
+  chap: number;
+  volName: string;
+  total: number;
+  mapped: number;
+  reviewed: number;
+};
+
+const chapters: ChapStat[] = [];
+for (const e of canon) {
+  if (!e.data.권 || !e.data.장) continue;
+  const verses = parseVerses(e.body ?? "");
+  let mapped = 0;
+  let reviewed = 0;
+  for (const v of verses) {
+    const m = mapping.verses[v.id];
+    if (!m) continue;
+    if (m.hangeul.length > 0) mapped++;
+    if (m.reviewed) reviewed++;
+  }
+  chapters.push({
+    vol: e.data.권,
+    chap: e.data.장,
+    volName: e.data.권_이름 ?? "",
+    total: verses.length,
+    mapped,
+    reviewed,
+  });
+}
+chapters.sort((a, b) => a.vol - b.vol || a.chap - b.chap);
+
+const byVol = new Map<number, ChapStat[]>();
+for (const c of chapters) {
+  if (!byVol.has(c.vol)) byVol.set(c.vol, []);
+  byVol.get(c.vol)!.push(c);
+}
+
+const totalVerses = chapters.reduce((s, c) => s + c.total, 0);
+const totalMapped = chapters.reduce((s, c) => s + c.mapped, 0);
+const totalReviewed = chapters.reduce((s, c) => s + c.reviewed, 0);
+---
+
+<Base title="canonical mapping — admin">
+  <AdminGate>
+    <h1>천지개벽경 정식판 매핑</h1>
+    <p class="meta">
+      한자 절 ↔ 임시 한글본 절 매핑 검수 도구. 로컬 dev 모드에서만 저장됩니다.
+    </p>
+
+    <div class="summary">
+      <div><strong>{totalVerses}</strong> 절</div>
+      <div>매핑 <strong>{totalMapped}</strong> ({Math.round((totalMapped / totalVerses) * 100)}%)</div>
+      <div>검수 <strong>{totalReviewed}</strong> ({Math.round((totalReviewed / totalVerses) * 100)}%)</div>
+    </div>
+
+    {[...byVol.entries()].map(([vol, chs]) => (
+      <section>
+        <h2>권 {vol} · {chs[0].volName}</h2>
+        <div class="grid">
+          {chs.map((c) => {
+            const pct = c.total > 0 ? Math.round((c.reviewed / c.total) * 100) : 0;
+            return (
+              <a class="cell" href={`/admin/canonical-mapping/${c.vol}/${c.chap}/`}>
+                <div class="num">{c.chap}장</div>
+                <div class="bar"><div class="fill" style={`width: ${pct}%`}></div></div>
+                <div class="counts">{c.reviewed}/{c.mapped}/{c.total}</div>
+              </a>
+            );
+          })}
+        </div>
+      </section>
+    ))}
+
+    <p class="legend">
+      셀 표기: 검수 / 매핑 / 전체 절 수. 진행률 막대는 검수 완료 비율.
+    </p>
+  </AdminGate>
+</Base>
+
+<style>
+  h1 { margin: 0 0 0.4rem; }
+  h2 { margin: 1.4rem 0 0.6rem; font-size: 1.05rem; }
+  .meta { color: var(--color-muted); margin: 0 0 1rem; font-size: 0.9rem; }
+  .summary {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    background: var(--color-surface-2);
+    margin: 0 0 1rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 0.4rem;
+  }
+  .cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem 0.55rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--color-fg);
+    font-size: 0.82rem;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .cell:hover {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+  }
+  .num { font-weight: 600; font-size: 0.9rem; }
+  .bar { height: 3px; background: var(--color-rule); border-radius: 999px; overflow: hidden; }
+  .fill { height: 100%; background: var(--color-primary); }
+  .counts { font-size: 0.72rem; color: var(--color-muted); }
+  .legend { margin-top: 1.5rem; font-size: 0.8rem; color: var(--color-muted); }
+</style>

@@ -151,6 +151,11 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       label: "회원관리",
       path: "/admin/users/",
     },
+    {
+      type: "link",
+      label: "정식판 매핑",
+      path: "/admin/canonical-mapping/",
+    },
   ],
 };
 

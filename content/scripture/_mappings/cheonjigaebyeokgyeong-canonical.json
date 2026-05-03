@@ -1,0 +1,348 @@
+{
+  "version": 1,
+  "scripture": "cheonjigaebyeokgyeong-canonical",
+  "description": "Maps each 한자 절 anchor (canonical) to one or more 한글 절 anchors in the temp 한글본 (cheonjigaebyeokgyeong/).",
+  "verses": {
+    "1-1-1": {
+      "hangeul": [
+        "1-1-1"
+      ],
+      "reviewed": true,
+      "confidence": 1
+    },
+    "1-1-2": {
+      "hangeul": [
+        "1-1-2"
+      ],
+      "reviewed": true,
+      "confidence": 1
+    },
+    "1-1-3": {
+      "hangeul": [
+        "1-1-3"
+      ],
+      "reviewed": true,
+      "confidence": 1
+    },
+    "1-1-4": {
+      "hangeul": [
+        "1-1-4"
+      ],
+      "reviewed": true,
+      "confidence": 1
+    },
+    "1-2-1": {
+      "hangeul": [
+        "1-2-1"
+      ],
+      "reviewed": true
+    },
+    "1-2-2": {
+      "hangeul": [
+        "1-2-2"
+      ],
+      "reviewed": true
+    },
+    "1-3-1": {
+      "hangeul": [
+        "1-3-1"
+      ],
+      "reviewed": true
+    },
+    "1-3-2": {
+      "hangeul": [
+        "1-3-2"
+      ],
+      "reviewed": true
+    },
+    "1-3-3": {
+      "hangeul": [
+        "1-3-3"
+      ],
+      "reviewed": true
+    },
+    "1-4-1": {
+      "hangeul": [
+        "1-4-1"
+      ],
+      "reviewed": true
+    },
+    "1-4-3": {
+      "hangeul": [
+        "1-4-2"
+      ],
+      "reviewed": true
+    },
+    "1-4-4": {
+      "hangeul": [
+        "1-4-3"
+      ],
+      "reviewed": true
+    },
+    "1-5-1": {
+      "hangeul": [
+        "1-5-1"
+      ],
+      "reviewed": true
+    },
+    "1-5-2": {
+      "hangeul": [
+        "1-5-2"
+      ],
+      "reviewed": true
+    },
+    "1-5-3": {
+      "hangeul": [
+        "1-5-3"
+      ],
+      "reviewed": true
+    },
+    "1-5-4": {
+      "hangeul": [
+        "1-5-4"
+      ],
+      "reviewed": true
+    },
+    "1-5-5": {
+      "hangeul": [
+        "1-5-5"
+      ],
+      "reviewed": true
+    },
+    "1-6-1": {
+      "hangeul": [
+        "1-6-1"
+      ],
+      "reviewed": true
+    },
+    "1-6-2": {
+      "hangeul": [
+        "1-6-2"
+      ],
+      "reviewed": true
+    },
+    "1-6-3": {
+      "hangeul": [
+        "1-6-3"
+      ],
+      "reviewed": true
+    },
+    "1-6-4": {
+      "hangeul": [
+        "1-6-4"
+      ],
+      "reviewed": true
+    },
+    "1-6-5": {
+      "hangeul": [
+        "1-6-5"
+      ],
+      "reviewed": true
+    },
+    "1-6-6": {
+      "hangeul": [
+        "1-6-6"
+      ],
+      "reviewed": true
+    },
+    "1-7-1": {
+      "hangeul": [
+        "1-7-1"
+      ],
+      "reviewed": true
+    },
+    "1-7-2": {
+      "hangeul": [
+        "1-7-2"
+      ],
+      "reviewed": true
+    },
+    "1-7-3": {
+      "hangeul": [
+        "1-7-3"
+      ],
+      "reviewed": true
+    },
+    "1-7-4": {
+      "hangeul": [
+        "1-7-4"
+      ],
+      "reviewed": true
+    },
+    "1-8-1": {
+      "hangeul": [
+        "1-8-1"
+      ],
+      "reviewed": true
+    },
+    "1-8-2": {
+      "hangeul": [
+        "1-8-2"
+      ],
+      "reviewed": true
+    },
+    "1-8-3": {
+      "hangeul": [
+        "1-8-3"
+      ],
+      "reviewed": true
+    },
+    "1-9-1": {
+      "hangeul": [
+        "1-9-1"
+      ],
+      "reviewed": true
+    },
+    "1-9-2": {
+      "hangeul": [
+        "1-9-2"
+      ],
+      "reviewed": true
+    },
+    "1-9-3": {
+      "hangeul": [
+        "1-9-3"
+      ],
+      "reviewed": true
+    },
+    "1-9-4": {
+      "hangeul": [
+        "1-9-4"
+      ],
+      "reviewed": true
+    },
+    "1-9-5": {
+      "hangeul": [
+        "1-9-5"
+      ],
+      "reviewed": true
+    },
+    "1-10-1": {
+      "hangeul": [
+        "1-10-1"
+      ],
+      "reviewed": true
+    },
+    "1-10-2": {
+      "hangeul": [
+        "1-10-2"
+      ],
+      "reviewed": true
+    },
+    "1-10-3": {
+      "hangeul": [
+        "1-10-3",
+        "1-10-4"
+      ],
+      "reviewed": true
+    },
+    "1-10-4": {
+      "hangeul": [
+        "1-10-5"
+      ],
+      "reviewed": true
+    },
+    "1-10-5": {
+      "hangeul": [
+        "1-10-6"
+      ],
+      "reviewed": true
+    },
+    "1-10-6": {
+      "hangeul": [
+        "1-10-7"
+      ],
+      "reviewed": true
+    },
+    "1-10-7": {
+      "hangeul": [
+        "1-10-8"
+      ],
+      "reviewed": true
+    },
+    "1-10-8": {
+      "hangeul": [
+        "1-10-9"
+      ],
+      "reviewed": true
+    },
+    "1-10-9": {
+      "hangeul": [
+        "1-10-10"
+      ],
+      "reviewed": true
+    },
+    "1-11-1": {
+      "hangeul": [
+        "1-11-1"
+      ],
+      "reviewed": false
+    },
+    "1-11-2": {
+      "hangeul": [
+        "1-11-2"
+      ],
+      "reviewed": false
+    },
+    "1-11-3": {
+      "hangeul": [
+        "1-11-3"
+      ],
+      "reviewed": false
+    },
+    "1-11-4": {
+      "hangeul": [
+        "1-11-4"
+      ],
+      "reviewed": false
+    },
+    "1-11-5": {
+      "hangeul": [
+        "1-11-5"
+      ],
+      "reviewed": false
+    },
+    "1-11-6": {
+      "hangeul": [
+        "1-11-6"
+      ],
+      "reviewed": false
+    },
+    "1-11-7": {
+      "hangeul": [
+        "1-11-7"
+      ],
+      "reviewed": false
+    },
+    "1-11-10": {
+      "hangeul": [
+        "1-11-9"
+      ],
+      "reviewed": false
+    },
+    "1-11-11": {
+      "hangeul": [
+        "1-11-10"
+      ],
+      "reviewed": false
+    },
+    "1-11-12": {
+      "hangeul": [
+        "1-11-11"
+      ],
+      "reviewed": false
+    },
+    "1-11-13": {
+      "hangeul": [
+        "1-11-12"
+      ],
+      "reviewed": false
+    },
+    "1-11-9": {
+      "hangeul": [
+        "1-11-8"
+      ],
+      "reviewed": false
+    }
+  }
+}

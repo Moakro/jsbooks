@@ -20,6 +20,7 @@ if (showSidebar && !section) {
 }
 
 const blocks = section ? SIDEBAR_BY_SECTION[section] : [];
+const isDev = import.meta.env.DEV;
 
 // For 경전 sidebar, we feed the ScripturesList island with all scripture meta.
 let scriptureMeta:
@@ -98,6 +99,17 @@ function isActiveLink(itemPath: string): boolean {
         </div>
       );
     })}
+
+    {section === "scripture" && (
+      <div class="block admin-canonical-block" data-admin-only hidden={!isDev}>
+        <h3>정식판 (작업중)</h3>
+        <ul>
+          <li class:list={[{ active: isActiveLink("/library/cheonjigaebyeokgyeong-canonical/") }]}>
+            <a href="/library/cheonjigaebyeokgyeong-canonical/">천지개벽경 원문</a>
+          </li>
+        </ul>
+      </div>
+    )}
 
     <div class="block admin-block" data-admin-only hidden>
       <a class:list={["sidebar-link", "admin-link", { active: isActiveLink("/admin/") }]} href="/admin/">
@@ -187,10 +199,20 @@ function isActiveLink(itemPath: string): boolean {
   .block:last-child {
     border-bottom: none;
   }
+  .admin-canonical-block {
+    margin-top: auto;
+    border-top: 1px dashed var(--color-rule);
+  }
+  .admin-canonical-block h3 {
+    color: var(--color-secondary);
+  }
   .admin-block {
     margin-top: auto;
     border-top: 1px solid var(--color-rule);
     border-bottom: none;
+  }
+  .admin-canonical-block + .admin-block {
+    margin-top: 0;
   }
   .admin-link {
     color: var(--color-muted);

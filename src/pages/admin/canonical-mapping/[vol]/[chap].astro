@@ -1,0 +1,320 @@
+---
+import Base from "../../../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import { parseVerses } from "../../../../lib/verse-parser";
+import { getAllMappings } from "../../../../lib/canonical-mapping";
+import AdminGate from "../../../../components/AdminGate.astro";
+
+export async function getStaticPaths() {
+  const all = await getCollection("scripture");
+  return all
+    .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-canonical/") && e.data.권 && e.data.장)
+    .map((e) => ({
+      params: { vol: String(e.data.권), chap: String(e.data.장) },
+      props: { entry: e },
+    }));
+}
+
+const { entry } = Astro.props;
+const vol = entry.data.권!;
+const chap = entry.data.장!;
+
+const mapping = getAllMappings();
+const all = await getCollection("scripture");
+
+// Hangeul candidates from same chapter
+const tempEntry = all.find(
+  (e) => e.id.startsWith("cheonjigaebyeokgyeong/") && e.data.권 === vol && e.data.장 === chap,
+);
+const hangeulVerses = tempEntry ? parseVerses(tempEntry.body ?? "") : [];
+
+const hanjaVerses = parseVerses(entry.body ?? "").map((v) => {
+  const m = mapping.verses[v.id];
+  return {
+    ...v,
+    mapped: m?.hangeul ?? [],
+    reviewed: m?.reviewed ?? false,
+    confidence: m?.confidence,
+  };
+});
+
+// Adjacent chapter links
+const sameVol = all
+  .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-canonical/") && e.data.권 === vol && e.data.장)
+  .sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
+const idx = sameVol.findIndex((e) => e.id === entry.id);
+const prev = idx > 0 ? sameVol[idx - 1] : null;
+const next = idx < sameVol.length - 1 ? sameVol[idx + 1] : null;
+---
+
+<Base title={`매핑 권${vol} ${chap}장 — admin`}>
+  <AdminGate>
+    <header class="hd">
+      <p class="crumb">
+        <a href="/admin/canonical-mapping/">← 매핑 인덱스</a>
+      </p>
+      <h1>권 {vol} · {chap}장 매핑</h1>
+      <p class="meta">{entry.data.권_이름} ({entry.data.연도_간지} {entry.data.연도})</p>
+      <div class="actions">
+        <button type="button" id="save-btn" class="primary">저장</button>
+        <button type="button" id="auto-pair-btn">1:1 자동매핑</button>
+        <span id="status" class="status"></span>
+      </div>
+      <nav class="page-nav">
+        {prev && <a href={`/admin/canonical-mapping/${vol}/${prev.data.장}/`}>← {prev.data.장}장</a>}
+        {!prev && <span class="muted">←</span>}
+        <span>·</span>
+        <a href={`/library/cheonjigaebyeokgyeong-canonical/${vol}/${chap}/`} target="_blank">정식판 페이지 보기 ↗</a>
+        <span>·</span>
+        {next && <a href={`/admin/canonical-mapping/${vol}/${next.data.장}/`}>{next.data.장}장 →</a>}
+        {!next && <span class="muted">→</span>}
+      </nav>
+    </header>
+
+    <div class="legend">
+      <span>한자 절(좌) ↔ 한글본 절(우 체크박스). 한 한글 절은 한 한자 절에만 매핑되어야 합니다.</span>
+    </div>
+
+    <table class="map-grid" id="map-grid">
+      <thead>
+        <tr>
+          <th class="col-num">절</th>
+          <th class="col-hanja">한자 원문</th>
+          <th class="col-hangeul">한글본 후보 ({hangeulVerses.length}절)</th>
+          <th class="col-status">상태</th>
+        </tr>
+      </thead>
+      <tbody>
+        {hanjaVerses.map((v) => (
+          <tr data-anchor={v.id} data-confidence={v.confidence ?? ""}>
+            <td class="col-num">
+              <strong>{v.num}</strong>
+              <div class="anchor-id">^{v.id}</div>
+            </td>
+            <td class="col-hanja">
+              <p>{v.text.split(/\n+/).join(" ")}</p>
+            </td>
+            <td class="col-hangeul">
+              <div class="hangeul-checks">
+                {hangeulVerses.map((hv) => (
+                  <label class:list={["chk", { selected: v.mapped.includes(hv.id) }]} data-hangeul={hv.id}>
+                    <input
+                      type="checkbox"
+                      data-hangeul={hv.id}
+                      checked={v.mapped.includes(hv.id)}
+                    />
+                    <span class="hgnum">{hv.num}</span>
+                    <span class="hgtext" title={hv.text.slice(0, 200)}>{hv.text.slice(0, 60)}{hv.text.length > 60 ? "…" : ""}</span>
+                  </label>
+                ))}
+              </div>
+            </td>
+            <td class="col-status">
+              <label class="reviewed-toggle">
+                <input type="checkbox" class="reviewed" checked={v.reviewed} />
+                검수
+              </label>
+              {v.confidence != null && (
+                <div class:list={["conf-badge", v.confidence >= 0.85 ? "high" : v.confidence >= 0.6 ? "mid" : "low"]}>
+                  {Math.round(v.confidence * 100)}%
+                </div>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+
+    <script is:inline>
+      (function () {
+        const grid = document.getElementById("map-grid");
+        const saveBtn = document.getElementById("save-btn");
+        const autoBtn = document.getElementById("auto-pair-btn");
+        const statusEl = document.getElementById("status");
+
+        // Enforce: a 한글 anchor can only be checked under ONE 한자 row.
+        grid.addEventListener("change", (e) => {
+          const t = e.target;
+          if (!(t instanceof HTMLInputElement)) return;
+          if (t.type !== "checkbox") return;
+          const hg = t.dataset.hangeul;
+          if (!hg) return;
+          if (!t.checked) {
+            t.closest("label").classList.remove("selected");
+            return;
+          }
+          // Uncheck the same hangeul anchor in OTHER rows
+          grid.querySelectorAll(`input[type=checkbox][data-hangeul="${hg}"]`).forEach((box) => {
+            if (box !== t) {
+              box.checked = false;
+              box.closest("label").classList.remove("selected");
+            }
+          });
+          t.closest("label").classList.add("selected");
+        });
+
+        autoBtn.addEventListener("click", () => {
+          // Match each 한자 row to the hangeul row of the same index (1:1).
+          const rows = [...grid.querySelectorAll("tbody tr")];
+          rows.forEach((row, i) => {
+            const boxes = [...row.querySelectorAll('input[type=checkbox][data-hangeul]')];
+            boxes.forEach((b) => { b.checked = false; b.closest("label").classList.remove("selected"); });
+            const target = boxes[i];
+            if (target) {
+              target.checked = true;
+              target.closest("label").classList.add("selected");
+            }
+          });
+          statusEl.textContent = "자동매핑 적용 (저장 누르면 반영)";
+          statusEl.className = "status pending";
+        });
+
+        saveBtn.addEventListener("click", async () => {
+          const rows = grid.querySelectorAll("tbody tr");
+          const entries = [];
+          rows.forEach((row) => {
+            const anchor = row.dataset.anchor;
+            const hangeul = [...row.querySelectorAll('input[type=checkbox][data-hangeul]:checked')]
+              .map((b) => b.dataset.hangeul);
+            const reviewed = row.querySelector("input.reviewed").checked;
+            const confidence = row.dataset.confidence ? Number(row.dataset.confidence) : undefined;
+            entries.push({ anchor, hangeul, reviewed, ...(confidence ? { confidence } : {}) });
+          });
+          statusEl.textContent = "저장 중…";
+          statusEl.className = "status pending";
+          saveBtn.disabled = true;
+          try {
+            const res = await fetch("/api/admin/canonical-mapping/bulk", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ entries }),
+            });
+            const out = await res.json();
+            if (!res.ok) throw new Error(out.error || "save failed");
+            statusEl.textContent = `저장 완료 (총 ${out.count}절 매핑)`;
+            statusEl.className = "status ok";
+          } catch (err) {
+            statusEl.textContent = `오류: ${err.message}`;
+            statusEl.className = "status err";
+          } finally {
+            saveBtn.disabled = false;
+          }
+        });
+      })();
+    </script>
+  </AdminGate>
+</Base>
+
+<style>
+  .hd { margin-bottom: 1rem; }
+  .crumb { font-size: 0.85rem; color: var(--color-muted); margin: 0; }
+  .crumb a { color: inherit; }
+  h1 { margin: 0.4rem 0 0.2rem; font-size: 1.3rem; }
+  .meta { color: var(--color-muted); margin: 0; font-size: 0.9rem; }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.7rem 0 0.4rem;
+  }
+  .actions button {
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .actions button.primary {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    border-color: var(--color-primary);
+  }
+  .actions button[disabled] { opacity: 0.5; cursor: wait; }
+  .status { font-size: 0.85rem; color: var(--color-muted); }
+  .status.ok { color: green; }
+  .status.err { color: var(--color-secondary, #d97706); }
+  .status.pending { color: var(--color-muted); font-style: italic; }
+  .page-nav {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    font-size: 0.85rem;
+    margin-top: 0.4rem;
+  }
+  .page-nav .muted { color: var(--color-muted); }
+  .legend {
+    margin: 0.5rem 0 0.7rem;
+    padding: 0.5rem 0.7rem;
+    background: var(--color-surface-2);
+    border-left: 3px solid var(--color-primary);
+    font-size: 0.85rem;
+    color: var(--color-muted);
+  }
+
+  .map-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  .map-grid thead th {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 2px solid var(--color-rule);
+    font-size: 0.78rem;
+    color: var(--color-muted);
+  }
+  .map-grid tbody tr {
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .map-grid tbody tr td {
+    padding: 0.7rem 0.5rem;
+    vertical-align: top;
+  }
+  .col-num { width: 50px; text-align: center; }
+  .col-num strong { font-size: 1rem; }
+  .anchor-id { font-size: 0.7rem; color: var(--color-muted); margin-top: 0.2rem; }
+  .col-hanja { width: 38%; line-height: 1.7; }
+  .col-hanja p { margin: 0; }
+  .col-hangeul { width: 50%; }
+  .col-status { width: 90px; text-align: center; }
+  .hangeul-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .chk {
+    display: flex;
+    gap: 0.4rem;
+    align-items: flex-start;
+    padding: 0.25rem 0.4rem;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .chk:hover { background: var(--color-primary-bg); }
+  .chk.selected { background: var(--color-primary-bg); border-left: 2px solid var(--color-primary); }
+  .chk input { margin-top: 0.25rem; }
+  .hgnum { color: var(--color-muted); font-size: 0.75rem; min-width: 22px; }
+  .hgtext { font-size: 0.82rem; }
+  .reviewed-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+  }
+  .conf-badge {
+    margin-top: 0.3rem;
+    font-size: 0.72rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .conf-badge.high { background: #d1fae5; color: #065f46; }
+  .conf-badge.mid { background: #fef3c7; color: #92400e; }
+  .conf-badge.low { background: #fee2e2; color: #991b1b; }
+</style>
