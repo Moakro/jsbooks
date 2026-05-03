@@ -1,0 +1,65 @@
+---
+/**
+ * Wraps content that should only be visible to admins (level >= 4).
+ *
+ * Behavior:
+ * - In local dev (`import.meta.env.DEV`): content always rendered (no auth in dev).
+ * - In production: content rendered but hidden by default; client-side fetch of
+ *   /api/me reveals it if the logged-in user's level >= 4. Non-admins see the
+ *   placeholder slot (or nothing) and may be redirected via the `redirect` prop.
+ */
+interface Props {
+  /** If set, non-admin visitors in production are redirected to this URL. */
+  redirect?: string;
+}
+
+const { redirect } = Astro.props;
+const isDev = import.meta.env.DEV;
+---
+
+{isDev ? (
+  <slot />
+) : (
+  <>
+    <div data-admin-gate hidden>
+      <slot />
+    </div>
+    <div data-admin-gate-fallback>
+      <slot name="fallback">
+        <p style="margin: 2rem 0; color: var(--color-muted);">
+          관리자 전용 페이지입니다.
+        </p>
+      </slot>
+    </div>
+    <script is:inline define:vars={{ redirect }}>
+      (async function () {
+        try {
+          const res = await fetch("/api/me", { credentials: "same-origin" });
+          if (!res.ok) {
+            if (redirect) location.replace(redirect);
+            return;
+          }
+          const ct = res.headers.get("content-type") ?? "";
+          if (!ct.includes("application/json")) {
+            if (redirect) location.replace(redirect);
+            return;
+          }
+          const data = await res.json();
+          const lvl = data?.user?.level ?? 0;
+          if (lvl >= 4) {
+            document.querySelectorAll("[data-admin-gate]").forEach((el) => {
+              el.removeAttribute("hidden");
+            });
+            document.querySelectorAll("[data-admin-gate-fallback]").forEach((el) => {
+              el.remove();
+            });
+          } else if (redirect) {
+            location.replace(redirect);
+          }
+        } catch {
+          if (redirect) location.replace(redirect);
+        }
+      })();
+    </script>
+  </>
+)}

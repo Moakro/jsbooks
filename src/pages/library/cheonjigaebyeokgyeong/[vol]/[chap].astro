@@ -5,6 +5,7 @@ import Comments from "../../../../components/Comments.svelte";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../../lib/manifest";
 import { renderWikilinks } from "../../../../lib/wikilink";
+import { parseVerses } from "../../../../lib/verse-parser";
 import { correspondencesFor } from "../../../../lib/correspondences";
 import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
 import ScriptureChapterNav from "../../../../components/ScriptureChapterNav.astro";
@@ -13,7 +14,7 @@ import ScriptureStickyBar from "../../../../components/ScriptureStickyBar.astro"
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
   return all
-    .filter((e) => e.data.권 && e.data.장)
+    .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/") && e.data.권 && e.data.장)
     .map((e) => ({
       params: { vol: String(e.data.권), chap: String(e.data.장) },
       props: { entry: e },
@@ -26,26 +27,18 @@ const manifest = await buildCardManifest();
 
 // Parse body into verses by ## N절 ^X-Y-Z headings
 type Verse = { num: number; id: string; html: string };
-const body = entry.body ?? "";
-const versePattern = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
-const verses: Verse[] = [];
-let m: RegExpExecArray | null;
-while ((m = versePattern.exec(body)) !== null) {
-  const num = parseInt(m[1], 10);
-  const id = m[2];
-  const raw = m[3].trim();
-  // Convert paragraph breaks: keep newlines as <br> for poetry, paragraphs separated by blank line
-  const paragraphs = raw.split(/\n\s*\n/).filter(Boolean);
-  const inner = paragraphs
-    .map((p) => renderWikilinks(p.replaceAll("\n", "\n"), manifest))
+const verses: Verse[] = parseVerses(entry.body ?? "").map((v) => {
+  const paragraphs = v.text.split(/\n\s*\n/).filter(Boolean);
+  const html = paragraphs
+    .map((p) => renderWikilinks(p, manifest))
     .join("\n\n");
-  verses.push({ num, id, html: inner });
-}
+  return { num: v.num, id: v.id, html };
+});
 
 // Same-volume index (for the progress indicator at the top)
 const all = await getCollection("scripture");
 const sameVol = all
-  .filter((e) => e.data.권 === 권 && e.data.장)
+  .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/") && e.data.권 === 권 && e.data.장)
   .sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
 const idx = sameVol.findIndex((e) => e.id === entry.id);
 const totalChaps = sameVol.length;

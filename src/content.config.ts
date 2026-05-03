@@ -31,6 +31,8 @@ const scripture = defineCollection({
     verse_count: z.number().optional(),
     원본_저자_수기: z.string().optional(),
     이전_출판: z.string().optional(),
+    canonical: z.boolean().optional(),
+    section: z.string().optional(),
   }),
 });
 
