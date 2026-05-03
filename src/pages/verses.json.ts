@@ -2,10 +2,9 @@ import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../lib/manifest";
 import { renderWikilinks } from "../lib/wikilink";
+import { parseVerses } from "../lib/verse-parser";
 
 export const prerender = true;
-
-const VERSE_RE = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
 
 type VerseEntry = {
   scriptureSlug: string;
@@ -37,25 +36,20 @@ export const GET: APIRoute = async () => {
     const vol = (entry.data as any).권 ?? null;
     const chap = (entry.data as any).장 ?? null;
 
-    VERSE_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = VERSE_RE.exec(body)) !== null) {
-      const verseNum = parseInt(m[1], 10);
-      const anchor = m[2];
-      const verseBody = m[3].trim();
-      const paragraphs = verseBody.split(/\n\s*\n/).filter(Boolean);
+    for (const v of parseVerses(body)) {
+      const paragraphs = v.text.split(/\n\s*\n/).filter(Boolean);
       const inner = paragraphs.map((p) => renderWikilinks(p, manifest)).join("\n\n");
       const title = isHierarchical
-        ? `${scriptureName} 권${vol} ${volName ?? ""} · ${chap}장 ${verseNum}절`
-        : `${scriptureName} · ${verseNum}절`;
+        ? `${scriptureName} 권${vol} ${volName ?? ""} · ${chap}장 ${v.num}절`
+        : `${scriptureName} · ${v.num}절`;
       const pageHref = isHierarchical
-        ? `/library/${slug}/${vol}/${chap}/#${anchor}`
-        : `/library/${slug}/#${anchor}`;
-      out[`${slug}#${anchor}`] = {
+        ? `/library/${slug}/${vol}/${chap}/#${v.id}`
+        : `/library/${slug}/#${v.id}`;
+      out[`${slug}#${v.id}`] = {
         scriptureSlug: slug,
         scriptureName,
-        anchor,
-        verseNum,
+        anchor: v.id,
+        verseNum: v.num,
         vol,
         chap,
         title,

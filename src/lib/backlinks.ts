@@ -1,6 +1,7 @@
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "./manifest";
 import type { CardKind } from "./wikilink";
+import { parseVerses } from "./verse-parser";
 
 /**
  * Source location of a wikilink reference.
@@ -70,7 +71,6 @@ export async function buildBacklinkIndex(): Promise<BacklinkIndex> {
   }
 
   // ------- Scripture (verses, with verse-level granularity) -------
-  const VERSE_RE = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
   const scripture = await getCollection("scripture");
   for (const entry of scripture) {
     // entry.id is "<scripture-slug>/<path>" — first segment is the scripture slug
@@ -83,31 +83,25 @@ export async function buildBacklinkIndex(): Promise<BacklinkIndex> {
     const isFlatVerses = entry.data.type === "verses";
     if (!isHierarchical && !isFlatVerses) continue;
 
-    const body = entry.body ?? "";
-    let vm: RegExpExecArray | null;
-    VERSE_RE.lastIndex = 0;
-    while ((vm = VERSE_RE.exec(body)) !== null) {
-      const verseId = vm[2];
-      const verseNum = parseInt(vm[1], 10);
-      const verseBody = vm[3].trim();
-      const targets = extractTargets(verseBody);
+    const scriptureName = entry.data.scripture ?? scriptureSlug;
+    for (const v of parseVerses(entry.body ?? "")) {
+      const targets = extractTargets(v.text);
       const seen = new Set<string>();
-      const scriptureName = entry.data.scripture ?? scriptureSlug;
       const title = isHierarchical
-        ? `권 ${vol} ${entry.data.권_이름 ?? ""} · ${chap}장 ${verseNum}절`
-        : `${scriptureName} · ${verseNum}절`;
+        ? `권 ${vol} ${entry.data.권_이름 ?? ""} · ${chap}장 ${v.num}절`
+        : `${scriptureName} · ${v.num}절`;
       for (const target of targets) {
         const key = resolveKey(target, manifest);
         if (!key) continue;
-        if (seen.has(key)) continue; // dedupe per verse
+        if (seen.has(key)) continue;
         seen.add(key);
         add(key, {
           kind: "scripture",
           scriptureSlug,
           ...(isHierarchical ? { vol, chap } : {}),
-          verseId,
+          verseId: v.id,
           title,
-          excerpt: shortExcerpt(verseBody, target),
+          excerpt: shortExcerpt(v.text, target),
         });
       }
     }
