@@ -106,11 +106,11 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
               <span class="badge unmapped">한글 미매핑</span>
             )}
           </div>
-          <div class="verse-body hanja" data-layer="hanja" set:html={v.hanjaHTML} />
+          <div class="original-box" data-layer="hanja" set:html={v.hanjaHTML} />
           {v.hangeul.length > 0 && (
-            <div class="verse-body hangeul" data-layer="hangeul">
+            <div class="verse-body" data-layer="hangeul">
               {v.hangeul.map((h) => (
-                <p class="hangeul-line" set:html={h.html} />
+                <p set:html={h.html} />
               ))}
             </div>
           )}
@@ -187,22 +187,33 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
   .verse-body :global(p) {
     margin: 0.5rem 0;
   }
-  .verse-body.hangeul {
-    margin-top: 0.4rem;
-    padding-left: 0.7rem;
-    border-left: 2px solid var(--color-rule);
-    color: var(--color-fg);
+  /* 한글본은 다른 경전과 동일한 톤(메인 카드 표준 verse-body) */
+
+  /* 원문은 한글본 절 위에 작은 inset 박스 — 황지 톤 */
+  .original-box {
+    margin: 0 0 0.6rem;
+    padding: 0.55rem 0.85rem;
+    background: #e8d8b8;
+    color: var(--color-hanja);
+    border-radius: 5px;
+    font-size: 0.92em;
+    line-height: 1.7;
   }
-  .hangeul-line {
-    margin: 0.4rem 0;
-    line-height: 1.85;
+  .original-box :global(p) {
+    margin: 0.3rem 0;
   }
-  :global(body.hide-hanja) .verse-body.hanja {
-    display: none;
+  .original-box :global(p:first-child) { margin-top: 0; }
+  .original-box :global(p:last-child) { margin-bottom: 0; }
+
+  @media (prefers-color-scheme: dark) {
+    .original-box {
+      background: #2c2418;
+      color: #d4c8b0;
+    }
   }
-  :global(body.hide-hangeul) .verse-body.hangeul {
-    display: none;
-  }
+
+  :global(body.hide-hanja) .original-box { display: none; }
+  :global(body.hide-hangeul) .verse-body[data-layer="hangeul"] { display: none; }
   .display-modes {
     display: flex;
     gap: 1rem;
