@@ -1,0 +1,56 @@
+---
+import Base from "../../layouts/Base.astro";
+import AdminGate from "../../components/AdminGate.astro";
+import AdminChangelog from "../../components/AdminChangelog.svelte";
+import data from "../../data/history.json";
+import { getChangelogOverrides, type HistoryEntry } from "../../lib/history";
+
+const files: Record<string, HistoryEntry[]> = (data as any).files ?? {};
+
+// Collect every commit that touched any content/ markdown (any kind),
+// dedup by hash, sort newest-first. Limit to recent N.
+const seen = new Set<string>();
+const all: HistoryEntry[] = [];
+for (const entries of Object.values(files)) {
+  for (const e of entries) {
+    if (seen.has(e.hash)) continue;
+    seen.add(e.hash);
+    all.push(e);
+  }
+}
+all.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+const entries = all.slice(0, 200);
+const overrides = getChangelogOverrides();
+---
+
+<Base title="작업 이력 관리 — admin">
+  <AdminGate>
+    <h1>작업 이력 관리</h1>
+    <p class="meta">
+      커밋 메시지 본문에 <code>--public 메시지</code> 토큰을 두면 사이트에 자동 노출됩니다.
+      이 페이지에서 commit별로 강제 공개·강제 비공개·사용자 메시지를 직접 지정할 수 있습니다.
+      변경 사항은 <code>content/_data/changelog-display.json</code>에 저장되며 dev 모드에서만 작동합니다.
+    </p>
+    <AdminChangelog client:load entries={entries} initialOverrides={overrides} />
+  </AdminGate>
+</Base>
+
+<style>
+  h1 {
+    margin: 0 0 0.4rem;
+  }
+  .meta {
+    color: var(--color-muted);
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  code {
+    font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 0.85em;
+    background: var(--color-secondary-bg, #f0f7f6);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--color-secondary, #1e6e6e);
+  }
+</style>

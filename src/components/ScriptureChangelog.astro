@@ -1,9 +1,12 @@
 ---
 /**
  * Site-wide rollup of recent commits that touched any scripture markdown
- * (content/scripture/**). De-duplicated by commit hash and shown newest-first.
+ * (content/scripture/**). De-duplicated by commit hash, filtered to entries
+ * that are explicitly public (via `--public` token in commit body, or admin
+ * override in content/_data/changelog-display.json), shown newest-first.
  */
 import data from "../data/history.json";
+import { displayMessageForCommit, type HistoryEntry } from "../lib/history";
 import Icon from "./Icon.svelte";
 
 interface Props {
@@ -12,20 +15,23 @@ interface Props {
 }
 const { limit = 30 } = Astro.props;
 
-type Entry = { hash: string; date: string; author: string; subject: string };
-const files: Record<string, Entry[]> = (data as any).files ?? {};
+const files: Record<string, HistoryEntry[]> = (data as any).files ?? {};
 
 const seen = new Set<string>();
-const all: Entry[] = [];
+const all: { entry: HistoryEntry; message: string }[] = [];
 for (const [path, entries] of Object.entries(files)) {
   if (!path.startsWith("content/scripture/")) continue;
   for (const e of entries) {
     if (seen.has(e.hash)) continue;
     seen.add(e.hash);
-    all.push(e);
+    const msg = displayMessageForCommit(e);
+    if (!msg) continue;
+    all.push({ entry: e, message: msg });
   }
 }
-all.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+all.sort((a, b) =>
+  a.entry.date < b.entry.date ? 1 : a.entry.date > b.entry.date ? -1 : 0,
+);
 const recent = all.slice(0, limit);
 
 function shortDate(iso: string): string {
@@ -40,13 +46,13 @@ function shortDate(iso: string): string {
     <span class="meta">최근 {recent.length}건</span>
   </header>
   {recent.length === 0 ? (
-    <p class="muted">아직 기록이 없습니다.</p>
+    <p class="muted">공개된 작업 이력이 아직 없습니다.</p>
   ) : (
     <ol>
-      {recent.map((e) => (
+      {recent.map((r) => (
         <li>
-          <span class="date">{shortDate(e.date)}</span>
-          <span class="subject">{e.subject}</span>
+          <span class="date">{shortDate(r.entry.date)}</span>
+          <span class="subject">{r.message}</span>
         </li>
       ))}
     </ol>

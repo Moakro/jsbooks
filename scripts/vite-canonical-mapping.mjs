@@ -28,6 +28,10 @@ const MAPPING_PATH = path.join(
   VAULT_ROOT,
   "scripture/_mappings/cheonjigaebyeokgyeong-canonical.json",
 );
+const CHANGELOG_DISPLAY_PATH = path.join(
+  VAULT_ROOT,
+  "_data/changelog-display.json",
+);
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -302,14 +306,15 @@ export default function canonicalMappingDev() {
         const isMappingSave = req.url.startsWith("/api/admin/canonical-mapping/save");
         const isMappingBulk = req.url.startsWith("/api/admin/canonical-mapping/bulk");
         const isChapterSave = req.url.startsWith("/api/admin/scripture-editor/save-chapter");
-        if (!isMappingSave && !isMappingBulk && !isChapterSave) return next();
+        const isChangelogSave = req.url.startsWith("/api/admin/changelog/save");
+        if (!isMappingSave && !isMappingBulk && !isChapterSave && !isChangelogSave) return next();
         try {
           const body = await readBody(req);
           if (isMappingSave) {
             const mapping = await loadMapping();
             applyMappingEntry(mapping, body);
             await persistMapping(mapping);
-            triggerReload([CONTENT_MAPPING, VAULT_MAPPING]);
+            triggerReload([MAPPING_PATH]);
             return json(res, 200, { ok: true, count: Object.keys(mapping.verses).length });
           }
           if (isMappingBulk) {
@@ -317,23 +322,54 @@ export default function canonicalMappingDev() {
             const mapping = await loadMapping();
             for (const e of entries) applyMappingEntry(mapping, e);
             await persistMapping(mapping);
-            triggerReload([CONTENT_MAPPING, VAULT_MAPPING]);
+            triggerReload([MAPPING_PATH]);
             return json(res, 200, { ok: true, count: Object.keys(mapping.verses).length });
           }
           if (isChapterSave) {
             const out = await saveChapterHandler(body);
-            // Markdown was rewritten — invalidate Astro content collection cache
-            // by triggering Vite watcher events + full browser reload.
-            const changed = [
-              entryIdToContentPath(body.hanja.entryId),
-              entryIdToVaultPath(body.hanja.entryId),
-            ];
+            // Markdown was rewritten — invalidate Astro content collection cache.
+            const changed = [entryIdToPath(body.hanja.entryId)];
             if (body.hangeul?.entryId) {
-              changed.push(entryIdToContentPath(body.hangeul.entryId));
-              changed.push(entryIdToVaultPath(body.hangeul.entryId));
+              changed.push(entryIdToPath(body.hangeul.entryId));
             }
             triggerReload(changed);
             return json(res, 200, out);
+          }
+          if (isChangelogSave) {
+            // body: { hash, visible?: boolean, message?: string|null, clear?: boolean }
+            const hash = String(body?.hash ?? "").trim();
+            if (!hash) return json(res, 400, { error: "hash required" });
+            let store;
+            try {
+              store = await readJson(CHANGELOG_DISPLAY_PATH);
+            } catch {
+              store = { overrides: {} };
+            }
+            if (!store.overrides) store.overrides = {};
+            if (body.clear) {
+              delete store.overrides[hash];
+            } else {
+              const ovr = store.overrides[hash] ?? {};
+              if (typeof body.visible === "boolean") ovr.visible = body.visible;
+              if (typeof body.message === "string") {
+                const trimmed = body.message.trim();
+                if (trimmed) ovr.message = trimmed;
+                else delete ovr.message;
+              } else if (body.message === null) {
+                delete ovr.message;
+              }
+              if (
+                ovr.visible === undefined &&
+                (ovr.message === undefined || ovr.message === "")
+              ) {
+                delete store.overrides[hash];
+              } else {
+                store.overrides[hash] = ovr;
+              }
+            }
+            await writeJson(CHANGELOG_DISPLAY_PATH, store);
+            triggerReload([CHANGELOG_DISPLAY_PATH]);
+            return json(res, 200, { ok: true, overrides: store.overrides });
           }
         } catch (err) {
           return json(res, 500, { error: String(err?.message ?? err) });
