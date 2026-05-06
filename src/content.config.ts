@@ -28,6 +28,7 @@ const scripture = defineCollection({
     연도: z.number().optional(),
     연도_간지: z.string().optional(),
     장: z.number().optional(),
+    장_이름: z.string().optional(),
     verse_count: z.number().optional(),
     원본_저자_수기: z.string().optional(),
     이전_출판: z.string().optional(),

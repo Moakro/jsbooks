@@ -24,10 +24,17 @@ const { scriptureSlug, currentId, placement = "bottom" } = Astro.props;
 
 const all = await getCollection("scripture");
 const own = all.filter((e) => e.id.startsWith(`${scriptureSlug}/`));
-const preface = own.find((e) => e.data.type === "preface");
+const preface =
+  own.find((e) => e.data.type === "preface") ??
+  own.find((e) => e.data.section === "preface");
 const afterword = own.find((e) => e.data.type === "afterword");
+const appendix = own.find((e) => e.data.section === "appendix");
 const versesEntry = own.find((e) => e.data.type === "verses");
 const chapters = own.filter((e) => e.data.권 && e.data.장);
+// 권 없이 장만 있는 경전 (예: 화은당실기)
+const flatChapters = own
+  .filter((e) => !e.data.권 && e.data.장)
+  .sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
 
 type VolGroup = {
   num: number;
@@ -58,17 +65,20 @@ for (const v of volMap.values()) {
 const allVols = [...volMap.values()].sort((a, b) => a.num - b.num);
 
 const isHierarchical = chapters.length > 0;
+const isFlatChapters = !isHierarchical && flatChapters.length > 0;
 
 const currentVolNum = isHierarchical
   ? chapters.find((c) => c.id === currentId)?.data.권 ?? null
   : null;
 const isCurPreface = preface?.id === currentId;
 const isCurAfter = afterword?.id === currentId;
+const isCurAppendix = appendix?.id === currentId;
 const isCurVerses = versesEntry?.id === currentId;
 
 const versesHref = `/library/${scriptureSlug}/`;
 const prefaceHref = `/library/${scriptureSlug}/preface/`;
 const afterwordHref = `/library/${scriptureSlug}/afterword/`;
+const appendixHref = `/library/${scriptureSlug}/appendix/`;
 ---
 
 <nav class:list={["chapter-nav", `place-${placement}`]} aria-label="장 이동">
@@ -131,6 +141,33 @@ const afterwordHref = `/library/${scriptureSlug}/afterword/`;
         </details>
       )}
     </>
+  ) : isFlatChapters ? (
+    <div class="chap-grid flat">
+      {preface && (
+        <a
+          href={prefaceHref}
+          class:list={["chap-btn", { current: isCurPreface }]}
+          aria-current={isCurPreface ? "page" : undefined}
+        >序</a>
+      )}
+      {flatChapters.map((c) => {
+        const cur = c.id === currentId;
+        return (
+          <a
+            href={`/library/${scriptureSlug}/${c.data.장}/`}
+            class:list={["chap-btn", { current: cur }]}
+            aria-current={cur ? "page" : undefined}
+          >{c.data.장}장</a>
+        );
+      })}
+      {appendix && (
+        <a
+          href={appendixHref}
+          class:list={["chap-btn", { current: isCurAppendix }]}
+          aria-current={isCurAppendix ? "page" : undefined}
+        >附</a>
+      )}
+    </div>
   ) : (
     <div class="chap-grid flat">
       {preface && (

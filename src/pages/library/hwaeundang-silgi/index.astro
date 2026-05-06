@@ -1,0 +1,87 @@
+---
+import Base from "../../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
+
+const all = (await getCollection("scripture")).filter((e) =>
+  e.id.startsWith("hwaeundang-silgi/"),
+);
+
+const preface = all.find((e) => e.data.section === "preface");
+const appendix = all.find((e) => e.data.section === "appendix");
+const chapters = all
+  .filter((e) => e.data.장)
+  .sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
+---
+
+<Base title="화은당실기 — jsbooks" scriptureSlug="hwaeundang-silgi">
+  <ScriptureStickyBar scriptureName="화은당실기" scriptureSlug="hwaeundang-silgi" />
+  <p class="meta"><a href="/library/">← 서재</a></p>
+  <h1>화은당실기 (華恩堂實記)</h1>
+  <p class="meta">정사 김병철(金炳徹) 편술 · 1960년 초간 / 1989년 재간</p>
+
+  {preface && (
+    <section class="vol-section">
+      <h2>서문</h2>
+      <div class="chap-grid">
+        <a class="chap-btn" href="/library/hwaeundang-silgi/preface/">序</a>
+      </div>
+    </section>
+  )}
+
+  <section class="vol-section">
+    <h2>본문</h2>
+    <div class="chap-grid">
+      {chapters.map((c) => (
+        <a class="chap-btn" href={`/library/hwaeundang-silgi/${c.data.장}/`}>
+          {c.data.장}장
+        </a>
+      ))}
+    </div>
+  </section>
+
+  {appendix && (
+    <section class="vol-section">
+      <h2>부록</h2>
+      <div class="chap-grid">
+        <a class="chap-btn" href="/library/hwaeundang-silgi/appendix/">附錄</a>
+      </div>
+    </section>
+  )}
+</Base>
+
+<style>
+  .vol-section { margin: 1.6rem 0 0; }
+  .vol-section h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.7rem;
+  }
+  .chap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    gap: 0.4rem;
+  }
+  .chap-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  .chap-btn:hover {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    transform: translateY(-1px);
+  }
+</style>
