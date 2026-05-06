@@ -20,10 +20,12 @@
 
 interface Env {
   DB: D1Database;
+  UPLOADS: R2Bucket;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   AUTH_SECRET: string; // any 32+ char random string
   SITE_ORIGIN: string;
+  UPLOADS_PUBLIC_BASE: string;
 }
 
 const COOKIE_NAME = "jb_session";
@@ -55,6 +57,9 @@ export default {
 
       // ──── Admin (level >= 4) ────
       if (path === "/api/admin/users" && req.method === "GET") return adminListUsers(req, env);
+
+      // ──── Uploads (R2) ────
+      if (path === "/api/upload/image" && req.method === "POST") return uploadImage(req, env);
 
       // ──── Comments ────
       if (path === "/api/comments" && req.method === "GET") return listComments(req, env);
@@ -427,6 +432,59 @@ async function adminListUsers(req: Request, env: Env): Promise<Response> {
 
 const ALLOWED_TYPES = new Set(["memo", "question", "cross", "cite"]);
 const ALLOWED_TARGET_TYPES = new Set(["verse", "card", "chapter"]);
+const MAX_ATTACHMENTS = 6;
+
+type Attachment =
+  | { type: "image"; url: string; width?: number; height?: number }
+  | { type: "map"; lat: number; lng: number; zoom?: number; label?: string };
+
+function sanitizeAttachments(input: unknown, env: Env): Attachment[] {
+  if (!Array.isArray(input)) return [];
+  const allowedHosts = new Set<string>();
+  try {
+    const u = new URL(env.UPLOADS_PUBLIC_BASE);
+    allowedHosts.add(u.host);
+  } catch {}
+  const out: Attachment[] = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") continue;
+    const t = (raw as any).type;
+    if (t === "image") {
+      const url = String((raw as any).url ?? "");
+      try {
+        const u = new URL(url);
+        if (!allowedHosts.has(u.host)) continue;
+      } catch {
+        continue;
+      }
+      const width = Number((raw as any).width);
+      const height = Number((raw as any).height);
+      out.push({
+        type: "image",
+        url,
+        ...(Number.isFinite(width) ? { width } : {}),
+        ...(Number.isFinite(height) ? { height } : {}),
+      });
+    } else if (t === "map") {
+      const lat = Number((raw as any).lat);
+      const lng = Number((raw as any).lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+      const zoomNum = Number((raw as any).zoom);
+      const labelRaw = (raw as any).label;
+      const label = typeof labelRaw === "string" ? labelRaw.slice(0, 80) : undefined;
+      out.push({
+        type: "map",
+        lat,
+        lng,
+        ...(Number.isFinite(zoomNum) ? { zoom: Math.min(20, Math.max(1, zoomNum)) } : {}),
+        ...(label ? { label } : {}),
+      });
+    }
+    if (out.length >= MAX_ATTACHMENTS) break;
+  }
+  return out;
+}
 
 async function listComments(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
@@ -438,7 +496,7 @@ async function listComments(req: Request, env: Env): Promise<Response> {
 
   const rows = await env.DB.prepare(
     `SELECT c.id, c.target_type, c.target_id, c.parent_id, c.body_html, c.type,
-            c.status, c.created_at, c.updated_at,
+            c.status, c.attachments, c.created_at, c.updated_at,
             u.id AS user_id, u.display_name AS author_name,
             u.avatar_url AS author_avatar, u.affiliation AS author_affiliation,
             u.level AS author_level,
@@ -460,22 +518,32 @@ async function listComments(req: Request, env: Env): Promise<Response> {
     myReactions = new Set((r.results ?? []).map((x) => x.comment_id));
   }
 
-  const comments = (rows.results ?? []).map((r: any) => ({
-    id: r.id,
-    parent_id: r.parent_id,
-    body_html: r.body_html,
-    type: r.type,
-    created_at: r.created_at,
-    updated_at: r.updated_at,
-    author: {
-      display_name: r.author_name,
-      avatar_url: r.author_avatar,
-      affiliation: r.author_affiliation,
-      level: r.author_level,
-    },
-    helpful_count: r.helpful_count,
-    you_helpful: myReactions.has(r.id),
-  }));
+  const comments = (rows.results ?? []).map((r: any) => {
+    let attachments: any[] = [];
+    if (r.attachments) {
+      try {
+        const parsed = JSON.parse(r.attachments);
+        if (Array.isArray(parsed)) attachments = parsed;
+      } catch {}
+    }
+    return {
+      id: r.id,
+      parent_id: r.parent_id,
+      body_html: r.body_html,
+      type: r.type,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      attachments,
+      author: {
+        display_name: r.author_name,
+        avatar_url: r.author_avatar,
+        affiliation: r.author_affiliation,
+        level: r.author_level,
+      },
+      helpful_count: r.helpful_count,
+      you_helpful: myReactions.has(r.id),
+    };
+  });
 
   return json({ target, count: comments.length, comments });
 }
@@ -492,24 +560,30 @@ async function createComment(req: Request, env: Env): Promise<Response> {
     parent_id?: string | null;
     body?: string;
     type?: string;
+    attachments?: unknown;
   };
   const target = body.target ?? "";
   if (!target.includes(":")) return json({ error: "missing target" }, 400);
   const [targetType, ...rest] = target.split(":");
   const targetId = rest.join(":");
   if (!ALLOWED_TARGET_TYPES.has(targetType)) return json({ error: "invalid target type" }, 400);
+  const attachments = sanitizeAttachments(body.attachments, env);
   const text = (body.body ?? "").trim();
-  if (text.length === 0 || text.length > 4000) {
+  if (attachments.length === 0 && (text.length === 0 || text.length > 4000)) {
+    return json({ error: "댓글은 1~4000자여야 합니다 (또는 첨부 1개 이상)" }, 400);
+  }
+  if (text.length > 4000) {
     return json({ error: "댓글은 1~4000자여야 합니다" }, 400);
   }
   const type = body.type ?? "memo";
   if (!ALLOWED_TYPES.has(type)) return json({ error: "invalid type" }, 400);
 
   const id = uuid();
+  const attJson = attachments.length > 0 ? JSON.stringify(attachments) : null;
   await env.DB.prepare(
-    `INSERT INTO comments (id, target_type, target_id, user_id, parent_id, body, body_html, type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(id, targetType, targetId, uid, body.parent_id ?? null, text, sanitizeHTML(text), type).run();
+    `INSERT INTO comments (id, target_type, target_id, user_id, parent_id, body, body_html, type, attachments)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, targetType, targetId, uid, body.parent_id ?? null, text, sanitizeHTML(text), type, attJson).run();
 
   return json({ ok: true, id });
 }
@@ -520,14 +594,30 @@ async function editComment(req: Request, env: Env, id: string): Promise<Response
   const owner = await env.DB.prepare("SELECT user_id FROM comments WHERE id=?").bind(id).first<{ user_id: string }>();
   if (!owner) return json({ error: "not found" }, 404);
   if (owner.user_id !== uid) return json({ error: "forbidden" }, 403);
-  const body = await req.json().catch(() => ({})) as { body?: string; type?: string };
+  const body = await req.json().catch(() => ({})) as {
+    body?: string;
+    type?: string;
+    attachments?: unknown;
+  };
   const text = (body.body ?? "").trim();
-  if (text.length === 0 || text.length > 4000) return json({ error: "댓글은 1~4000자여야 합니다" }, 400);
+  const hasAttachmentField = body.attachments !== undefined;
+  const attachments = hasAttachmentField ? sanitizeAttachments(body.attachments, env) : null;
+  if (text.length === 0 && (!hasAttachmentField || (attachments?.length ?? 0) === 0)) {
+    return json({ error: "댓글은 1~4000자여야 합니다 (또는 첨부 1개 이상)" }, 400);
+  }
+  if (text.length > 4000) return json({ error: "댓글은 1~4000자여야 합니다" }, 400);
   if (body.type && !ALLOWED_TYPES.has(body.type)) return json({ error: "invalid type" }, 400);
 
-  await env.DB.prepare(
-    `UPDATE comments SET body=?, body_html=?, type=COALESCE(?, type), updated_at=datetime('now') WHERE id=?`,
-  ).bind(text, sanitizeHTML(text), body.type ?? null, id).run();
+  if (hasAttachmentField) {
+    const attJson = (attachments?.length ?? 0) > 0 ? JSON.stringify(attachments) : null;
+    await env.DB.prepare(
+      `UPDATE comments SET body=?, body_html=?, type=COALESCE(?, type), attachments=?, updated_at=datetime('now') WHERE id=?`,
+    ).bind(text, sanitizeHTML(text), body.type ?? null, attJson, id).run();
+  } else {
+    await env.DB.prepare(
+      `UPDATE comments SET body=?, body_html=?, type=COALESCE(?, type), updated_at=datetime('now') WHERE id=?`,
+    ).bind(text, sanitizeHTML(text), body.type ?? null, id).run();
+  }
 
   return json({ ok: true });
 }
@@ -591,4 +681,66 @@ function sanitizeHTML(text: string): string {
   // paragraphs by blank lines, single newline → <br>
   const paras = escaped.split(/\n\s*\n/).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`);
   return paras.join("");
+}
+
+// ───────────────────── uploads ─────────────────────
+
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024; // 1.5 MB hard cap; client should resize to ~800px first.
+const UPLOAD_RATE_LIMIT_PER_HOUR = 30;
+
+function extFromContentType(ct: string): string {
+  if (ct === "image/jpeg") return "jpg";
+  if (ct === "image/png") return "png";
+  if (ct === "image/webp") return "webp";
+  return "bin";
+}
+
+async function uploadImage(req: Request, env: Env): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "not authenticated" }, 401);
+  const u = await loadUser(env, uid);
+  if (!u || !u.display_name) return json({ error: "닉네임 설정 필요" }, 403);
+  if ((u.level ?? 0) < 1) return json({ error: "업로드 권한 없음" }, 403);
+
+  const ct = req.headers.get("Content-Type") ?? "";
+  if (!ALLOWED_IMAGE_TYPES.has(ct)) {
+    return json({ error: "허용된 형식: jpeg/png/webp" }, 415);
+  }
+  const lenHeader = req.headers.get("Content-Length");
+  const len = lenHeader ? parseInt(lenHeader, 10) : NaN;
+  if (Number.isFinite(len) && len > MAX_IMAGE_BYTES) {
+    return json({ error: `파일이 너무 큼 (max ${Math.round(MAX_IMAGE_BYTES / 1024)} KB)` }, 413);
+  }
+
+  const buf = await req.arrayBuffer();
+  if (buf.byteLength > MAX_IMAGE_BYTES) {
+    return json({ error: `파일이 너무 큼 (max ${Math.round(MAX_IMAGE_BYTES / 1024)} KB)` }, 413);
+  }
+
+  // Rate limit: count user's uploads in the current hour by listing prefix.
+  // Acceptable for low traffic; can move to KV-backed counters later.
+  const now = new Date();
+  const yyyy = String(now.getUTCFullYear());
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  const hh = String(now.getUTCHours()).padStart(2, "0");
+  const userPrefix = `comments/${yyyy}/${mm}/${dd}/${hh}/${uid}/`;
+  const list = await env.UPLOADS.list({ prefix: userPrefix, limit: 100 });
+  if ((list.objects?.length ?? 0) >= UPLOAD_RATE_LIMIT_PER_HOUR) {
+    return json({ error: "업로드 한도 초과 (시간당)" }, 429);
+  }
+
+  const ext = extFromContentType(ct);
+  const id = uuid();
+  const key = `${userPrefix}${id}.${ext}`;
+
+  await env.UPLOADS.put(key, buf, {
+    httpMetadata: { contentType: ct, cacheControl: "public, max-age=31536000, immutable" },
+    customMetadata: { uid, originalSize: String(buf.byteLength) },
+  });
+
+  const base = (env.UPLOADS_PUBLIC_BASE || "").replace(/\/$/, "");
+  const url = `${base}/${key}`;
+  return json({ ok: true, url, key, bytes: buf.byteLength, contentType: ct });
 }

@@ -1,7 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { uploadResizedImage } from "../lib/resize-image";
 
   type CommentType = "memo" | "question" | "cross" | "cite";
+  type Attachment =
+    | { type: "image"; url: string; width?: number; height?: number }
+    | { type: "map"; lat: number; lng: number; zoom?: number; label?: string };
   type Comment = {
     id: string;
     parent_id: string | null;
@@ -9,6 +13,7 @@
     type: CommentType;
     created_at: string;
     updated_at: string;
+    attachments?: Attachment[];
     author: {
       display_name: string;
       avatar_url: string | null;
@@ -18,6 +23,8 @@
     helpful_count: number;
     you_helpful: boolean;
   };
+
+  const MAX_ATTACHMENTS = 6;
 
   type User = {
     id: string;
@@ -33,6 +40,9 @@
   let user = $state<User>(null);
   let draft = $state("");
   let draftType = $state<CommentType>("memo");
+  let draftAttachments = $state<Attachment[]>([]);
+  let uploading = $state(false);
+  let fileInputEl: HTMLInputElement | undefined = $state();
   let posting = $state(false);
   let error = $state<string | null>(null);
 
@@ -68,7 +78,7 @@
   async function submit() {
     if (!user) return login();
     const text = draft.trim();
-    if (!text) return;
+    if (!text && draftAttachments.length === 0) return;
     posting = true;
     error = null;
     try {
@@ -76,7 +86,12 @@
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, body: text, type: draftType }),
+        body: JSON.stringify({
+          target,
+          body: text,
+          type: draftType,
+          attachments: draftAttachments,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -84,10 +99,43 @@
         return;
       }
       draft = "";
+      draftAttachments = [];
       await load();
     } finally {
       posting = false;
     }
+  }
+
+  async function onPickFiles(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    if (files.length === 0) return;
+    error = null;
+    uploading = true;
+    try {
+      for (const f of files) {
+        if (draftAttachments.length >= MAX_ATTACHMENTS) {
+          error = `첨부는 최대 ${MAX_ATTACHMENTS}장까지 가능합니다`;
+          break;
+        }
+        try {
+          const r = await uploadResizedImage(f);
+          draftAttachments = [
+            ...draftAttachments,
+            { type: "image", url: r.url, width: r.width, height: r.height },
+          ];
+        } catch (err: any) {
+          error = err?.message ?? "업로드 실패";
+        }
+      }
+    } finally {
+      uploading = false;
+      if (input) input.value = "";
+    }
+  }
+
+  function removeAttachment(idx: number) {
+    draftAttachments = draftAttachments.filter((_, i) => i !== idx);
   }
 
   async function toggleHelpful(c: Comment) {
@@ -167,6 +215,27 @@
               </span>
             </header>
             <div class="body">{@html c.body_html}</div>
+            {#if c.attachments && c.attachments.length > 0}
+              <div class="attachments">
+                {#each c.attachments as att (att.type === "image" ? att.url : `${att.lat},${att.lng}`)}
+                  {#if att.type === "image"}
+                    <a class="att-img" href={att.url} target="_blank" rel="noopener">
+                      <img src={att.url} alt="" loading="lazy" />
+                    </a>
+                  {:else if att.type === "map"}
+                    <a
+                      class="att-map"
+                      href={`https://map.kakao.com/link/map/${encodeURIComponent(att.label ?? "위치")},${att.lat},${att.lng}`}
+                      target="_blank"
+                      rel="noopener"
+                      title="카카오맵에서 열기"
+                    >
+                      📍 {att.label ?? `${att.lat.toFixed(4)}, ${att.lng.toFixed(4)}`}
+                    </a>
+                  {/if}
+                {/each}
+              </div>
+            {/if}
             <footer>
               <button
                 type="button"
@@ -214,9 +283,47 @@
           maxlength="4000"
           disabled={posting}
         ></textarea>
+        {#if draftAttachments.length > 0}
+          <div class="draft-atts">
+            {#each draftAttachments as att, i (att.type === "image" ? att.url : `${att.lat},${att.lng}-${i}`)}
+              {#if att.type === "image"}
+                <div class="draft-att">
+                  <img src={att.url} alt="" />
+                  <button
+                    type="button"
+                    class="att-remove"
+                    onclick={() => removeAttachment(i)}
+                    aria-label="이 첨부 제거"
+                  >×</button>
+                </div>
+              {/if}
+            {/each}
+          </div>
+        {/if}
         <div class="row submit-row">
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            bind:this={fileInputEl}
+            onchange={onPickFiles}
+            style="display: none"
+          />
+          <button
+            type="button"
+            class="att-btn"
+            onclick={() => fileInputEl?.click()}
+            disabled={uploading || posting || draftAttachments.length >= MAX_ATTACHMENTS}
+            title={`사진 첨부 (최대 ${MAX_ATTACHMENTS}장, 자동 800px 리사이즈)`}
+          >
+            {uploading ? "업로드 중…" : `📷 사진 (${draftAttachments.length}/${MAX_ATTACHMENTS})`}
+          </button>
           <span class="counter">{draft.length} / 4000</span>
-          <button class="cta" type="submit" disabled={posting || !draft.trim()}>
+          <button
+            class="cta"
+            type="submit"
+            disabled={posting || uploading || (!draft.trim() && draftAttachments.length === 0)}
+          >
             {posting ? "등록 중…" : "등록"}
           </button>
         </div>
@@ -427,5 +534,100 @@
   .login-cta {
     margin: 0;
     text-align: center;
+  }
+
+  /* ── attachments ── */
+  .attachments {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .att-img {
+    display: inline-block;
+    line-height: 0;
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid var(--color-rule);
+  }
+  .att-img img {
+    max-width: 100%;
+    max-height: 320px;
+    display: block;
+  }
+  .att-map {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--color-secondary);
+    color: var(--color-secondary);
+    background: var(--color-secondary-bg);
+    border-radius: 5px;
+    text-decoration: none;
+    font-size: 0.88rem;
+  }
+  .att-map:hover {
+    background: var(--color-secondary);
+    color: var(--color-bg);
+  }
+  .draft-atts {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .draft-att {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    border: 1px solid var(--color-rule);
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--color-bg);
+  }
+  .draft-att img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .att-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font: inherit;
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .att-remove:hover {
+    background: rgba(0, 0, 0, 0.85);
+  }
+  .att-btn {
+    background: transparent;
+    border: 1px solid var(--color-rule);
+    border-radius: 5px;
+    padding: 0.35rem 0.7rem;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--color-secondary);
+    cursor: pointer;
+    margin-right: auto;
+  }
+  .att-btn:hover:not(:disabled) {
+    background: var(--color-secondary-bg);
+    border-color: var(--color-secondary);
+  }
+  .att-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

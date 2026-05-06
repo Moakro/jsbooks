@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS comments (
   body_html    TEXT NOT NULL,                     -- 서버 sanitized HTML
   type         TEXT NOT NULL,                     -- memo|question|cross|cite
   status       TEXT NOT NULL DEFAULT 'published', -- published|hidden|deleted
+  attachments  TEXT,                              -- JSON: [{type:'image',url,width?,height?},{type:'map',lat,lng,zoom?,label?}]
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );

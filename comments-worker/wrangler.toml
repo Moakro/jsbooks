@@ -8,9 +8,14 @@ binding = "DB"
 database_name = "jsbooks-db"
 database_id = "607b2cf3-8754-4e87-9d1b-a68a35cc8052"
 
-# Routes attached to the jsbooks.wiki zone for everything under /api/auth/*
-# and /api/comments*. Wildcards ensure they win over Pages routing even with
-# query strings or anchors present.
+# R2 bucket for user-uploaded images (comment/post attachments).
+# Public custom domain: img.jsbooks.wiki → see UPLOADS_PUBLIC_BASE in [vars].
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "jsbooks-uploads"
+
+# Routes attached to the jsbooks.wiki zone. Wildcards ensure they win over
+# Pages routing even with query strings or anchors present.
 [[routes]]
 pattern = "jsbooks.wiki/api/auth/*"
 zone_name = "jsbooks.wiki"
@@ -27,6 +32,10 @@ zone_name = "jsbooks.wiki"
 pattern = "jsbooks.wiki/api/admin/*"
 zone_name = "jsbooks.wiki"
 
+[[routes]]
+pattern = "jsbooks.wiki/api/upload/*"
+zone_name = "jsbooks.wiki"
+
 [observability]
 enabled = true
 
@@ -34,3 +43,4 @@ enabled = true
 # attached via `wrangler secret put` separately.
 [vars]
 SITE_ORIGIN = "https://jsbooks.wiki"
+UPLOADS_PUBLIC_BASE = "https://img.jsbooks.wiki"
