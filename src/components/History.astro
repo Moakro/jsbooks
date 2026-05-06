@@ -1,5 +1,5 @@
 ---
-import { historyFor, commitURL, type HistoryEntry } from "../lib/history";
+import { historyFor, type HistoryEntry } from "../lib/history";
 import Icon from "./Icon.svelte";
 
 interface Props {
@@ -27,9 +27,6 @@ function shortDate(iso: string): string {
         <li>
           <span class="h-date">{shortDate(e.date)}</span>
           <span class="h-msg">{e.subject}</span>
-          <a class="h-hash" href={commitURL(e.hash)} target="_blank" rel="noopener" title={`${e.author} · ${e.date}`}>
-            {e.hash}
-          </a>
         </li>
       ))}
     </ol>
@@ -75,7 +72,7 @@ function shortDate(iso: string): string {
   }
   .history li {
     display: grid;
-    grid-template-columns: 6.5em 1fr auto;
+    grid-template-columns: 6.5em 1fr;
     column-gap: 0.7rem;
     align-items: baseline;
     padding: 0.3rem 0;
@@ -91,15 +88,5 @@ function shortDate(iso: string): string {
   }
   .h-msg {
     color: var(--color-fg);
-  }
-  .h-hash {
-    font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", Menlo, monospace;
-    font-size: 0.78rem;
-    color: var(--color-secondary);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--color-secondary);
-  }
-  .h-hash:hover {
-    background: var(--color-secondary-bg);
   }
 </style>

@@ -2,11 +2,16 @@
 import Base from "../layouts/Base.astro";
 import DayBox from "../components/DayBox.svelte";
 import AIPrompt from "../components/AIPrompt.svelte";
+import AdminGate from "../components/AdminGate.astro";
+import ScriptureChangelog from "../components/ScriptureChangelog.astro";
 ---
 
 <Base title="jsbooks — 증산계열 경전 디지털 라이브러리" bare>
   <Fragment slot="pre-main">
+    <ScriptureChangelog />
     <DayBox client:load />
-    <AIPrompt client:load />
+    <AdminGate>
+      <AIPrompt client:load />
+    </AdminGate>
   </Fragment>
 </Base>

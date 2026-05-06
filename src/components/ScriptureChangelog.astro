@@ -1,0 +1,122 @@
+---
+/**
+ * Site-wide rollup of recent commits that touched any scripture markdown
+ * (content/scripture/**). De-duplicated by commit hash and shown newest-first.
+ */
+import data from "../data/history.json";
+import Icon from "./Icon.svelte";
+
+interface Props {
+  /** Maximum number of commits to display. Default 30. */
+  limit?: number;
+}
+const { limit = 30 } = Astro.props;
+
+type Entry = { hash: string; date: string; author: string; subject: string };
+const files: Record<string, Entry[]> = (data as any).files ?? {};
+
+const seen = new Set<string>();
+const all: Entry[] = [];
+for (const [path, entries] of Object.entries(files)) {
+  if (!path.startsWith("content/scripture/")) continue;
+  for (const e of entries) {
+    if (seen.has(e.hash)) continue;
+    seen.add(e.hash);
+    all.push(e);
+  }
+}
+all.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+const recent = all.slice(0, limit);
+
+function shortDate(iso: string): string {
+  return iso.slice(0, 10);
+}
+---
+
+<section class="changelog">
+  <header>
+    <span class="ico" aria-hidden="true"><Icon icon="pencil-line" size={18} /></span>
+    <h2>최근 경전 작업 이력</h2>
+    <span class="meta">최근 {recent.length}건</span>
+  </header>
+  {recent.length === 0 ? (
+    <p class="muted">아직 기록이 없습니다.</p>
+  ) : (
+    <ol>
+      {recent.map((e) => (
+        <li>
+          <span class="date">{shortDate(e.date)}</span>
+          <span class="subject">{e.subject}</span>
+        </li>
+      ))}
+    </ol>
+  )}
+</section>
+
+<style>
+  .changelog {
+    background: var(--color-bg, #fbf8f4);
+    border: 1px solid var(--color-rule, #e8dfd9);
+    border-radius: 10px;
+    padding: 1rem 1.2rem 1.1rem;
+    margin: 0 0 1rem;
+  }
+  .changelog header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.7rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+  }
+  .changelog .ico {
+    display: inline-flex;
+    color: var(--color-primary, #a8352a);
+  }
+  .changelog h2 {
+    margin: 0;
+    flex: 1;
+    font-size: 1rem;
+    color: var(--color-primary, #a8352a);
+  }
+  .changelog .meta {
+    font-size: 0.78rem;
+    color: var(--color-muted, #8a807a);
+    font-variant-numeric: tabular-nums;
+  }
+  .changelog .muted {
+    margin: 0;
+    color: var(--color-muted, #8a807a);
+    font-size: 0.9rem;
+  }
+  .changelog ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .changelog li {
+    display: grid;
+    grid-template-columns: 6.5em 1fr;
+    column-gap: 0.7rem;
+    align-items: baseline;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+    font-size: 0.92rem;
+  }
+  .changelog li:last-child {
+    border-bottom: none;
+  }
+  .date {
+    color: var(--color-muted, #8a807a);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+  }
+  .subject {
+    color: var(--color-fg, #1f1c1a);
+    line-height: 1.5;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+</style>
