@@ -44,14 +44,27 @@ const scriptures: ScriptureCard[] = [
     tradition: "증산계열",
     status: "active",
   },
+  {
+    slug: "hwaeundang-silgi",
+    name: "화은당실기",
+    hanja: "華恩堂實記",
+    editor: "김병철",
+    editor_hanja: "金炳徹",
+    year: 1960,
+    description:
+      "정사 김병철이 1960년에 편술한 대한증산선불교 연혁사. 강증산의 따님 화은당(華恩堂) 강순임의 일대기와 6기초공사 과정을 8장으로 정리. 1989년 법종사 김대수가 재간행.",
+    tradition: "증산계열",
+    status: "active",
+  },
 ];
 ---
 
 <section class="catalog-section">
+  <p class="order-note">경전 순서는 가나다 순</p>
   <ul class="catalog">
     {scriptures
       .slice()
-      .sort((a, b) => b.year - a.year)
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"))
       .map((s) => (
       <li class={`card ${s.status}`}>
         <a href={`/library/${s.slug}/`} class="card-link">
@@ -160,6 +173,11 @@ const scriptures: ScriptureCard[] = [
     color: var(--color-fg);
     font-size: 0.92rem;
     line-height: 1.65;
+  }
+  .order-note {
+    margin: 0 0 0.7rem;
+    font-size: 0.78rem;
+    color: var(--color-muted);
   }
   .hint {
     color: var(--color-muted);
