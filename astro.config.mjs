@@ -3,9 +3,12 @@ import { defineConfig } from 'astro/config';
 import svelte from '@astrojs/svelte';
 import canonicalMappingDev from './scripts/vite-canonical-mapping.mjs';
 
+import cloudflare from '@astrojs/cloudflare';
+
 // https://astro.build/config
 export default defineConfig({
   integrations: [svelte()],
+
   vite: {
     plugins: [canonicalMappingDev()],
     server: {
@@ -15,4 +18,6 @@ export default defineConfig({
       allowedHosts: ['azgianlab', 'localhost', '127.0.0.1', '.ts.net'],
     },
   },
+
+  adapter: cloudflare(),
 });
