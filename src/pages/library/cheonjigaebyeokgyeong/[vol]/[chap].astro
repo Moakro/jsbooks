@@ -1,13 +1,14 @@
 ---
 import Base from "../../../../layouts/Base.astro";
-import History from "../../../../components/History.astro";
-import Comments from "../../../../components/Comments.svelte";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../../lib/manifest";
 import { renderWikilinks } from "../../../../lib/wikilink";
 import { parseVerses } from "../../../../lib/verse-parser";
+import { getMapping, resolveHangeulVerses } from "../../../../lib/canonical-mapping";
 import { correspondencesFor } from "../../../../lib/correspondences";
 import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
+import Comments from "../../../../components/Comments.svelte";
+import History from "../../../../components/History.astro";
 import ScriptureChapterNav from "../../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../../components/ScriptureStickyBar.astro";
 
@@ -25,17 +26,44 @@ const { entry } = Astro.props;
 const { 권, 권_이름, 권_이름_한자, 장, 연도, 연도_간지 } = entry.data;
 const manifest = await buildCardManifest();
 
-// Parse body into verses by ## N절 ^X-Y-Z headings
-type Verse = { num: number; id: string; html: string };
-const verses: Verse[] = parseVerses(entry.body ?? "").map((v) => {
+type Verse = {
+  num: number;
+  id: string;
+  hanjaHTML: string;
+  hangeul: { id: string; num: number; html: string }[];
+  reviewed: boolean;
+  confidence?: number;
+};
+const parsed = parseVerses(entry.body ?? "");
+const verses: Verse[] = [];
+for (const v of parsed) {
   const paragraphs = v.text.split(/\n\s*\n/).filter(Boolean);
-  const html = paragraphs
+  const hanjaHTML = paragraphs
     .map((p) => renderWikilinks(p, manifest))
     .join("\n\n");
-  return { num: v.num, id: v.id, html };
-});
+  const mapping = getMapping(v.id);
+  const hangeulAnchors = mapping?.hangeul ?? [];
+  const hangeulVerses = await resolveHangeulVerses(hangeulAnchors);
+  const hangeul = hangeulVerses.map((hv) => ({
+    id: hv.id,
+    num: hv.num,
+    html: hv.body
+      .split(/\n\s*\n/)
+      .filter(Boolean)
+      .map((p) => renderWikilinks(p, manifest))
+      .join("\n\n"),
+  }));
+  verses.push({
+    num: v.num,
+    id: v.id,
+    hanjaHTML,
+    hangeul,
+    reviewed: mapping?.reviewed ?? false,
+    confidence: mapping?.confidence,
+  });
+}
 
-// Same-volume index (for the progress indicator at the top)
+// Same-volume index
 const all = await getCollection("scripture");
 const sameVol = all
   .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/") && e.data.권 === 권 && e.data.장)
@@ -44,7 +72,6 @@ const idx = sameVol.findIndex((e) => e.id === entry.id);
 const totalChaps = sameVol.length;
 const chapPct = Math.round(((idx + 1) / totalChaps) * 100);
 
-// entry.id is like "cheonjigaebyeokgyeong/02_임인편/02-01_장" — reconstruct the content/ path.
 const historyPath = `content/scripture/${entry.id}.md`;
 ---
 
@@ -59,30 +86,76 @@ const historyPath = `content/scripture/${entry.id}.md`;
     <h1>{장}장</h1>
     <p class="meta">{연도_간지} {연도}</p>
   </div>
-  <div class="chap-progress" aria-label={`이 권의 ${idx + 1}번째 장 / 전체 ${totalChaps}장`}>
-    <div class="bar"><div class="fill" style={`width: ${chapPct}%`}></div></div>
-    <span class="meta">{idx + 1} / {totalChaps}장</span>
-  </div>
+    <div class="chap-progress" aria-label={`이 권의 ${idx + 1}번째 장 / 전체 ${totalChaps}장`}>
+      <div class="bar"><div class="fill" style={`width: ${chapPct}%`}></div></div>
+      <span class="meta">{idx + 1} / {totalChaps}장</span>
+    </div>
 
-  <div
-    data-pagefind-body
-    data-pagefind-filter="scripture:cheonjigaebyeokgyeong"
-    data-pagefind-meta={`title:권 ${권} ${권_이름} ${장}장`}
-  >
-    <span hidden data-pagefind-filter="kind:경전"></span>
-    <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
-    {verses.map((v) => (
-      <section class="verse">
-        <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
-        <div class="verse-label" data-pagefind-ignore>
-          <a href={`#${v.id}`}>{v.num}절</a>
-          <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
-          <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", v.id)} />
-        </div>
-        <div class="verse-body" set:html={v.html} />
-      </section>
-    ))}
-  </div>
+    <div class="display-modes" data-display-modes>
+      <label><input type="radio" name="display-mode" value="all" checked /> 전체보기</label>
+      <label><input type="radio" name="display-mode" value="hanja" /> 원본</label>
+      <label><input type="radio" name="display-mode" value="hangeul" /> 한글본</label>
+    </div>
+
+    <div>
+      {verses.map((v) => (
+        <section class="verse">
+          <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
+          <div class="verse-label">
+            <span class="verse-label-meta">
+              <a href={`#${v.id}`}>{v.num}절</a>
+              <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
+              {v.hangeul.length === 0 && (
+                <span class="badge unmapped">한글 미매핑</span>
+              )}
+              <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", v.id)} />
+            </span>
+            <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
+              <span class="vt-label">전체보기</span>
+              <span class="vt-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+              </span>
+            </button>
+          </div>
+          <div class="original-box" data-layer="hanja" set:html={v.hanjaHTML} />
+          {v.hangeul.length > 0 && (
+            <div class="verse-body" data-layer="hangeul">
+              {v.hangeul.map((h) => (
+                <p set:html={h.html} />
+              ))}
+            </div>
+          )}
+        </section>
+      ))}
+    </div>
+
+    <script is:inline>
+      (function () {
+        const wrap = document.querySelector("[data-display-modes]");
+        if (!wrap) return;
+        const update = () => {
+          const checked = wrap.querySelector('input[name="display-mode"]:checked');
+          const mode = checked ? checked.value : "all";
+          document.body.classList.toggle("hide-hanja", mode === "hangeul");
+          document.body.classList.toggle("hide-hangeul", mode === "hanja");
+          // Mode 변경 시 절별 force-all 해제 (다른 절 상태 잔류 방지)
+          document.querySelectorAll("section.verse.force-all").forEach((el) => {
+            el.classList.remove("force-all");
+          });
+        };
+        wrap.addEventListener("change", update);
+        update();
+
+        // 절별 "전체보기" 토글: 클릭 시 해당 절만 전역 hide-* 무시
+        document.addEventListener("click", (e) => {
+          const btn = e.target.closest && e.target.closest("[data-toggle-all]");
+          if (!btn) return;
+          const verse = btn.closest("section.verse");
+          if (!verse) return;
+          verse.classList.toggle("force-all");
+        });
+      })();
+    </script>
 
   <ScriptureChapterNav scriptureSlug="cheonjigaebyeokgyeong" currentId={entry.id} />
 
@@ -91,6 +164,16 @@ const historyPath = `content/scripture/${entry.id}.md`;
 </Base>
 
 <style>
+  .badge {
+    font-size: 0.5em;
+    font-weight: normal;
+    color: var(--color-muted);
+    border: 1px solid var(--color-rule);
+    border-radius: 4px;
+    padding: 0.15rem 0.4rem;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
   .chap-head {
     display: flex;
     align-items: baseline;
@@ -129,6 +212,171 @@ const historyPath = `content/scripture/${entry.id}.md`;
   }
   .verse-body :global(p) {
     margin: 0.5rem 0;
+  }
+  /* 한글본은 다른 경전과 동일한 톤(메인 카드 표준 verse-body) */
+
+  /* 원문은 한글본 절 위에 작은 inset 박스 — 황지 톤 */
+  .original-box {
+    margin: 0 0 0.6rem;
+    padding: 0.55rem 0.85rem;
+    background: #e8d8b8;
+    color: #2a221a;
+    border-radius: 5px;
+    font-size: 0.92em;
+    line-height: 1.7;
+    max-height: 4000px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.18s ease, padding 0.2s ease, margin 0.2s ease;
+  }
+  .verse-body[data-layer="hangeul"] {
+    max-height: 4000px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.18s ease, padding 0.2s ease, margin 0.2s ease;
+  }
+  .original-box :global(p) {
+    margin: 0.3rem 0;
+  }
+  .original-box :global(p:first-child) { margin-top: 0; }
+  .original-box :global(p:last-child) { margin-bottom: 0; }
+
+  @media (prefers-color-scheme: dark) {
+    .original-box {
+      background: #2c2418;
+      color: #f0e6d0;
+    }
+  }
+
+  :global(body.hide-hanja) .verse:not(.force-all) .original-box {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 0;
+  }
+  :global(body.hide-hangeul) .verse:not(.force-all) .verse-body[data-layer="hangeul"] {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 0;
+  }
+  /* 사용자가 reduce-motion 선호하면 애니메이션 끔 */
+  @media (prefers-reduced-motion: reduce) {
+    .original-box,
+    .verse-body[data-layer="hangeul"] {
+      transition: none;
+    }
+  }
+
+  /* verse-label: 좌측 메타 + 우측 버튼 */
+  .verse-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .verse-label-meta {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .verse-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72em;
+    padding: 0.18rem 0.55rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 4px;
+    background: var(--color-bg);
+    color: var(--color-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .verse-toggle .vt-icon {
+    display: none;
+    line-height: 0;
+  }
+  /* force-all일 때는 라벨 대신 undo 아이콘만 */
+  .verse.force-all .verse-toggle .vt-label {
+    display: none;
+  }
+  .verse.force-all .verse-toggle .vt-icon {
+    display: inline-flex;
+  }
+  .verse.force-all .verse-toggle {
+    padding: 0.22rem 0.45rem;
+  }
+  .verse-toggle:hover {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+  /* 전체보기 모드(hide-* 없음)면 절별 버튼 숨김 */
+  :global(body.hide-hanja) .verse-toggle,
+  :global(body.hide-hangeul) .verse-toggle {
+    display: inline-flex;
+  }
+  /* 절이 force-all 상태면 버튼은 항상 보이도록 (해제 가능) */
+  .verse.force-all .verse-toggle {
+    display: inline-flex;
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+  .display-modes {
+    display: inline-flex;
+    margin: 0 0 1.5rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 0.85rem;
+    background: var(--color-surface-2);
+  }
+  .display-modes label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.95rem;
+    cursor: pointer;
+    border-right: 1px solid var(--color-rule);
+    transition: background 0.15s ease, color 0.15s ease;
+    user-select: none;
+  }
+  .display-modes label:last-child {
+    border-right: none;
+  }
+  .display-modes label:hover {
+    background: var(--color-primary-bg);
+  }
+  .display-modes input[type="radio"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .display-modes label:has(input:checked) {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    font-weight: 600;
+  }
+  .badge {
+    font-size: 0.7em;
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    margin-left: 0.4rem;
+  }
+  .badge.unmapped {
+    background: var(--color-rule);
+    color: var(--color-muted);
   }
   .verse-anchor-heading {
     position: absolute;

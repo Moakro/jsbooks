@@ -1,0 +1,64 @@
+---
+import Base from "../../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import { buildCardManifest } from "../../../lib/manifest";
+import { renderMarkdownBody } from "../../../lib/wikilink";
+import AdminGate from "../../../components/AdminGate.astro";
+import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
+import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
+
+const all = await getCollection("scripture");
+const preface = all.find((e) => e.id === "cheonjigaebyeokgyeong-hangeul/00_서");
+if (!preface) throw new Error("cheonjigaebyeokgyeong-hangeul/00_서.md not found");
+
+const manifest = await buildCardManifest();
+const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
+
+---
+
+<Base title="서(序) — 천지개벽경 (한글본 백업)" scriptureSlug="cheonjigaebyeokgyeong-hangeul">
+  <AdminGate>
+    <ScriptureStickyBar
+      scriptureName="천지개벽경 한글본 (백업)"
+      scriptureSlug="cheonjigaebyeokgyeong-hangeul"
+      scriptureHref="/library/cheonjigaebyeokgyeong-hangeul/"
+      context="서(序)"
+    />
+    <h1>천지개벽경 서(序) <span class="badge">admin</span></h1>
+    <p class="meta">{preface.data.date_lunar}</p>
+    <div
+      data-pagefind-body
+      data-pagefind-filter="scripture:cheonjigaebyeokgyeong-hangeul"
+      data-pagefind-meta="title:서(序) (백업)"
+    >
+      <span hidden data-pagefind-filter="kind:경전"></span>
+      <span hidden data-pagefind-meta="scriptureName:천지개벽경 한글본 (백업)"></span>
+      <article class="prose-body" set:html={bodyHTML} />
+    </div>
+
+    <p style="text-align: right; margin-top: 3rem;">
+      포교 87년 병술 4월 27일<br />
+      <strong>이중성(李重盛) 序</strong>
+    </p>
+
+    <ScriptureChapterNav scriptureSlug="cheonjigaebyeokgyeong-hangeul" currentId={preface.id} />
+  </AdminGate>
+</Base>
+
+<style>
+  .badge {
+    font-size: 0.5em;
+    font-weight: normal;
+    color: var(--color-secondary, #d97706);
+    border: 1px solid var(--color-secondary, #d97706);
+    border-radius: 4px;
+    padding: 0.15rem 0.4rem;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+    text-transform: uppercase;
+  }
+  .prose-body :global(h1),
+  .prose-body :global(p) {
+    line-height: 1.85;
+  }
+</style>

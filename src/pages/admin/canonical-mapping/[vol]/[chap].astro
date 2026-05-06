@@ -9,7 +9,7 @@ import ChapterEditor from "../../../../components/admin/ChapterEditor.svelte";
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
   return all
-    .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-canonical/") && e.data.권 && e.data.장)
+    .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/") && e.data.권 && e.data.장)
     .map((e) => ({
       params: { vol: String(e.data.권), chap: String(e.data.장) },
       props: { entry: e },
@@ -23,7 +23,7 @@ const chap = entry.data.장!;
 const all = await getCollection("scripture");
 
 const tempEntry = all.find(
-  (e) => e.id.startsWith("cheonjigaebyeokgyeong/") && e.data.권 === vol && e.data.장 === chap,
+  (e) => e.id.startsWith("cheonjigaebyeokgyeong-hangeul/") && e.data.권 === vol && e.data.장 === chap,
 );
 
 const mapping = getAllMappings();
@@ -42,7 +42,7 @@ const initialHangeul = tempEntry
   : [];
 
 const sameVol = all
-  .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-canonical/") && e.data.권 === vol && e.data.장)
+  .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/") && e.data.권 === vol && e.data.장)
   .sort((a, b) => (a.data.장 ?? 0) - (b.data.장 ?? 0));
 const idx = sameVol.findIndex((e) => e.id === entry.id);
 const prev = idx > 0 ? sameVol[idx - 1] : null;
@@ -64,9 +64,9 @@ const hangeulEntryId = tempEntry?.id ?? "";
         {prev && <a href={`/admin/canonical-mapping/${vol}/${prev.data.장}/`}>← {prev.data.장}장</a>}
         {!prev && <span class="muted">←</span>}
         <span>·</span>
-        <a href={`/library/cheonjigaebyeokgyeong-canonical/${vol}/${chap}/`} target="_blank">정식판 페이지 ↗</a>
+        <a href={`/library/cheonjigaebyeokgyeong/${vol}/${chap}/`} target="_blank">공개 페이지 ↗</a>
         <span>·</span>
-        <a href={`/library/cheonjigaebyeokgyeong/${vol}/${chap}/`} target="_blank">임시판 페이지 ↗</a>
+        <a href={`/library/cheonjigaebyeokgyeong-hangeul/${vol}/${chap}/`} target="_blank">한글본 백업 ↗</a>
         <span>·</span>
         {next && <a href={`/admin/canonical-mapping/${vol}/${next.data.장}/`}>{next.data.장}장 →</a>}
         {!next && <span class="muted">→</span>}

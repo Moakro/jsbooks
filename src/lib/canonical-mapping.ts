@@ -48,7 +48,7 @@ export async function buildHangeulIndex(): Promise<
 > {
   if (hangeulCache) return hangeulCache;
   const all = await getCollection("scripture");
-  const temp = all.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/"));
+  const temp = all.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-hangeul/"));
   const map = new Map<string, { body: string; chapterId: string; num: number }>();
   for (const entry of temp) {
     for (const v of parseVerses(entry.body ?? "")) {

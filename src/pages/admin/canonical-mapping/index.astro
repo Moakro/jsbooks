@@ -6,7 +6,7 @@ import { getAllMappings } from "../../../lib/canonical-mapping";
 import AdminGate from "../../../components/AdminGate.astro";
 
 const all = await getCollection("scripture");
-const canon = all.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-canonical/"));
+const canon = all.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/"));
 const mapping = getAllMappings();
 
 type ChapStat = {

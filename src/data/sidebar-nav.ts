@@ -152,9 +152,12 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       path: "/admin/users/",
     },
     {
-      type: "link",
-      label: "정식판 매핑",
-      path: "/admin/canonical-mapping/",
+      type: "section",
+      label: "천지개벽경",
+      items: [
+        { label: "한자/한글 매핑", path: "/admin/canonical-mapping/" },
+        { label: "한글본 백업", path: "/library/cheonjigaebyeokgyeong-hangeul/" },
+      ],
     },
   ],
 };
