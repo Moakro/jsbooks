@@ -3,8 +3,8 @@
  * Build a per-file git history index at src/data/history.json.
  *
  * Source of truth: this repo's git log. Each commit that touched
- * `content/...` is listed. Because vault edits propagate via `pnpm sync:vault`,
- * the commit messages here are exactly what the operator wrote at deploy time.
+ * `content/...` is listed. The vault root *is* `content/` (no sync step), so
+ * commit messages here are exactly what the operator wrote at edit time.
  *
  * Output shape:
  *   {

@@ -1,9 +1,8 @@
 import { defineCollection, z } from "astro:content";
 import { glob } from "astro/loaders";
 
-// Project-relative content directory. The vault snapshot lives at ./content/
-// at the repo root and is committed so the cloud build is self-contained.
-// To refresh from the editing vault, run `pnpm sync:vault`.
+// Project-relative content directory. This *is* the Obsidian vault root —
+// edits in Obsidian/IDE land here directly and are committed for cloud builds.
 const CONTENT = "./content";
 
 const scripture = defineCollection({

@@ -28,3 +28,9 @@ pnpm-debug.log*
 
 # Generated at build time from git log
 src/data/history.json
+
+# Obsidian vault metadata + workspace state (vault root = content/)
+content/.obsidian/
+content/.trash/
+# Auto-backups created by admin canonical-mapping tool
+content/.bak/

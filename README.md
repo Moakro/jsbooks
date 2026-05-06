@@ -4,18 +4,15 @@
 
 ## 콘텐츠
 
-콘텐츠는 옵시디언 vault(`~/Vault-jsbooks`)에서 작성하고, 빌드 입력은 이 리포의 `content/` 디렉터리에 스냅샷으로 둡니다.
-
-### 동기화
+옵시디언 vault root = 이 리포의 `content/` 디렉터리. 별도 sync 단계 없이 옵시디언/IDE에서 편집한 markdown이 곧바로 빌드 입력이 됩니다.
 
 ```bash
-pnpm sync:vault       # rsync vault → content/
 git add content
 git commit -m "content: ..."
 git push              # Cloudflare Pages가 자동 빌드·배포
 ```
 
-`scripts/sync-vault.sh`는 `$VAULT` 환경변수로 다른 vault 경로 지정 가능 (기본 `~/Vault-jsbooks`).
+`.env`의 `VAULT_PATH`로 admin 도구가 쓸 vault 경로를 지정합니다 (기본: `<repo>/content`).
 
 ## 스택
 

@@ -16,20 +16,17 @@
  *       mappings?: { entries: [{ anchor, hangeul, reviewed, confidence? }] }
  *     }
  *     Re-serializes one or both chapter markdown files with new sequential anchors,
- *     updates mapping JSON applying migrations, writes vault + content/.
+ *     updates mapping JSON applying migrations, writes the canonical content path.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
 
-const VAULT_ROOT = path.join(os.homedir(), "Vault-jsbooks");
-const VAULT_MAPPING = path.join(
+// Vault and content are now the same directory (repo `content/`). VAULT_PATH
+// from .env can override; defaults to <cwd>/content.
+const VAULT_ROOT = process.env.VAULT_PATH || path.join(process.cwd(), "content");
+const MAPPING_PATH = path.join(
   VAULT_ROOT,
   "scripture/_mappings/cheonjigaebyeokgyeong-canonical.json",
-);
-const CONTENT_MAPPING = path.join(
-  process.cwd(),
-  "content/scripture/_mappings/cheonjigaebyeokgyeong-canonical.json",
 );
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -59,7 +56,6 @@ async function backup(p) {
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   const dir = path.join(VAULT_ROOT, ".bak", ts);
   const rel = path.relative(VAULT_ROOT, p);
-  // If outside vault (e.g., content/), use a flat name under .bak.
   const dest = rel.startsWith("..")
     ? path.join(dir, "_external", path.basename(p))
     : path.join(dir, rel);
@@ -90,7 +86,7 @@ function json(res, status, body) {
 
 async function loadMapping() {
   try {
-    return await readJson(VAULT_MAPPING);
+    return await readJson(MAPPING_PATH);
   } catch {
     return {
       version: 1,
@@ -100,9 +96,8 @@ async function loadMapping() {
   }
 }
 async function persistMapping(mapping) {
-  await backup(VAULT_MAPPING);
-  await writeJson(VAULT_MAPPING, mapping);
-  await writeJson(CONTENT_MAPPING, mapping);
+  await backup(MAPPING_PATH);
+  await writeJson(MAPPING_PATH, mapping);
 }
 function applyMappingEntry(mapping, entry) {
   const { anchor, hangeul, reviewed, confidence } = entry;
@@ -179,28 +174,22 @@ function parseExistingAnchors(body) {
 
 // ─── save-chapter ──────────────────────────────────────────────────────────
 
-function entryIdToVaultPath(entryId) {
+function entryIdToPath(entryId) {
   return path.join(VAULT_ROOT, "scripture", `${entryId}.md`);
-}
-function entryIdToContentPath(entryId) {
-  return path.join(process.cwd(), "content", "scripture", `${entryId}.md`);
 }
 
 async function rewriteChapter(side) {
   const { entryId, verses } = side;
-  const vaultP = entryIdToVaultPath(entryId);
-  const contentP = entryIdToContentPath(entryId);
-  const raw = await readText(vaultP);
+  const filePath = entryIdToPath(entryId);
+  const raw = await readText(filePath);
   const { frontmatter, body } = splitFrontmatter(raw);
   const { heading, rest } = splitChapterHeading(body);
   const prevAnchors = parseExistingAnchors(rest || body);
   const prefix = parseFrontmatterAnchorPrefix(frontmatter);
   if (!prefix) throw new Error(`Cannot determine anchor prefix for ${entryId}`);
   const ser = serializeChapter(verses, frontmatter, heading, prefix);
-  await backup(vaultP);
-  await backup(contentP);
-  await writeText(vaultP, ser.markdown);
-  await writeText(contentP, ser.markdown);
+  await backup(filePath);
+  await writeText(filePath, ser.markdown);
   return {
     prevAnchors,
     newAnchors: ser.verses.map((v) => v.id),
