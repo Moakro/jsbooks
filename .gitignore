@@ -34,3 +34,9 @@ content/.obsidian/
 content/.trash/
 # Auto-backups created by admin canonical-mapping tool
 content/.bak/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
