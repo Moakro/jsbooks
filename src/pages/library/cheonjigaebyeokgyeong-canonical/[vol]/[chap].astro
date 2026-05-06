@@ -5,6 +5,8 @@ import { buildCardManifest } from "../../../../lib/manifest";
 import { renderWikilinks } from "../../../../lib/wikilink";
 import { parseVerses } from "../../../../lib/verse-parser";
 import { getMapping, resolveHangeulVerses } from "../../../../lib/canonical-mapping";
+import { correspondencesFor } from "../../../../lib/correspondences";
+import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
 import ScriptureChapterNav from "../../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../../components/ScriptureStickyBar.astro";
 import AdminGate from "../../../../components/AdminGate.astro";
@@ -107,6 +109,7 @@ const redirectTo = `/library/cheonjigaebyeokgyeong/${권}/${장}/`;
               {v.hangeul.length === 0 && (
                 <span class="badge unmapped">한글 미매핑</span>
               )}
+              <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong-canonical", v.id)} />
             </span>
             <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
               <span class="vt-label">전체보기</span>
