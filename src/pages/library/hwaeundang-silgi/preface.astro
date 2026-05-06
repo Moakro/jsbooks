@@ -4,8 +4,7 @@ import Comments from "../../../components/Comments.svelte";
 import History from "../../../components/History.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
-import { renderWikilinks } from "../../../lib/wikilink";
-import { parseVerses } from "../../../lib/verse-parser";
+import { renderMarkdownBody } from "../../../lib/wikilink";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 
@@ -14,11 +13,7 @@ const preface = all.find((e) => e.id === "hwaeundang-silgi/00_서문");
 if (!preface) throw new Error("hwaeundang-silgi/00_서문.md not found");
 
 const manifest = await buildCardManifest();
-const verses = parseVerses(preface.body ?? "").map((v) => {
-  const paragraphs = v.text.split(/\n\s*\n/).filter(Boolean);
-  const html = paragraphs.map((p) => renderWikilinks(p, manifest)).join("\n\n");
-  return { num: v.num, id: v.id, html };
-});
+const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
 
 const historyPath = `content/scripture/${preface.id}.md`;
 ---
@@ -30,7 +25,6 @@ const historyPath = `content/scripture/${preface.id}.md`;
     scriptureHref="/library/hwaeundang-silgi/"
     context="서문"
   />
-  <h1>화은당실기 서문(序文)</h1>
 
   <div
     data-pagefind-body
@@ -39,16 +33,7 @@ const historyPath = `content/scripture/${preface.id}.md`;
   >
     <span hidden data-pagefind-filter="kind:경전"></span>
     <span hidden data-pagefind-meta="scriptureName:화은당실기"></span>
-    {verses.map((v) => (
-      <section class="verse">
-        <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
-        <div class="verse-label" data-pagefind-ignore>
-          <a href={`#${v.id}`}>{v.num}절</a>
-          <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
-        </div>
-        <div class="verse-body" set:html={v.html} />
-      </section>
-    ))}
+    <article class="prose-body" set:html={bodyHTML} />
   </div>
 
   <ScriptureChapterNav scriptureSlug="hwaeundang-silgi" currentId={preface.id} />
@@ -58,19 +43,12 @@ const historyPath = `content/scripture/${preface.id}.md`;
 </Base>
 
 <style>
-  .verse-body :global(p) {
-    margin: 0.5rem 0;
-    line-height: 1.85;
+  .prose-body :global(h1) {
+    font-size: 1.5rem;
+    margin: 0 0 1.2rem;
   }
-  .verse-anchor-heading {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+  .prose-body :global(p) {
+    margin: 0.7rem 0;
+    line-height: 1.85;
   }
 </style>
