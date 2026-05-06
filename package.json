@@ -9,12 +9,15 @@
   "scripts": {
     "dev": "node --experimental-strip-types --no-warnings scripts/build-history.ts && astro dev",
     "build": "node --experimental-strip-types --no-warnings scripts/build-history.ts && astro build && bash scripts/build-pagefind.sh",
-    "preview": "astro preview",
+    "preview": "pnpm run build && wrangler dev",
     "astro": "astro",
     "embed": "node --experimental-strip-types --no-warnings scripts/embed.ts",
-    "build:correspondences": "node --experimental-strip-types --no-warnings scripts/build-correspondences.ts"
+    "build:correspondences": "node --experimental-strip-types --no-warnings scripts/build-correspondences.ts",
+    "generate-types": "wrangler types",
+    "deploy": "pnpm run build && wrangler deploy"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^13.3.1",
     "@astrojs/svelte": "^8.0.5",
     "astro": "^6.1.9",
     "korean-lunar-calendar": "^0.3.6",
@@ -25,6 +28,9 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260426.1",
     "pagefind": "^1.5.2",
-    "wrangler": "^4.85.0"
+    "wrangler": "^4.88.0"
+  },
+  "overrides": {
+    "vite": "^7"
   }
 }
