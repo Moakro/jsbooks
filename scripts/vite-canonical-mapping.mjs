@@ -273,6 +273,7 @@ async function saveChapterHandler(body) {
 
 // ─── Vite plugin ────────────────────────────────────────────────────────────
 
+/** @returns {import('vite').Plugin} */
 export default function canonicalMappingDev() {
   let viteServer = null;
   function triggerReload(changedPaths = []) {
