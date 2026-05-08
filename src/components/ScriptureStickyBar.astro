@@ -67,6 +67,11 @@ const {
     if (verses.length === 0) return;
 
     function verseNumberFrom(el: HTMLElement): string {
+      // Sentence-anchor pages expose the group num explicitly; this is the
+      // 절 number to display, even when the section is a non-first sentence.
+      const groupNum = el.dataset.groupNum;
+      if (groupNum) return groupNum;
+      // Legacy verse-anchor pages: the visible label reads "{num}절".
       const label = el.querySelector(".verse-label a");
       if (label) {
         const m = label.textContent?.match(/(\d+)/);

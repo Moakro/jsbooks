@@ -3,7 +3,7 @@ import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderWikilinks } from "../../../lib/wikilink";
-import { parseVerses } from "../../../lib/verse-parser";
+import { parseVerseGroups } from "../../../lib/verse-parser";
 import Comments from "../../../components/Comments.svelte";
 import History from "../../../components/History.astro";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
@@ -15,14 +15,24 @@ if (!preface) throw new Error("cheonjigaebyeokgyeong/00_서.md not found");
 
 const manifest = await buildCardManifest();
 
-type Verse = { num: number; id: string; html: string };
-const verses: Verse[] = parseVerses(preface.body ?? "").map((v) => {
-  const paragraphs = v.text.split(/\n\s*\n/).filter(Boolean);
-  const html = paragraphs
-    .map((p) => renderWikilinks(p, manifest))
-    .join("\n\n");
-  return { num: v.num, id: v.id, html };
-});
+type Sentence = {
+  anchor: string;
+  groupNum: number;
+  isFirstInGroup: boolean;
+  html: string;
+};
+const sentences: Sentence[] = [];
+for (const g of parseVerseGroups(preface.body ?? "")) {
+  for (let si = 0; si < g.sentences.length; si++) {
+    const s = g.sentences[si];
+    sentences.push({
+      anchor: s.anchor,
+      groupNum: g.num,
+      isFirstInGroup: si === 0,
+      html: renderWikilinks(s.text, manifest),
+    });
+  }
+}
 
 const historyPath = `content/scripture/${preface.id}.md`;
 ---
@@ -36,15 +46,23 @@ const historyPath = `content/scripture/${preface.id}.md`;
   />
   <h1>천지개벽경 서(序)</h1>
 
-  <div>
-    {verses.map((v) => (
-      <section class="verse">
-        <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
-        <div class="verse-label">
-          <a href={`#${v.id}`}>{v.num}절</a>
-          <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
+  <div
+    data-pagefind-body
+    data-pagefind-filter="scripture:cheonjigaebyeokgyeong"
+    data-pagefind-meta="title:서(序)"
+  >
+    <span hidden data-pagefind-filter="kind:경전"></span>
+    <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
+    {sentences.map((s) => (
+      <section class:list={["verse", { "group-start": s.isFirstInGroup }]} data-group-num={s.groupNum}>
+        {s.isFirstInGroup && (
+          <h3 class="group-heading" data-pagefind-ignore>{s.groupNum}절</h3>
+        )}
+        <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
+        <div class="verse-label" data-pagefind-ignore>
+          <a href={`#${s.anchor}`}>^{s.anchor}</a>
         </div>
-        <div class="verse-body" set:html={v.html} />
+        <div class="verse-body" set:html={s.html} />
       </section>
     ))}
   </div>
@@ -74,5 +92,17 @@ const historyPath = `content/scripture/${preface.id}.md`;
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+  .verse.group-start {
+    margin-top: 1.4rem;
+  }
+  .verse.group-start:first-child {
+    margin-top: 0;
+  }
+  .group-heading {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    color: var(--color-primary);
+    font-weight: 600;
   }
 </style>

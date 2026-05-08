@@ -3,7 +3,7 @@ import Base from "../../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../../lib/manifest";
 import { renderWikilinks } from "../../../../lib/wikilink";
-import { parseVerses } from "../../../../lib/verse-parser";
+import { parseVerseGroups } from "../../../../lib/verse-parser";
 import { getMapping, resolveHangeulVerses } from "../../../../lib/canonical-mapping";
 import { correspondencesFor } from "../../../../lib/correspondences";
 import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
@@ -26,41 +26,44 @@ const { entry } = Astro.props;
 const { 권, 권_이름, 권_이름_한자, 장, 연도, 연도_간지 } = entry.data;
 const manifest = await buildCardManifest();
 
-type Verse = {
-  num: number;
-  id: string;
+type Sentence = {
+  anchor: string;
+  groupNum: number;
+  isFirstInGroup: boolean;
   hanjaHTML: string;
-  hangeul: { id: string; num: number; html: string }[];
+  hangeulHTML: string;
   reviewed: boolean;
   confidence?: number;
 };
-const parsed = parseVerses(entry.body ?? "");
-const verses: Verse[] = [];
-for (const v of parsed) {
-  const paragraphs = v.text.split(/\n\s*\n/).filter(Boolean);
-  const hanjaHTML = paragraphs
-    .map((p) => renderWikilinks(p, manifest))
-    .join("\n\n");
-  const mapping = getMapping(v.id);
-  const hangeulAnchors = mapping?.hangeul ?? [];
-  const hangeulVerses = await resolveHangeulVerses(hangeulAnchors);
-  const hangeul = hangeulVerses.map((hv) => ({
-    id: hv.id,
-    num: hv.num,
-    html: hv.body
-      .split(/\n\s*\n/)
-      .filter(Boolean)
-      .map((p) => renderWikilinks(p, manifest))
-      .join("\n\n"),
-  }));
-  verses.push({
-    num: v.num,
-    id: v.id,
-    hanjaHTML,
-    hangeul,
-    reviewed: mapping?.reviewed ?? false,
-    confidence: mapping?.confidence,
-  });
+
+const groups = parseVerseGroups(entry.body ?? "");
+const sentences: Sentence[] = [];
+for (const g of groups) {
+  for (let si = 0; si < g.sentences.length; si++) {
+    const s = g.sentences[si];
+    const hanjaHTML = renderWikilinks(s.text, manifest);
+    const mapping = getMapping(s.anchor);
+    const hangeulAnchors = mapping?.hangeul ?? [];
+    const hangeulVerses = await resolveHangeulVerses(hangeulAnchors);
+    const hangeulHTML = hangeulVerses
+      .map((hv) =>
+        hv.body
+          .split(/\n\s*\n/)
+          .filter(Boolean)
+          .map((p) => renderWikilinks(p, manifest))
+          .join("\n\n"),
+      )
+      .join("\n\n");
+    sentences.push({
+      anchor: s.anchor,
+      groupNum: g.num,
+      isFirstInGroup: si === 0,
+      hanjaHTML,
+      hangeulHTML,
+      reviewed: mapping?.reviewed ?? false,
+      confidence: mapping?.confidence,
+    });
+  }
 }
 
 // Same-volume index
@@ -97,18 +100,26 @@ const historyPath = `content/scripture/${entry.id}.md`;
       <label><input type="radio" name="display-mode" value="hangeul" /> 한글본</label>
     </div>
 
-    <div>
-      {verses.map((v) => (
-        <section class="verse">
-          <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
-          <div class="verse-label">
+    <div
+      data-pagefind-body
+      data-pagefind-filter="scripture:cheonjigaebyeokgyeong"
+      data-pagefind-meta={`title:권 ${권} ${권_이름} ${장}장`}
+    >
+      <span hidden data-pagefind-filter="kind:경전"></span>
+      <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
+      {sentences.map((s) => (
+        <section class:list={["verse", { "group-start": s.isFirstInGroup }]} data-group-num={s.groupNum}>
+          {s.isFirstInGroup && (
+            <h3 class="group-heading" data-pagefind-ignore>{s.groupNum}절</h3>
+          )}
+          <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
+          <div class="verse-label" data-pagefind-ignore>
             <span class="verse-label-meta">
-              <a href={`#${v.id}`}>{v.num}절</a>
-              <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
-              {v.hangeul.length === 0 && (
+              <a href={`#${s.anchor}`}>^{s.anchor}</a>
+              {!s.hangeulHTML && (
                 <span class="badge unmapped">한글 미매핑</span>
               )}
-              <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", v.id)} />
+              <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", s.anchor)} />
             </span>
             <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
               <span class="vt-label">전체보기</span>
@@ -117,13 +128,9 @@ const historyPath = `content/scripture/${entry.id}.md`;
               </span>
             </button>
           </div>
-          <div class="original-box" data-layer="hanja" set:html={v.hanjaHTML} />
-          {v.hangeul.length > 0 && (
-            <div class="verse-body" data-layer="hangeul">
-              {v.hangeul.map((h) => (
-                <p set:html={h.html} />
-              ))}
-            </div>
+          <div class="original-box" data-layer="hanja" set:html={s.hanjaHTML} />
+          {s.hangeulHTML && (
+            <div class="verse-body" data-layer="hangeul" set:html={s.hangeulHTML} />
           )}
         </section>
       ))}
@@ -388,5 +395,18 @@ const historyPath = `content/scripture/${entry.id}.md`;
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+  /* 절 그룹 시각적 묶음: 첫 문장 위에 N절 헤딩 + 윗 여백 */
+  .verse.group-start {
+    margin-top: 1.4rem;
+  }
+  .verse.group-start:first-child {
+    margin-top: 0;
+  }
+  .group-heading {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    color: var(--color-primary);
+    font-weight: 600;
   }
 </style>

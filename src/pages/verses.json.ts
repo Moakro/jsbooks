@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../lib/manifest";
 import { renderWikilinks } from "../lib/wikilink";
-import { parseVerses } from "../lib/verse-parser";
+import { parseVerses, parseSentencesFlat } from "../lib/verse-parser";
 
 export const prerender = true;
 
@@ -36,12 +36,19 @@ export const GET: APIRoute = async () => {
     const vol = (entry.data as any).권 ?? null;
     const chap = (entry.data as any).장 ?? null;
 
-    for (const v of parseVerses(body)) {
+    // Sentence-anchor format (천지개벽경) emits one entry per sentence; the
+    // legacy verse-anchor format (다른 경전) emits one entry per `## N절` block.
+    // Both parsers return mutually exclusive matches on the same body, so try
+    // the sentence parser first and fall back when it returns nothing.
+    const sentenceVerses = parseSentencesFlat(body);
+    const verses = sentenceVerses.length > 0 ? sentenceVerses : parseVerses(body);
+
+    for (const v of verses) {
       const paragraphs = v.text.split(/\n\s*\n/).filter(Boolean);
       const inner = paragraphs.map((p) => renderWikilinks(p, manifest)).join("\n\n");
       const title = isHierarchical
-        ? `${scriptureName} 권${vol} ${volName ?? ""} · ${chap}장 ${v.num}절`
-        : `${scriptureName} · ${v.num}절`;
+        ? `${scriptureName} 권${vol} ${volName ?? ""} · ${chap}장 · ^${v.id}`
+        : `${scriptureName} · ^${v.id}`;
       const pageHref = isHierarchical
         ? `/library/${slug}/${vol}/${chap}/#${v.id}`
         : `/library/${slug}/#${v.id}`;
