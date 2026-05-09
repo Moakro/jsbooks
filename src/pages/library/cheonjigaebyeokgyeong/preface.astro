@@ -17,18 +17,18 @@ const manifest = await buildCardManifest();
 
 type Sentence = {
   anchor: string;
-  groupNum: number;
-  isFirstInGroup: boolean;
+  /** 1-based sentence index within preface (평면 모델). */
+  sentenceNum: number;
   html: string;
 };
 const sentences: Sentence[] = [];
+let sentenceIdx = 0;
 for (const g of parseVerseGroups(preface.body ?? "")) {
-  for (let si = 0; si < g.sentences.length; si++) {
-    const s = g.sentences[si];
+  for (const s of g.sentences) {
+    sentenceIdx++;
     sentences.push({
       anchor: s.anchor,
-      groupNum: g.num,
-      isFirstInGroup: si === 0,
+      sentenceNum: sentenceIdx,
       html: renderWikilinks(s.text, manifest),
     });
   }
@@ -43,6 +43,8 @@ const historyPath = `content/scripture/${preface.id}.md`;
     scriptureSlug="cheonjigaebyeokgyeong"
     scriptureHref="/library/cheonjigaebyeokgyeong/"
     context="서(序)"
+    versePrefix="#"
+    verseSuffix=""
   />
   <h1>천지개벽경 서(序)</h1>
 
@@ -54,10 +56,7 @@ const historyPath = `content/scripture/${preface.id}.md`;
     <span hidden data-pagefind-filter="kind:경전"></span>
     <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
     {sentences.map((s) => (
-      <section class:list={["verse", { "group-start": s.isFirstInGroup }]} data-group-num={s.groupNum}>
-        {s.isFirstInGroup && (
-          <h3 class="group-heading" data-pagefind-ignore>{s.groupNum}절</h3>
-        )}
+      <section class="verse" data-sentence-num={s.sentenceNum}>
         <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
         <div class="verse-label" data-pagefind-ignore>
           <a href={`#${s.anchor}`}>^{s.anchor}</a>

@@ -28,8 +28,8 @@ const manifest = await buildCardManifest();
 
 type Sentence = {
   anchor: string;
-  groupNum: number;
-  isFirstInGroup: boolean;
+  /** 1-based sentence index within chapter (평면 모델). */
+  sentenceNum: number;
   hanjaHTML: string;
   hangeulHTML: string;
   reviewed: boolean;
@@ -38,9 +38,10 @@ type Sentence = {
 
 const groups = parseVerseGroups(entry.body ?? "");
 const sentences: Sentence[] = [];
+let sentenceIdx = 0;
 for (const g of groups) {
-  for (let si = 0; si < g.sentences.length; si++) {
-    const s = g.sentences[si];
+  for (const s of g.sentences) {
+    sentenceIdx++;
     const hanjaHTML = renderWikilinks(s.text, manifest);
     const mapping = getMapping(s.anchor);
     const hangeulText = mapping?.hangeul ?? "";
@@ -53,8 +54,7 @@ for (const g of groups) {
       : "";
     sentences.push({
       anchor: s.anchor,
-      groupNum: g.num,
-      isFirstInGroup: si === 0,
+      sentenceNum: sentenceIdx,
       hanjaHTML,
       hangeulHTML,
       reviewed: mapping?.reviewed ?? false,
@@ -81,6 +81,8 @@ const historyPath = `content/scripture/${entry.id}.md`;
     scriptureSlug="cheonjigaebyeokgyeong"
     scriptureHref="/library/cheonjigaebyeokgyeong/"
     context={`권 ${권} ${권_이름} · ${장}장`}
+    versePrefix="#"
+    verseSuffix=""
   />
   <div class="chap-head">
     <h1>{장}장</h1>
@@ -105,10 +107,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
       <span hidden data-pagefind-filter="kind:경전"></span>
       <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
       {sentences.map((s) => (
-        <section class:list={["verse", { "group-start": s.isFirstInGroup }]} data-group-num={s.groupNum}>
-          {s.isFirstInGroup && (
-            <h3 class="group-heading" data-pagefind-ignore>{s.groupNum}절</h3>
-          )}
+        <section class="verse" data-sentence-num={s.sentenceNum}>
           <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
           <div class="verse-label" data-pagefind-ignore>
             <span class="verse-label-meta">

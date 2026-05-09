@@ -71,6 +71,9 @@ export function parseVerses(body: string): ParsedVerse[] {
  *
  * Paragraphs without a trailing `^anchor` are silently dropped — they are
  * either incidental whitespace or content that has not been migrated.
+ *
+ * 평면 모델 (그룹 heading 없음) fallback: body 전체를 1개의 그룹(num=1)으로 처리.
+ * 그룹이 없는 markdown(천지개벽경 ## N절 폐기 후)에서도 작동.
  */
 export function parseVerseGroups(body: string): ParsedVerseGroup[] {
   if (!body) return [];
@@ -84,6 +87,25 @@ export function parseVerseGroups(body: string): ParsedVerseGroup[] {
       bodyStart: m.index + m[0].length,
     });
   }
+
+  // 평면 모드: ## N절 heading이 없으면 body 전체가 한 그룹.
+  if (headings.length === 0) {
+    const sentences: ParsedSentence[] = [];
+    // # N장 같은 헤딩 줄을 paragraph 분할 시 자연스럽게 무시.
+    for (const para of body.split(/\n\s*\n/)) {
+      const trimmed = para.trim();
+      if (!trimmed) continue;
+      if (/^#\s/.test(trimmed)) continue;
+      const am = trimmed.match(SENTENCE_ANCHOR_RE);
+      if (!am) continue;
+      sentences.push({
+        anchor: am[1],
+        text: trimmed.replace(SENTENCE_ANCHOR_RE, "").trim(),
+      });
+    }
+    return sentences.length > 0 ? [{ num: 1, sentences }] : [];
+  }
+
   const out: ParsedVerseGroup[] = [];
   for (let i = 0; i < headings.length; i++) {
     const h = headings[i];

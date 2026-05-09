@@ -14,6 +14,8 @@ interface Props {
   scriptureName: string;
   /** Optional context line (e.g. "권 8 무신편 · 3장"). */
   context?: string;
+  /** Prefix shown before the verse number (e.g. "#" for 평면 anchor). Default: "". */
+  versePrefix?: string;
   /** Suffix appended after the verse number. Default: "절". */
   verseSuffix?: string;
   /** Scripture home URL (e.g. "/library/cheonjigaebyeokgyeong/"). */
@@ -24,6 +26,7 @@ interface Props {
 const {
   scriptureName,
   context,
+  versePrefix = "",
   verseSuffix = "절",
   scriptureHref,
   scriptureSlug,
@@ -52,6 +55,7 @@ const {
       scriptureName={scriptureName}
     />
   )}
+  <span class="s-prefix-hidden" data-verse-prefix>{versePrefix}</span>
   <span class="s-prefix-hidden" data-verse-suffix>{verseSuffix}</span>
 </div>
 
@@ -60,13 +64,18 @@ const {
     const bar = document.querySelector("[data-sticky-bar]") as HTMLElement | null;
     if (!bar) return;
     const verseEl = bar.querySelector(".js-sticky-verse") as HTMLElement | null;
+    const prefixEl = bar.querySelector("[data-verse-prefix]") as HTMLElement | null;
     const suffixEl = bar.querySelector("[data-verse-suffix]") as HTMLElement | null;
     if (!verseEl || !suffixEl) return;
+    const prefix = prefixEl?.textContent ?? "";
     const suffix = suffixEl.textContent ?? "절";
     const verses = Array.from(document.querySelectorAll<HTMLElement>("section.verse"));
     if (verses.length === 0) return;
 
     function verseNumberFrom(el: HTMLElement): string {
+      // 평면 모델 (그룹 없음): data-sentence-num이 sentence index
+      const sentenceNum = el.dataset.sentenceNum;
+      if (sentenceNum) return sentenceNum;
       // Sentence-anchor pages expose the group num explicitly; this is the
       // 절 number to display, even when the section is a non-first sentence.
       const groupNum = el.dataset.groupNum;
@@ -99,7 +108,7 @@ const {
         }, null as { el: HTMLElement; top: number } | null);
         if (!topMost) return;
         const num = verseNumberFrom(topMost.el);
-        verseEl.textContent = `${num}${suffix}`;
+        verseEl.textContent = `${prefix}${num}${suffix}`;
       },
       {
         rootMargin: "-80px 0px -60% 0px",
