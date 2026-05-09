@@ -1,7 +1,7 @@
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "./manifest";
 import type { CardKind } from "./wikilink";
-import { parseVerses } from "./verse-parser";
+import { parseVerses, parseSentencesFlat } from "./verse-parser";
 
 /**
  * Source location of a wikilink reference.
@@ -84,12 +84,19 @@ export async function buildBacklinkIndex(): Promise<BacklinkIndex> {
     if (!isHierarchical && !isFlatVerses) continue;
 
     const scriptureName = entry.data.scripture ?? scriptureSlug;
-    for (const v of parseVerses(entry.body ?? "")) {
+    // Sentence-anchor format (천지개벽경) emits one entry per sentence; legacy
+    // verse-anchor format (다른 경전) emits one per `## N절`. The two parsers
+    // are mutually exclusive on the same body — try sentence first, fall back.
+    const sentenceVerses = parseSentencesFlat(entry.body ?? "");
+    const isSentenceAnchor = sentenceVerses.length > 0;
+    const verseList = isSentenceAnchor ? sentenceVerses : parseVerses(entry.body ?? "");
+    for (const v of verseList) {
       const targets = extractTargets(v.text);
       const seen = new Set<string>();
+      const verseLabel = isSentenceAnchor ? `^${v.id}` : `${v.num}절`;
       const title = isHierarchical
-        ? `권 ${vol} ${entry.data.권_이름 ?? ""} · ${chap}장 ${v.num}절`
-        : `${scriptureName} · ${v.num}절`;
+        ? `권 ${vol} ${entry.data.권_이름 ?? ""} · ${chap}장 ${verseLabel}`
+        : `${scriptureName} · ${verseLabel}`;
       for (const target of targets) {
         const key = resolveKey(target, manifest);
         if (!key) continue;

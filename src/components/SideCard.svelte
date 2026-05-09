@@ -379,7 +379,7 @@
               </span>
               <span class="card-title">
                 {#if item.kind === "verse"}
-                  {item.verseData?.verseNum ? `${item.verseData.verseNum}절` : item.slug}
+                  {item.verseData?.anchor ? `^${item.verseData.anchor}` : item.slug}
                   {#if item.verseData?.correspondenceMeta?.similarity}
                     <span class="hanja"
                       >({(item.verseData.correspondenceMeta.similarity * 100).toFixed(0)}%)</span
