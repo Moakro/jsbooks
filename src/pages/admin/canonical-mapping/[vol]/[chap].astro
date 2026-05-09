@@ -1,10 +1,10 @@
 ---
 import Base from "../../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
-import { parseVerses } from "../../../../lib/verse-parser";
-import { getAllMappings } from "../../../../lib/canonical-mapping";
+import { parseVerseGroups } from "../../../../lib/verse-parser";
+import { getRawMapping } from "../../../../lib/canonical-mapping";
 import AdminGate from "../../../../components/AdminGate.astro";
-import ChapterEditor from "../../../../components/admin/ChapterEditor.svelte";
+import SentenceMappingEditor from "../../../../components/admin/SentenceMappingEditor.svelte";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -22,24 +22,30 @@ const chap = entry.data.장!;
 
 const all = await getCollection("scripture");
 
-const tempEntry = all.find(
-  (e) => e.id.startsWith("cheonjigaebyeokgyeong-hangeul/") && e.data.권 === vol && e.data.장 === chap,
-);
+// 한자 본문 그룹별 sentence anchor + 텍스트 + 매핑(있으면) 합성.
+type EditorSentence = {
+  anchor: string;
+  hanja: string;
+  hangeul: string;
+  reviewed: boolean;
+};
+type EditorGroup = {
+  num: number;
+  sentences: EditorSentence[];
+};
 
-const mapping = getAllMappings();
-const initialMapping: Record<string, { hangeul: string[]; reviewed: boolean; confidence?: number }> = {};
-for (const [k, v] of Object.entries(mapping.verses)) {
-  initialMapping[k] = {
-    hangeul: [...(v.hangeul ?? [])],
-    reviewed: !!v.reviewed,
-    ...(v.confidence != null ? { confidence: v.confidence } : {}),
-  };
-}
-
-const initialHanja = parseVerses(entry.body ?? "").map((v) => ({ id: v.id, text: v.text }));
-const initialHangeul = tempEntry
-  ? parseVerses(tempEntry.body ?? "").map((v) => ({ id: v.id, text: v.text }))
-  : [];
+const groups: EditorGroup[] = parseVerseGroups(entry.body ?? "").map((g) => ({
+  num: g.num,
+  sentences: g.sentences.map((s) => {
+    const m = getRawMapping(s.anchor);
+    return {
+      anchor: s.anchor,
+      hanja: s.text,
+      hangeul: m?.hangeul ?? "",
+      reviewed: !!m?.reviewed,
+    };
+  }),
+}));
 
 const sameVol = all
   .filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/") && e.data.권 === vol && e.data.장)
@@ -48,8 +54,15 @@ const idx = sameVol.findIndex((e) => e.id === entry.id);
 const prev = idx > 0 ? sameVol[idx - 1] : null;
 const next = idx < sameVol.length - 1 ? sameVol[idx + 1] : null;
 
-const hanjaEntryId = entry.id;
-const hangeulEntryId = tempEntry?.id ?? "";
+const totalSentences = groups.reduce((n, g) => n + g.sentences.length, 0);
+const mappedSentences = groups.reduce(
+  (n, g) => n + g.sentences.filter((s) => s.hangeul.length > 0).length,
+  0,
+);
+const reviewedSentences = groups.reduce(
+  (n, g) => n + g.sentences.filter((s) => s.reviewed).length,
+  0,
+);
 ---
 
 <Base title={`매핑 권${vol} ${chap}장 — admin`}>
@@ -73,20 +86,12 @@ const hangeulEntryId = tempEntry?.id ?? "";
       </nav>
     </header>
 
-    {!hangeulEntryId && (
-      <p class="warn">⚠ 임시 한글본 章 파일을 찾지 못했습니다.</p>
-    )}
+    <p class="meta">
+      한자 sentence {totalSentences}개 · 한글 매핑 {mappedSentences}/{totalSentences} ·
+      검수 완료 {reviewedSentences}/{totalSentences}
+    </p>
 
-    {hangeulEntryId && (
-      <ChapterEditor
-        client:load
-        hanjaEntryId={hanjaEntryId}
-        hangeulEntryId={hangeulEntryId}
-        initialHanja={initialHanja}
-        initialHangeul={initialHangeul}
-        initialMapping={initialMapping}
-      />
-    )}
+    <SentenceMappingEditor client:load groups={groups} />
   </AdminGate>
 </Base>
 

@@ -3,11 +3,14 @@
  * Only runs in `astro dev` (apply: 'serve'); zero effect in production build.
  *
  * Endpoints (POST, JSON body):
- *   /api/admin/canonical-mapping/save
+ *   /api/admin/canonical-mapping/save  (legacy v1, hangeul=array)
  *     { anchor, hangeul: string[], reviewed: boolean, confidence?: number }
  *
- *   /api/admin/canonical-mapping/bulk
+ *   /api/admin/canonical-mapping/bulk  (legacy v1, hangeul=array)
  *     { entries: { anchor, hangeul, reviewed, confidence? }[] }
+ *
+ *   /api/admin/canonical-mapping/save-sentence  (v2, hangeul=string)
+ *     { anchor, hangeul: string, reviewed: boolean }
  *
  *   /api/admin/scripture-editor/save-chapter
  *     {
@@ -114,6 +117,21 @@ function applyMappingEntry(mapping, entry) {
     hangeul,
     reviewed: !!reviewed,
     ...(typeof confidence === "number" ? { confidence } : {}),
+  };
+}
+
+// v2 (sentence-string) 단건 저장. 빈 string + 미검수 = entry 삭제 (v1 array 동작과 동일).
+function applySentenceMapping(mapping, { anchor, hangeul, reviewed }) {
+  if (!anchor || typeof hangeul !== "string") {
+    throw new Error("anchor and hangeul (string) are required");
+  }
+  if (!hangeul && !reviewed) {
+    delete mapping.verses[anchor];
+    return;
+  }
+  mapping.verses[anchor] = {
+    hangeul,
+    reviewed: !!reviewed,
   };
 }
 
@@ -304,13 +322,33 @@ export default function canonicalMappingDev() {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url) return next();
         if (req.method !== "POST") return next();
-        const isMappingSave = req.url.startsWith("/api/admin/canonical-mapping/save");
+        const isMappingSaveSentence = req.url.startsWith("/api/admin/canonical-mapping/save-sentence");
+        // 주의: save-sentence가 save로 시작하므로 먼저 체크. isMappingSave는 그 외 v1 /save만 잡도록.
+        const isMappingSave = !isMappingSaveSentence && req.url.startsWith("/api/admin/canonical-mapping/save");
         const isMappingBulk = req.url.startsWith("/api/admin/canonical-mapping/bulk");
         const isChapterSave = req.url.startsWith("/api/admin/scripture-editor/save-chapter");
         const isChangelogSave = req.url.startsWith("/api/admin/changelog/save");
-        if (!isMappingSave && !isMappingBulk && !isChapterSave && !isChangelogSave) return next();
+        if (
+          !isMappingSave &&
+          !isMappingSaveSentence &&
+          !isMappingBulk &&
+          !isChapterSave &&
+          !isChangelogSave
+        ) {
+          return next();
+        }
         try {
           const body = await readBody(req);
+          if (isMappingSaveSentence) {
+            const mapping = await loadMapping();
+            applySentenceMapping(mapping, body);
+            await persistMapping(mapping);
+            triggerReload([MAPPING_PATH]);
+            return json(res, 200, {
+              ok: true,
+              count: Object.keys(mapping.verses).length,
+            });
+          }
           if (isMappingSave) {
             const mapping = await loadMapping();
             applyMappingEntry(mapping, body);
