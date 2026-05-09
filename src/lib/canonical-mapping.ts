@@ -1,25 +1,27 @@
 /**
- * 천지개벽경 canonical(한자 원문) ↔ 임시 한글본 매핑 헬퍼.
+ * 천지개벽경 canonical(한자 원문) ↔ 한글 매핑 헬퍼.
  *
- * - 매핑 JSON 위치: content/scripture/_mappings/cheonjigaebyeokgyeong-canonical.json
- * - 한자 anchor (e.g. "1-1-3", "preface-2") → 한글 anchor 1~N개
+ * v2 schema (sentence-anchor 모델):
+ *   매핑 키 = 한자 sentence anchor (e.g. "1-1-3", "preface-2")
+ *   매핑 값 = { hangeul: string, reviewed: boolean, confidence?: number }
+ *     · hangeul은 해당 한자 문장에 짝지어진 한글 본문 텍스트 (string).
+ *     · 빈 string("")이면 아직 매핑되지 않은 것.
+ *
+ * 매핑 JSON 위치: content/scripture/_mappings/cheonjigaebyeokgyeong-canonical.json
  */
-import { getCollection } from "astro:content";
-import { parseVerses } from "./verse-parser";
 import mapping from "../../content/scripture/_mappings/cheonjigaebyeokgyeong-canonical.json" with { type: "json" };
 
 export type VerseMapping = {
-  hangeul: string[];
-  confidence?: number;
+  hangeul: string;
   reviewed?: boolean;
+  confidence?: number;
 };
 
 export type MappingFile = {
   version: number;
+  schema?: string;
   scripture: string;
-  /** Slug of the source scripture (canonical, e.g. "cheonjigaebyeokgyeong-canonical"). */
   source_slug?: string;
-  /** Slug of the target scripture (translation/temp, e.g. "cheonjigaebyeokgyeong"). */
   target_slug?: string;
   source_label?: string;
   target_label?: string;
@@ -29,7 +31,19 @@ export type MappingFile = {
 
 const MAPPING = mapping as MappingFile;
 
+/**
+ * 한자 sentence anchor에 짝지어진 한글 매핑을 반환.
+ * 매핑이 없거나 hangeul이 빈 string이면 null. 호출부에서 "한글 미매핑" 표시 가능.
+ */
 export function getMapping(anchor: string): VerseMapping | null {
+  const m = MAPPING.verses[anchor];
+  if (!m) return null;
+  if (!m.hangeul) return null;
+  return m;
+}
+
+/** 매핑이 존재(미검수 포함)하는지만 확인 (빈 string도 entry로 침). admin 도구용. */
+export function getRawMapping(anchor: string): VerseMapping | null {
   return MAPPING.verses[anchor] ?? null;
 }
 
@@ -37,51 +51,16 @@ export function getAllMappings(): MappingFile {
   return MAPPING;
 }
 
-/**
- * Build a lookup table: 한글 anchor (e.g. "1-1-3") → { body, chapterId, num }.
- * Parses the temp 한글본 章 markdown bodies once.
- */
-let hangeulCache: Map<string, { body: string; chapterId: string; num: number }> | null = null;
-
-export async function buildHangeulIndex(): Promise<
-  Map<string, { body: string; chapterId: string; num: number }>
-> {
-  if (hangeulCache) return hangeulCache;
-  const all = await getCollection("scripture");
-  const temp = all.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-hangeul/"));
-  const map = new Map<string, { body: string; chapterId: string; num: number }>();
-  for (const entry of temp) {
-    for (const v of parseVerses(entry.body ?? "")) {
-      map.set(v.id, { body: v.text, chapterId: entry.id, num: v.num });
-    }
-  }
-  hangeulCache = map;
-  return map;
-}
-
-/** Resolve a list of 한글 anchors to their bodies. Missing anchors are skipped. */
-export async function resolveHangeulVerses(
-  anchors: string[]
-): Promise<{ id: string; body: string; num: number; chapterId: string }[]> {
-  const idx = await buildHangeulIndex();
-  const out: { id: string; body: string; num: number; chapterId: string }[] = [];
-  for (const a of anchors) {
-    const v = idx.get(a);
-    if (v) out.push({ id: a, ...v });
-  }
-  return out;
-}
-
-/** Aggregate stats across all 한자 절 anchors of a given canonical chapter. */
+/** 한 장(章)의 한자 sentence anchor 묶음에 대한 매핑 통계. */
 export function chapterMappingStats(
-  hanjaAnchors: string[]
+  hanjaAnchors: string[],
 ): { total: number; reviewed: number; mapped: number } {
   let reviewed = 0;
   let mapped = 0;
   for (const a of hanjaAnchors) {
     const m = MAPPING.verses[a];
     if (!m) continue;
-    if (m.hangeul.length > 0) mapped++;
+    if (m.hangeul) mapped++;
     if (m.reviewed) reviewed++;
   }
   return { total: hanjaAnchors.length, reviewed, mapped };

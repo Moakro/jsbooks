@@ -4,7 +4,7 @@ import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../../lib/manifest";
 import { renderWikilinks } from "../../../../lib/wikilink";
 import { parseVerseGroups } from "../../../../lib/verse-parser";
-import { getMapping, resolveHangeulVerses } from "../../../../lib/canonical-mapping";
+import { getMapping } from "../../../../lib/canonical-mapping";
 import { correspondencesFor } from "../../../../lib/correspondences";
 import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
 import Comments from "../../../../components/Comments.svelte";
@@ -43,17 +43,14 @@ for (const g of groups) {
     const s = g.sentences[si];
     const hanjaHTML = renderWikilinks(s.text, manifest);
     const mapping = getMapping(s.anchor);
-    const hangeulAnchors = mapping?.hangeul ?? [];
-    const hangeulVerses = await resolveHangeulVerses(hangeulAnchors);
-    const hangeulHTML = hangeulVerses
-      .map((hv) =>
-        hv.body
+    const hangeulText = mapping?.hangeul ?? "";
+    const hangeulHTML = hangeulText
+      ? hangeulText
           .split(/\n\s*\n/)
           .filter(Boolean)
           .map((p) => renderWikilinks(p, manifest))
-          .join("\n\n"),
-      )
-      .join("\n\n");
+          .join("\n\n")
+      : "";
     sentences.push({
       anchor: s.anchor,
       groupNum: g.num,
