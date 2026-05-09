@@ -112,8 +112,68 @@ function processFile(filePath) {
   let totalSentences = 0;
   let i = 0;
 
+  // 평면 모드 감지: body 전체에 `## N절` heading이 없으면 그룹 없는 평면 모드.
+  // 평면 모드에서는 # N장(또는 # 서) heading 통과 후, 그 뒤 paragraph들을
+  // 그대로 walk + 재분리 + 순차 anchor 부여한다.
+  const hasGroupHeadings = /^##\s+\d+절\s*$/m.test(body);
+
+  function flushParagraphs(paragraphs) {
+    for (const para of paragraphs) {
+      // 기존 anchor가 paragraph 끝에 있을 수 있으니 stripping 후 재분리
+      const stripped = para.replace(/\s+\^[\w-]+\s*$/, '').trim();
+      const sentences = splitSentences(stripped);
+      for (const s of sentences) {
+        sentenceCounter++;
+        totalSentences++;
+        const anchor = `${anchorPrefix}-${sentenceCounter}`;
+        out.push(`${s} ^${anchor}`);
+        out.push('');
+
+        const endings = detectEndings(s);
+        const endsWithoutPeriod = tailEndingRegex.test(s) && !/[.?!]\s*$/.test(s);
+        const reasons = [];
+        if (endsWithoutPeriod) reasons.push('end-no-period');
+        if (endings.length >= 2) reasons.push(`multi-ending(${endings.length})`);
+        if (reasons.length) {
+          reviewQueue.push({
+            file: filePath,
+            anchor,
+            sentence: s,
+            endings,
+            reasons,
+          });
+        }
+      }
+    }
+  }
+
   while (i < lines.length) {
     const line = lines[i];
+
+    // 평면 모드: # N장 heading 통과 직후 body 전체를 한 그룹처럼 처리.
+    if (!hasGroupHeadings && /^#\s/.test(line)) {
+      out.push(line);
+      i++;
+      out.push('');
+      while (i < lines.length && lines[i].trim() === '') i++;
+
+      const paragraphs = [];
+      let buf = [];
+      while (i < lines.length && !/^---\s*$/.test(lines[i])) {
+        if (lines[i].trim() === '') {
+          if (buf.length) {
+            paragraphs.push(buf.join(' ').trim());
+            buf = [];
+          }
+        } else {
+          buf.push(lines[i]);
+        }
+        i++;
+      }
+      if (buf.length) paragraphs.push(buf.join(' ').trim());
+      flushParagraphs(paragraphs);
+      continue;
+    }
 
     // ## N절 ^anchor 패턴 — anchor 제거하고 헤딩만 남김
     const headingMatch = line.match(/^(##\s+\d+절)\s*(\^[\w-]+)?\s*$/);
