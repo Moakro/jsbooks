@@ -82,7 +82,7 @@
   function toggleReviewed(group: Group, sentence: Sentence) {
     sentence.reviewed = !sentence.reviewed;
     localGroups = [...localGroups];
-    saveSentence(group, sentence);
+    markDirty(sentence.anchor);
   }
 
   function handleHangeulInput(group: Group, sentence: Sentence, ev: Event) {
@@ -92,14 +92,47 @@
     markDirty(sentence.anchor);
   }
 
-  function handleHangeulBlur(group: Group, sentence: Sentence) {
-    if (saveState[sentence.anchor] === "dirty") saveSentence(group, sentence);
+  function handleHangeulBlur(_group: Group, _sentence: Sentence) {
+    // 자동 저장 폐기. dirty 상태만 표시하고 상단 저장 버튼으로 명시적 저장.
+  }
+
+  // dirty 상태인 sentence 수
+  $: dirtyCount = Object.values(saveState).filter((s) => s === "dirty" || s === "error").length;
+
+  async function saveAllDirty() {
+    const targets: { group: Group; sentence: Sentence }[] = [];
+    for (const g of localGroups) {
+      for (const s of g.sentences) {
+        const st = saveState[s.anchor];
+        if (st === "dirty" || st === "error") targets.push({ group: g, sentence: s });
+      }
+    }
+    if (targets.length === 0) {
+      showSnackbar("변경 사항 없음", "info", 1500);
+      return;
+    }
+    let ok = 0;
+    let fail = 0;
+    for (const { group, sentence } of targets) {
+      try {
+        await saveSentence(group, sentence);
+        if (saveState[sentence.anchor] === "saved" || saveState[sentence.anchor] === "idle") ok++;
+        else fail++;
+      } catch {
+        fail++;
+      }
+    }
+    if (fail === 0) {
+      showSnackbar(`${ok}건 저장 완료`, "success", 2200);
+    } else {
+      showSnackbar(`${ok}건 저장, ${fail}건 실패`, "error", 3500);
+    }
   }
 
   function statusLabel(s: SaveState): string {
     if (s === "saving") return "저장 중…";
     if (s === "saved") return "✓ 저장됨";
-    if (s === "dirty") return "● 변경됨 — 포커스 빠지면 자동 저장";
+    if (s === "dirty") return "● 변경됨 — 상단 저장 버튼으로 저장";
     if (s === "error") return "⚠ 오류";
     return "";
   }
@@ -117,22 +150,22 @@
   }
 
   function onKeyDown(e: KeyboardEvent) {
+    // Cmd/Ctrl+S → dirty 항목 일괄 저장
     if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-      const ta = document.activeElement as HTMLTextAreaElement | null;
-      if (!ta || ta.tagName !== "TEXTAREA") return;
-      const anchor = ta.dataset.anchor;
-      if (!anchor) return;
       e.preventDefault();
-      for (const g of localGroups) {
-        const s = g.sentences.find((x) => x.anchor === anchor);
-        if (s) {
-          saveSentence(g, s);
-          return;
-        }
-      }
+      saveAllDirty();
+      return;
     }
     if (e.key === "Escape" && splitModalAnchor) {
       closeSplitModal();
+    }
+  }
+
+  // 페이지 떠나기 전 dirty 있으면 경고
+  function onBeforeUnload(e: BeforeUnloadEvent) {
+    if (dirtyCount > 0) {
+      e.preventDefault();
+      e.returnValue = "";
     }
   }
 
@@ -274,13 +307,37 @@
 
   onMount(() => {
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
   });
 </script>
 
 <div class="editor">
+  <div class="toolbar" class:has-dirty={dirtyCount > 0}>
+    <button
+      type="button"
+      class="save-all"
+      class:active={dirtyCount > 0}
+      on:click={saveAllDirty}
+      disabled={dirtyCount === 0}
+      title="Cmd/Ctrl+S"
+    >
+      💾 저장 {dirtyCount > 0 ? `(${dirtyCount})` : ""}
+    </button>
+    <span class="toolbar-hint">
+      {#if dirtyCount > 0}
+        변경 {dirtyCount}건 — 저장 버튼 또는 Cmd/Ctrl+S
+      {:else}
+        변경 사항 없음
+      {/if}
+    </span>
+  </div>
+
   <p class="legend">
-    한글 textarea에 입력하면 textarea가 자동으로 늘어나고, 포커스가 빠지면 자동 저장됩니다 (Ctrl/⌘+S로 즉시 저장).
+    한글 textarea에 입력 후 상단 <strong>저장</strong> 버튼(또는 Cmd/Ctrl+S)으로 일괄 저장합니다.
     상태 라벨: <code class="lex">●</code> 변경 / <code class="lex">…</code> 저장 중 / <code class="lex">✓</code> 저장됨.
     <strong>검수 완료</strong>는 매핑 확정 표시. 액션 버튼은 한자 markdown + 매핑 JSON + 한글본 백업을 함께 수정합니다 (백업 자동).
   </p>
@@ -432,6 +489,51 @@
     display: flex;
     flex-direction: column;
     gap: 1.2rem;
+  }
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.5rem 0.8rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    margin-bottom: -0.4rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+  .toolbar.has-dirty {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg, #fbeae6);
+  }
+  .save-all {
+    padding: 0.45rem 0.95rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    background: var(--color-surface-2);
+    color: var(--color-muted);
+    cursor: not-allowed;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .save-all.active {
+    background: var(--color-primary, #a8352a);
+    color: #fff;
+    border-color: var(--color-primary, #a8352a);
+    cursor: pointer;
+  }
+  .save-all.active:hover {
+    filter: brightness(1.08);
+  }
+  .save-all:disabled {
+    opacity: 0.6;
+  }
+  .toolbar-hint {
+    color: var(--color-muted);
+    font-size: 0.85rem;
   }
   .legend {
     margin: 0 0 0.4rem;
