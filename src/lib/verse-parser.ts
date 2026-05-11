@@ -40,7 +40,9 @@ const HEADING_RE = /^## (\d+)절 \^(\S+)[^\n]*$/gm;
 // anchor regex below is non-greedy and excludes `## ` so a heading line is not
 // matched as a sentence.
 const GROUP_HEADING_RE = /^## (\d+)절\s*$/gm;
-const SENTENCE_ANCHOR_RE = /\s+\^([\w-]+)\s*$/;
+// Anchor character class includes `.` so that sub-anchors `X-Y-Z.N[.M...]`
+// (인용구 묶음 안의 줄) are recognized by parsers.
+const SENTENCE_ANCHOR_RE = /\s+\^([\w.-]+)\s*$/;
 
 export function parseVerses(body: string): ParsedVerse[] {
   if (!body) return [];

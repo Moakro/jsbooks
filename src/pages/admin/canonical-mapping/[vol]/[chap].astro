@@ -28,6 +28,7 @@ type EditorSentence = {
   hanja: string;
   hangeul: string;
   reviewed: boolean;
+  isVerse: boolean;
 };
 type EditorGroup = {
   num: number;
@@ -38,11 +39,15 @@ const groups: EditorGroup[] = parseVerseGroups(entry.body ?? "").map((g) => ({
   num: g.num,
   sentences: g.sentences.map((s) => {
     const m = getRawMapping(s.anchor);
+    const raw = s.text ?? "";
+    const isVerse = raw.startsWith("> ");
+    const hanja = isVerse ? raw.slice(2).trim() : raw;
     return {
       anchor: s.anchor,
-      hanja: s.text,
+      hanja,
       hangeul: m?.hangeul ?? "",
       reviewed: !!m?.reviewed,
+      isVerse,
     };
   }),
 }));
@@ -91,7 +96,7 @@ const reviewedSentences = groups.reduce(
       검수 완료 {reviewedSentences}/{totalSentences}
     </p>
 
-    <SentenceMappingEditor client:load groups={groups} />
+    <SentenceMappingEditor client:load groups={groups} vol={vol} chap={chap} />
   </AdminGate>
 </Base>
 
