@@ -34,6 +34,7 @@ type Sentence = {
   hangeulHTML: string;
   reviewed: boolean;
   confidence?: number;
+  isVerse: boolean;
 };
 
 const groups = parseVerseGroups(entry.body ?? "");
@@ -42,7 +43,10 @@ let sentenceIdx = 0;
 for (const g of groups) {
   for (const s of g.sentences) {
     sentenceIdx++;
-    const hanjaHTML = renderWikilinks(s.text, manifest);
+    const raw = s.text ?? "";
+    const isVerse = raw.startsWith("> ");
+    const hanjaText = isVerse ? raw.slice(2).trim() : raw;
+    const hanjaHTML = renderWikilinks(hanjaText, manifest);
     const mapping = getMapping(s.anchor);
     const hangeulText = mapping?.hangeul ?? "";
     const hangeulHTML = hangeulText
@@ -59,6 +63,7 @@ for (const g of groups) {
       hangeulHTML,
       reviewed: mapping?.reviewed ?? false,
       confidence: mapping?.confidence,
+      isVerse,
     });
   }
 }
@@ -107,7 +112,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
       <span hidden data-pagefind-filter="kind:경전"></span>
       <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
       {sentences.map((s) => (
-        <section class="verse" data-sentence-num={s.sentenceNum}>
+        <section class:list={["verse", { "is-verse": s.isVerse }]} data-sentence-num={s.sentenceNum}>
           <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
           <div class="verse-label" data-pagefind-ignore>
             <span class="verse-label-meta">
@@ -231,6 +236,20 @@ const historyPath = `content/scripture/${entry.id}.md`;
     opacity: 1;
     overflow: hidden;
     transition: max-height 0.25s ease, opacity 0.18s ease, padding 0.2s ease, margin 0.2s ease;
+  }
+  /* 시구 (markdown `> ` 표시): 좌측 들여쓰기 + 좌측 진홍 border로 인용구 시각화 */
+  .verse.is-verse .original-box {
+    margin-left: 1.2rem;
+    border-left: 3px solid var(--color-primary, #a8352a);
+  }
+  .verse.is-verse .verse-body[data-layer="hangeul"] {
+    margin-left: 1.2rem;
+    padding-left: 0.6rem;
+    border-left: 3px solid var(--color-primary, #a8352a);
+  }
+  /* 인접 시구 sentence는 시각적으로 한 묶음으로 (margin 줄임) */
+  .verse.is-verse + .verse.is-verse .original-box {
+    margin-top: -0.3rem;
   }
   .verse-body[data-layer="hangeul"] {
     max-height: 4000px;
