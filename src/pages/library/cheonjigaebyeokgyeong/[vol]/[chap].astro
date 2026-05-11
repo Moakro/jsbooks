@@ -123,47 +123,17 @@ const historyPath = `content/scripture/${entry.id}.md`;
     >
       <span hidden data-pagefind-filter="kind:경전"></span>
       <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
-      {clusters.map((c) => (
-        c.isVerse ? (
-          <section class="verse verse-cluster" data-sentence-num={c.sentences[0].sentenceNum}>
-            {c.sentences.map((s) => (
-              <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
-            ))}
+      {clusters.map((c) => {
+        const renderSentence = (s: Sentence) => (
+          <section class="verse" data-sentence-num={s.sentenceNum}>
+            <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
             <div class="verse-label" data-pagefind-ignore>
               <span class="verse-label-meta">
-                <a href={`#${c.sentences[0].anchor}`}>^{c.sentences[0].anchor}</a>
-                {c.sentences.length > 1 && <span class="cluster-count">~ ^{c.sentences[c.sentences.length - 1].anchor}</span>}
-              </span>
-              <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
-                <span class="vt-label">전체보기</span>
-                <span class="vt-icon" aria-hidden="true">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
-                </span>
-              </button>
-            </div>
-            <div class="original-box verse-stanza" data-layer="hanja">
-              {c.sentences.map((s) => (
-                <div class="verse-line" set:html={s.hanjaHTML} />
-              ))}
-            </div>
-            {c.sentences.some((s) => s.hangeulHTML) && (
-              <div class="verse-body verse-stanza" data-layer="hangeul">
-                {c.sentences.map((s) => (
-                  <div class="verse-line" set:html={s.hangeulHTML} />
-                ))}
-              </div>
-            )}
-          </section>
-        ) : (
-          <section class="verse" data-sentence-num={c.sentences[0].sentenceNum}>
-            <h4 class="verse-anchor-heading" id={c.sentences[0].anchor}>^{c.sentences[0].anchor}</h4>
-            <div class="verse-label" data-pagefind-ignore>
-              <span class="verse-label-meta">
-                <a href={`#${c.sentences[0].anchor}`}>^{c.sentences[0].anchor}</a>
-                {!c.sentences[0].hangeulHTML && (
+                <a href={`#${s.anchor}`}>^{s.anchor}</a>
+                {!s.hangeulHTML && (
                   <span class="badge unmapped">한글 미매핑</span>
                 )}
-                <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", c.sentences[0].anchor)} />
+                <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", s.anchor)} />
               </span>
               <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
                 <span class="vt-label">전체보기</span>
@@ -172,13 +142,18 @@ const historyPath = `content/scripture/${entry.id}.md`;
                 </span>
               </button>
             </div>
-            <div class="original-box" data-layer="hanja" set:html={c.sentences[0].hanjaHTML} />
-            {c.sentences[0].hangeulHTML && (
-              <div class="verse-body" data-layer="hangeul" set:html={c.sentences[0].hangeulHTML} />
+            <div class="original-box" data-layer="hanja" set:html={s.hanjaHTML} />
+            {s.hangeulHTML && (
+              <div class="verse-body" data-layer="hangeul" set:html={s.hangeulHTML} />
             )}
           </section>
-        )
-      ))}
+        );
+        return c.isVerse ? (
+          <div class="verse-cluster">
+            {c.sentences.map(renderSentence)}
+          </div>
+        ) : renderSentence(c.sentences[0]);
+      })}
     </div>
 
     <script is:inline>
@@ -281,22 +256,16 @@ const historyPath = `content/scripture/${entry.id}.md`;
     overflow: hidden;
     transition: max-height 0.25s ease, opacity 0.18s ease, padding 0.2s ease, margin 0.2s ease;
   }
-  /* 시구 cluster: 인접 `> ` sentence들을 한 박스에 통합 렌더 */
-  .verse-cluster .verse-stanza {
-    padding: 0.65rem 0.95rem;
+  /* 시구 cluster: 인접 `> ` sentence들을 한 인용구 박스로 감쌈.
+     외곽에만 좌측 진홍 세로 실선 — 안쪽 sentence는 일반과 동일 디자인. */
+  .verse-cluster {
+    margin: 1.8rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--color-primary, #a8352a);
   }
-  .verse-cluster .verse-line {
-    margin: 0;
-    padding: 0.15rem 0;
-  }
-  .verse-cluster .verse-line + .verse-line {
-    border-top: 1px dashed rgba(168, 53, 42, 0.15);
-  }
-  .cluster-count {
-    margin-left: 0.3rem;
-    color: var(--color-muted);
-    font-size: 0.85em;
-  }
+  /* cluster 안 sentence는 외곽 margin 1.8rem을 cluster가 가져갔으므로 안쪽 첫·끝 reset */
+  .verse-cluster .verse:first-child { margin-top: 0; }
+  .verse-cluster .verse:last-child { margin-bottom: 0; }
   .verse-body[data-layer="hangeul"] {
     max-height: 4000px;
     opacity: 1;
