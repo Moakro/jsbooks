@@ -428,7 +428,7 @@
       {#each g.sentences as s, i (s.anchor)}
         <article class="sentence" class:unmapped={!s.hangeul} class:reviewed={s.reviewed} class:verse-mark={s.isVerse}>
           <div class="hanja">
-            <span class="anchor-pill" class:reviewed={s.reviewed} title={`${i + 1}/${g.sentences.length}`}>
+            <span class="anchor-pill" class:unmapped={!s.hangeul} title={`${i + 1}/${g.sentences.length}`}>
               <code>^{s.anchor}</code>
               {#if s.isVerse}<span class="vmark" title="시구 (blockquote)">📜</span>{/if}
             </span>
@@ -687,11 +687,12 @@
     font-family: ui-monospace, monospace;
     font-size: 0.7rem;
     line-height: 1;
-    color: var(--color-primary);
     padding: 0.12rem 0.4rem;
-    border: 1px solid var(--color-rule);
+    border: 1px solid var(--color-primary);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.6);
+    /* 기본 (hangeul 있음): 진홍색 배경, 밝은 텍스트 */
+    background: var(--color-primary);
+    color: var(--color-bg);
   }
   .anchor-pill code {
     background: transparent;
@@ -699,16 +700,16 @@
     border: 0;
     font-size: inherit;
   }
-  .anchor-pill.reviewed {
-    background: var(--color-primary);
-    color: var(--color-bg);
-    border-color: var(--color-primary);
+  /* hangeul 미매핑: 흰색 배경 + 진홍색 텍스트 */
+  .anchor-pill.unmapped {
+    background: #fff;
+    color: var(--color-primary);
   }
   .anchor-pill .vmark { font-size: 0.78rem; }
   .hanja-text { display: block; }
   @media (prefers-color-scheme: dark) {
     .hanja { background: #2c2418; color: #f0e6d0; }
-    .anchor-pill { background: rgba(0, 0, 0, 0.3); }
+    .anchor-pill.unmapped { background: #f4ece2; color: var(--color-primary); }
     .sentence.unmapped { background: #382c1a; }
   }
   .hangeul-wrap { display: flex; flex-direction: column; gap: 0.3rem; }
