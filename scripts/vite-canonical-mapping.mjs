@@ -8,11 +8,14 @@
  *   /api/admin/canonical-mapping/save-sentence  (v2, hangeul=string)
  *   /api/admin/scripture-editor/save-chapter
  *
- *   Sentence 구조 조작 (천지개벽경 평면 anchor 모델, X-Y-Z + sub X-Y-Z.N):
+ *   Sentence 구조 조작 (천지개벽경 평면 anchor 모델, X-Y-Z):
  *     /api/admin/sentence/merge-with-prev  { vol, chap, anchor }
  *     /api/admin/sentence/drop             { vol, chap, anchor }
- *     /api/admin/sentence/split-into-sub   { vol, chap, anchor, container_text, sub_texts, are_verses }
+ *     /api/admin/sentence/split             { vol, chap, anchor, parts: string[] }
  *     /api/admin/sentence/toggle-verse     { vol, chap, anchor }
+ *
+ *   참고: /api/admin/sentence/split-into-sub (sub-anchor 모델)는 코드(handleSplitIntoSub) 보존,
+ *   라우팅 비활성화. 평면 분리(/split)가 표준.
  *
  *   Sentence 액션 endpoint는 모두 호출 직전 변경 대상 파일을 .bak/<ts>/에 자동 백업하고,
  *   한자 markdown + canonical-mapping JSON + 한글본 백업 markdown 셋을 sync.
@@ -831,6 +834,126 @@ async function handleSplitIntoSub(body) {
   };
 }
 
+/** C2. split (flat): 현재 anchor sentence를 N개의 평면 sentence로 분리.
+ *
+ * - 첫째 part는 원래 anchor(^X-Y-Z) 유지, 둘째부터 ^X-Y-(Z+1), +2... 새 anchor 부여
+ * - 같은 장 안에서 뒤 anchor 모두 +(N-1) 시프트
+ * - canonical-mapping: 첫째는 기존 hangeul·reviewed 유지, 새 anchor는 빈 hangeul + reviewed=false
+ * - 한글본 백업: 첫째 헤딩 유지, 새 헤딩 추가 + 뒤 num·anchor 시프트
+ *
+ * body: { vol, chap, anchor, parts: string[] } (parts.length >= 2)
+ */
+async function handleSplit(body) {
+  const { vol, chap, anchor, parts } = body;
+  if (!anchor) throw new Error("anchor required");
+  if (!Array.isArray(parts) || parts.length < 2) {
+    throw new Error("parts (string[] of length >= 2) required");
+  }
+  const cleaned = parts.map((p) => String(p ?? "").trim()).filter((p) => p);
+  if (cleaned.length < 2) throw new Error("parts must have at least 2 non-empty entries");
+
+  const isPreface = anchor.startsWith("preface-");
+  const ctx = await loadChapter({ vol, chap, isPreface });
+
+  const { sentences } = parseHanjaSentences(ctx.hanjaBody);
+  const idx = findSentenceIdx(sentences, anchor);
+  if (idx < 0) throw new Error(`anchor not found: ${anchor}`);
+  const target = sentences[idx];
+  const targetParts = getAnchorParts(target.anchor);
+  if (targetParts.subs.length > 0) {
+    throw new Error("sub-anchor split은 미지원 — 평면 sentence anchor만");
+  }
+
+  const N = cleaned.length;
+  const delta = N - 1;
+
+  // 새 sentence 목록: idx 위치를 첫째 part로 교체, 뒤에 새 part들 삽입, 뒤 sentence 시프트
+  const beforeIdx = sentences.slice(0, idx).map((s) => ({ ...s }));
+  const afterIdx = sentences.slice(idx + 1).map((s) => {
+    if (sameChapterAndAfter(s.anchor, target.anchor)) {
+      return { ...s, anchor: shiftAnchorSentBy(s.anchor, delta) };
+    }
+    return { ...s };
+  });
+  const newParts = cleaned.map((text, i) => {
+    const anc = i === 0 ? target.anchor : shiftAnchorSentBy(target.anchor, i);
+    return { start: -1, end: -1, anchor: anc, text, isVerse: target.isVerse && i === 0 ? false : target.isVerse };
+  });
+  // 첫째 part는 target.isVerse를 그대로 (split은 verse 속성 보존 — 단순 텍스트 분리).
+  // 뒤 part들도 target.isVerse 따라감 (사용자가 의도 다르면 토글로 조정).
+  for (let i = 0; i < newParts.length; i++) {
+    newParts[i].isVerse = target.isVerse;
+  }
+  const newSentences = [...beforeIdx, ...newParts, ...afterIdx];
+  const newHanjaBody = rebuildHanjaMarkdown(ctx.hanjaBody, newSentences);
+
+  // mapping JSON: 키 시프트 + 새 anchor 추가
+  const mapping = await loadMapping();
+  const shiftedVerses = {};
+  for (const [k, v] of Object.entries(mapping.verses)) {
+    if (sameChapterAndAfter(k, target.anchor)) {
+      shiftedVerses[shiftAnchorSentBy(k, delta)] = v;
+    } else {
+      shiftedVerses[k] = v;
+    }
+  }
+  // 첫째 part는 원래 anchor의 매핑 그대로
+  if (shiftedVerses[target.anchor] === undefined && mapping.verses[target.anchor]) {
+    shiftedVerses[target.anchor] = mapping.verses[target.anchor];
+  }
+  // 새 anchor들은 빈 hangeul로 (사용자가 admin에서 입력)
+  for (let i = 1; i < newParts.length; i++) {
+    shiftedVerses[newParts[i].anchor] = { hangeul: "", reviewed: false };
+  }
+  mapping.verses = shiftedVerses;
+
+  // 한글본 백업: 첫째 헤딩 유지 + 새 헤딩 추가 + 뒤 시프트
+  let newHangeulBody = ctx.hangeulBody;
+  if (ctx.hangeulPath_exists) {
+    const parsed = parseHangeulBackup(ctx.hangeulBody);
+    const targetItem = parsed.items.find((it) => it.anchor === target.anchor);
+    const newItems = [];
+    let inserted = false;
+    for (const it of parsed.items) {
+      const bodyText = parsed.lines.slice(it.bodyStart, it.bodyEnd + 1).join("\n").trim();
+      if (it.anchor === target.anchor) {
+        // 첫째: 원래 anchor·num·bodyText 유지
+        newItems.push({ num: it.num, anchor: it.anchor, bodyText });
+        // 새 anchor들 바로 뒤에 빈 헤딩으로 삽입
+        for (let i = 1; i < newParts.length; i++) {
+          newItems.push({ num: it.num + i, anchor: newParts[i].anchor, bodyText: "" });
+        }
+        inserted = true;
+      } else {
+        let newAnchor = it.anchor;
+        let newNum = it.num;
+        if (sameChapterAndAfter(it.anchor, target.anchor)) {
+          newAnchor = shiftAnchorSentBy(it.anchor, delta);
+          newNum = it.num + delta;
+        }
+        newItems.push({ num: newNum, anchor: newAnchor, bodyText });
+      }
+    }
+    if (!inserted && targetItem === undefined) {
+      // 한글본 백업에 해당 anchor 없음 — best-effort 건너뜀
+    }
+    newHangeulBody = rebuildHangeulBackup(ctx.hangeulBody, newItems);
+  }
+
+  await persistMapping(mapping);
+  const changed = await writeChapter({ ...ctx, hanjaBody: newHanjaBody, hangeulBody: newHangeulBody });
+  changed.push(MAPPING_PATH);
+  const groups = await buildEditorGroups({ hanjaBody: newHanjaBody });
+  return {
+    ok: true,
+    action: "split",
+    anchor,
+    new_anchors: newParts.map((p) => p.anchor),
+    changed,
+    groups,
+  };
+}
+
 /** D. toggle-verse: 현재 anchor sentence 앞에 `> ` toggle. */
 async function handleToggleVerse(body) {
   const { vol, chap, anchor } = body;
@@ -902,7 +1025,10 @@ export default function canonicalMappingDev() {
         const isChangelogSave = req.url.startsWith("/api/admin/changelog/save");
         const isSentenceMerge = req.url.startsWith("/api/admin/sentence/merge-with-prev");
         const isSentenceDrop = req.url.startsWith("/api/admin/sentence/drop");
-        const isSentenceSplit = req.url.startsWith("/api/admin/sentence/split-into-sub");
+        // 평면 분리(/sentence/split) 우선 — split-into-sub와 startsWith 충돌 방지.
+        // split-into-sub는 코드 보존(handleSplitIntoSub)하되 라우팅 비활성화.
+        const isSentenceSplit = req.url.startsWith("/api/admin/sentence/split")
+          && !req.url.startsWith("/api/admin/sentence/split-into-sub");
         const isSentenceToggleVerse = req.url.startsWith("/api/admin/sentence/toggle-verse");
         if (
           !isMappingSave &&
@@ -932,8 +1058,8 @@ export default function canonicalMappingDev() {
             return json(res, 200, out);
           }
           if (isSentenceSplit) {
-            const out = await handleSplitIntoSub(body);
-            console.log(`[admin] split-into-sub`, body, "→", { ok: out.ok, container: out.container, subs: out.subs });
+            const out = await handleSplit(body);
+            console.log(`[admin] split`, body, "→", { ok: out.ok, anchor: out.anchor, new_anchors: out.new_anchors });
             notifyFileChange(out.changed ?? []);
             return json(res, 200, out);
           }

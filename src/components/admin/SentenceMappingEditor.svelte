@@ -33,13 +33,14 @@
     sentences: g.sentences.map((s) => ({ ...s })),
   }));
 
-  // 마지막 저장 상태 snapshot (anchor → {hangeul, reviewed}).
-  // dirty 판정: 현재 값이 snapshot과 다르면 dirty, 같으면 dirty 해제 (체크-해제 같은 round-trip 정리).
-  type Snap = { hangeul: string; reviewed: boolean };
+  // 마지막 저장 상태 snapshot (anchor → {hangeul, isVerse}).
+  // 검수 완료(reviewed)는 저장과 동의어 — 사용자 선택 X, 저장 시 항상 true 전송.
+  // isVerse 변경도 dirty로 추적, 저장 시 toggle-verse 호출.
+  type Snap = { hangeul: string; isVerse: boolean };
   let originalSnapshot: Record<string, Snap> = {};
   function rebuildSnapshot() {
     const snap: Record<string, Snap> = {};
-    for (const g of localGroups) for (const s of g.sentences) snap[s.anchor] = { hangeul: s.hangeul, reviewed: s.reviewed };
+    for (const g of localGroups) for (const s of g.sentences) snap[s.anchor] = { hangeul: s.hangeul, isVerse: s.isVerse };
     originalSnapshot = snap;
   }
   rebuildSnapshot();
@@ -48,14 +49,13 @@
   let saveState: Record<string, SaveState> = {};
   let saveError: Record<string, string> = {};
 
-  /** sentence 현재값이 snapshot과 같은지 비교해 dirty 표시 갱신. */
-  function refreshDirty(anchor: string, hangeul: string, reviewed: boolean) {
+  /** sentence 현재값이 snapshot과 같은지 비교해 dirty 표시 갱신. hangeul + isVerse 둘 다 비교. */
+  function refreshDirty(anchor: string, hangeul: string, isVerse: boolean) {
     const snap = originalSnapshot[anchor];
-    const isDirty = !snap || snap.hangeul !== hangeul || snap.reviewed !== reviewed;
+    const isDirty = !snap || snap.hangeul !== hangeul || snap.isVerse !== isVerse;
     if (isDirty) {
       saveState = { ...saveState, [anchor]: "dirty" };
     } else {
-      // 원래 값으로 복귀 — dirty/saved 잔여 정리
       const cur = saveState[anchor];
       if (cur === "dirty" || cur === "saved" || cur === "error") {
         const { [anchor]: _, ...rest } = saveState;
@@ -68,57 +68,42 @@
   let actionStatus: Record<string, string> = {};
   let actionError: Record<string, string> = {};
 
-  // split 모달 상태
+  // 평면 split 모달 상태: ^X-Y-Z를 N개의 평면 sentence로 분리.
   let splitModalAnchor: string | null = null;
-  let splitContainerText = "";
-  let splitSubTexts: { text: string; isVerse: boolean }[] = [];
+  let splitParts: string[] = [];
 
-  function markDirty(anchor: string) {
-    saveState = { ...saveState, [anchor]: "dirty" };
-  }
-
-  async function saveSentence(group: Group, sentence: Sentence) {
+  /**
+   * 단건 hangeul 저장. reviewed: true 자동 전송 (저장 = 검수 완료).
+   * snapshot 갱신은 호출부에서 — saveAllDirty가 hangeul + isVerse 모두 처리 후 일괄 snapshot 갱신.
+   */
+  async function saveSentence(_group: Group, sentence: Sentence) {
     saveState = { ...saveState, [sentence.anchor]: "saving" };
     saveError = { ...saveError, [sentence.anchor]: "" };
-    try {
-      const res = await fetch("/api/admin/canonical-mapping/save-sentence", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          anchor: sentence.anchor,
-          hangeul: sentence.hangeul,
-          reviewed: sentence.reviewed,
-        }),
-      });
-      const out = await res.json();
-      if (!res.ok) throw new Error(out?.error ?? "save failed");
-      // 저장 성공 → snapshot 갱신 (다음 dirty 판정 기준)
-      originalSnapshot = { ...originalSnapshot, [sentence.anchor]: { hangeul: sentence.hangeul, reviewed: sentence.reviewed } };
-      saveState = { ...saveState, [sentence.anchor]: "saved" };
-      showSnackbar(`^${sentence.anchor} 저장됨`, "success", 1800);
-      setTimeout(() => {
-        if (saveState[sentence.anchor] === "saved") {
-          saveState = { ...saveState, [sentence.anchor]: "idle" };
-        }
-      }, 1500);
-    } catch (e: any) {
-      saveState = { ...saveState, [sentence.anchor]: "error" };
-      saveError = { ...saveError, [sentence.anchor]: e?.message ?? String(e) };
-      showSnackbar(`저장 실패 ^${sentence.anchor}: ${e?.message ?? String(e)}`, "error");
-    }
+    const res = await fetch("/api/admin/canonical-mapping/save-sentence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        anchor: sentence.anchor,
+        hangeul: sentence.hangeul,
+        reviewed: true, // 저장 = 검수 완료
+      }),
+    });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out?.error ?? "save failed");
+    sentence.reviewed = true; // 로컬 상태도 반영
   }
 
-  function toggleReviewed(_group: Group, sentence: Sentence) {
-    sentence.reviewed = !sentence.reviewed;
+  function toggleVerseMark(_group: Group, sentence: Sentence) {
+    sentence.isVerse = !sentence.isVerse;
     localGroups = [...localGroups];
-    refreshDirty(sentence.anchor, sentence.hangeul, sentence.reviewed);
+    refreshDirty(sentence.anchor, sentence.hangeul, sentence.isVerse);
   }
 
   function handleHangeulInput(_group: Group, sentence: Sentence, ev: Event) {
     const t = (ev.target as HTMLTextAreaElement).value;
     sentence.hangeul = t;
     localGroups = [...localGroups];
-    refreshDirty(sentence.anchor, sentence.hangeul, sentence.reviewed);
+    refreshDirty(sentence.anchor, sentence.hangeul, sentence.isVerse);
   }
 
   function handleHangeulBlur(_group: Group, _sentence: Sentence) {
@@ -128,6 +113,13 @@
   // dirty 상태인 sentence 수
   $: dirtyCount = Object.values(saveState).filter((s) => s === "dirty" || s === "error").length;
 
+  /**
+   * dirty 항목 일괄 저장. 각 sentence에 대해 hangeul / isVerse 변경 여부를 snapshot과
+   * 비교해 필요한 호출만 수행.
+   *   - hangeul 변경: save-sentence (reviewed=true 자동)
+   *   - isVerse 변경: toggle-verse
+   * 마지막 toggle-verse 응답에 새 groups가 포함되므로 그것으로 localGroups 동기화.
+   */
   async function saveAllDirty() {
     const targets: { group: Group; sentence: Sentence }[] = [];
     for (const g of localGroups) {
@@ -142,15 +134,52 @@
     }
     let ok = 0;
     let fail = 0;
+    let lastVerseGroups: Group[] | null = null;
     for (const { group, sentence } of targets) {
+      const snap = originalSnapshot[sentence.anchor];
+      const hangeulChanged = !snap || snap.hangeul !== sentence.hangeul;
+      const verseChanged = !snap || snap.isVerse !== sentence.isVerse;
       try {
-        await saveSentence(group, sentence);
-        if (saveState[sentence.anchor] === "saved" || saveState[sentence.anchor] === "idle") ok++;
-        else fail++;
-      } catch {
+        if (hangeulChanged) {
+          await saveSentence(group, sentence);
+        }
+        if (verseChanged) {
+          const res = await fetch("/api/admin/sentence/toggle-verse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vol, chap, anchor: sentence.anchor }),
+          });
+          const out = await res.json();
+          if (!res.ok) throw new Error(out?.error ?? "toggle-verse failed");
+          if (Array.isArray(out?.groups)) lastVerseGroups = out.groups;
+        }
+        // snapshot 갱신
+        originalSnapshot = {
+          ...originalSnapshot,
+          [sentence.anchor]: { hangeul: sentence.hangeul, isVerse: sentence.isVerse },
+        };
+        saveState = { ...saveState, [sentence.anchor]: "saved" };
+        ok++;
+      } catch (e: any) {
         fail++;
+        saveState = { ...saveState, [sentence.anchor]: "error" };
+        saveError = { ...saveError, [sentence.anchor]: e?.message ?? String(e) };
       }
     }
+    // isVerse 변경이 있었다면 마지막 응답의 groups로 동기화 (markdown 직렬화 결과 반영)
+    if (lastVerseGroups) {
+      localGroups = lastVerseGroups.map((g) => ({
+        num: g.num,
+        sentences: g.sentences.map((s) => ({ ...s })),
+      }));
+      rebuildSnapshot();
+    }
+    // saved 상태는 잠시 후 정리
+    setTimeout(() => {
+      const cleaned: typeof saveState = {};
+      for (const [k, v] of Object.entries(saveState)) if (v !== "saved") cleaned[k] = v;
+      saveState = cleaned;
+    }, 1500);
     if (fail === 0) {
       showSnackbar(`${ok}건 저장 완료`, "success", 2200);
     } else {
@@ -278,68 +307,69 @@
     if (out) showSnackbar(`^${s.anchor} 삭제 및 이후 anchor 시프트 완료`, "success");
   }
 
-  async function doToggleVerse(s: Sentence) {
-    const verb = s.isVerse ? "시구 표시 해제" : "시구 표시 추가";
-    const out = await callAction(
-      "/api/admin/sentence/toggle-verse",
-      { vol, chap, anchor: s.anchor },
-      s.anchor,
-      `${verb} 중…`,
-    );
-    if (out) {
-      const verb2 = out.isVerse ? "시구 markup 추가" : "시구 markup 제거";
-      showSnackbar(`^${s.anchor}: ${verb2}`, "success");
+  /** 한자 본문을 마침표/?/! 기준으로 자동 분리해 기본 split parts를 만들어 줌. */
+  function autoSplitText(text: string): string[] {
+    const out: string[] = [];
+    let buf = "";
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      buf += ch;
+      if (ch === "." || ch === "?" || ch === "!") {
+        const next = text[i + 1];
+        if (next === undefined || /\s/.test(next)) {
+          const s = buf.trim();
+          if (s) out.push(s);
+          buf = "";
+          while (i + 1 < text.length && /\s/.test(text[i + 1])) i++;
+        }
+      }
     }
+    const tail = buf.trim();
+    if (tail) out.push(tail);
+    return out;
   }
 
   function openSplitModal(s: Sentence) {
     splitModalAnchor = s.anchor;
-    splitContainerText = s.hanja;
-    splitSubTexts = [
-      { text: "", isVerse: true },
-      { text: "", isVerse: true },
-    ];
+    const auto = autoSplitText(s.hanja);
+    splitParts = auto.length >= 2 ? auto : [s.hanja, ""];
   }
   function closeSplitModal() {
     splitModalAnchor = null;
-    splitContainerText = "";
-    splitSubTexts = [];
+    splitParts = [];
   }
-  function addSubLine() {
-    splitSubTexts = [...splitSubTexts, { text: "", isVerse: true }];
+  function addSplitPart() {
+    splitParts = [...splitParts, ""];
   }
-  function removeSubLine(idx: number) {
-    splitSubTexts = splitSubTexts.filter((_, i) => i !== idx);
+  function removeSplitPart(idx: number) {
+    if (splitParts.length <= 2) {
+      alert("분리 결과는 최소 2개 필요합니다.");
+      return;
+    }
+    splitParts = splitParts.filter((_, i) => i !== idx);
+  }
+  function updateSplitPart(idx: number, value: string) {
+    splitParts = splitParts.map((p, i) => (i === idx ? value : p));
   }
   async function submitSplit() {
     if (!splitModalAnchor) return;
-    const subs = splitSubTexts.filter((s) => s.text.trim());
-    if (subs.length === 0) {
-      alert("sub 텍스트가 1개 이상 필요합니다.");
-      return;
-    }
-    if (!splitContainerText.trim()) {
-      alert("컨테이너(도입부) 텍스트가 비어 있습니다.");
+    const cleaned = splitParts.map((p) => p.trim()).filter((p) => p);
+    if (cleaned.length < 2) {
+      alert("분리 결과는 최소 2개 필요합니다 (빈 줄 제외).");
       return;
     }
     const anchor = splitModalAnchor;
     closeSplitModal();
     const out = await callAction(
-      "/api/admin/sentence/split-into-sub",
-      {
-        vol,
-        chap,
-        anchor,
-        container_text: splitContainerText,
-        sub_texts: subs.map((s) => s.text),
-        are_verses: subs.map((s) => s.isVerse),
-      },
+      "/api/admin/sentence/split",
+      { vol, chap, anchor, parts: cleaned },
       anchor,
       "분리 중…",
     );
     if (out) {
+      const newCount = out.new_anchors?.length ?? cleaned.length;
       showSnackbar(
-        `^${anchor}를 컨테이너 + sub ${out.subs?.length ?? 0}개로 분리 완료`,
+        `^${anchor}를 ${newCount}개로 분리 완료 (뒤 anchor +${newCount - 1} 시프트)`,
         "success",
       );
     }
@@ -377,9 +407,10 @@
   </div>
 
   <p class="legend">
-    한글 textarea에 입력 후 상단 <strong>저장</strong> 버튼(또는 Cmd/Ctrl+S)으로 일괄 저장합니다.
-    상태 라벨: <code class="lex">●</code> 변경 / <code class="lex">…</code> 저장 중 / <code class="lex">✓</code> 저장됨.
-    <strong>검수 완료</strong>는 매핑 확정 표시. 액션 버튼은 한자 markdown + 매핑 JSON + 한글본 백업을 함께 수정합니다 (백업 자동).
+    한글 textarea에 입력하거나 시구 체크박스를 토글한 뒤 상단 <strong>저장</strong> 버튼(또는 Cmd/Ctrl+S)으로 일괄 저장.
+    저장 = 검수 완료(<code class="lex">reviewed: true</code>) 자동 표시. 상태 라벨:
+    <code class="lex">●</code> 변경 / <code class="lex">…</code> 저장 중 / <code class="lex">✓</code> 저장됨.
+    액션 버튼(합치기/분리/삭제)은 즉시 vault 수정 + 백업 자동.
   </p>
 
   {#each localGroups as g (g.num)}
@@ -415,13 +446,13 @@
               rows={2}
             ></textarea>
             <div class="row-foot">
-              <label class="reviewed-toggle">
+              <label class="verse-toggle">
                 <input
                   type="checkbox"
-                  checked={s.reviewed}
-                  on:change={() => toggleReviewed(g, s)}
+                  checked={s.isVerse}
+                  on:change={() => toggleVerseMark(g, s)}
                 />
-                검수 완료
+                📜 시구
               </label>
               <span
                 class="status"
@@ -440,7 +471,7 @@
               <button
                 type="button"
                 class="act"
-                title="직전 sentence와 합치기 (anchor 제거)"
+                title="직전 sentence와 합치기 (anchor 제거 + 이후 anchor -1 시프트)"
                 disabled={!localGroups[0] || (localGroups[0].sentences[0]?.anchor === s.anchor)}
                 on:click={() => doMergeWithPrev(s)}
               >
@@ -448,28 +479,19 @@
               </button>
               <button
                 type="button"
-                class="act danger"
-                title="sentence 삭제 (이후 anchor 시프트)"
-                on:click={() => doDrop(s)}
-              >
-                🗑 삭제
-              </button>
-              <button
-                type="button"
                 class="act"
-                title="sub-anchor로 분리 (컨테이너 + sub들)"
+                title="평면 분리 (N개로 쪼개고 이후 anchor +(N-1) 시프트)"
                 on:click={() => openSplitModal(s)}
               >
                 ✂️ 분리
               </button>
               <button
                 type="button"
-                class="act"
-                class:toggled={s.isVerse}
-                title="시구 markup toggle (> blockquote)"
-                on:click={() => doToggleVerse(s)}
+                class="act danger"
+                title="sentence 삭제 (이후 anchor -1 시프트)"
+                on:click={() => doDrop(s)}
               >
-                {s.isVerse ? "📜 시구 해제" : "📜 시구"}
+                🗑 삭제
               </button>
               {#if actionStatus[s.anchor]}
                 <span class="act-status" class:err={actionStatus[s.anchor] === "오류"}>
@@ -491,28 +513,34 @@
   <div class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal">
       <header>
-        <h3>^{splitModalAnchor} 을(를) 컨테이너 + sub로 분리</h3>
+        <h3>^{splitModalAnchor} 을(를) {splitParts.length}개로 분리</h3>
         <button type="button" class="x" on:click={closeSplitModal} aria-label="닫기">✕</button>
       </header>
       <div class="modal-body">
-        <label>
-          <span>컨테이너(도입부) 텍스트</span>
-          <textarea bind:value={splitContainerText} rows={2} placeholder="예: 大哉라"></textarea>
-        </label>
-        <div class="subs">
-          <p class="sub-head">Sub 줄 (^{splitModalAnchor}.N) — 시구 체크 시 `> ` 접두사 추가</p>
-          {#each splitSubTexts as sub, i}
-            <div class="sub-row">
-              <span class="sub-idx">.{i + 1}</span>
-              <textarea bind:value={sub.text} rows={2} placeholder="sub 줄 텍스트"></textarea>
-              <label class="vchk">
-                <input type="checkbox" bind:checked={sub.isVerse} />
-                시구
-              </label>
-              <button type="button" class="x" on:click={() => removeSubLine(i)} aria-label="제거">✕</button>
+        <p class="modal-hint">
+          첫째 줄은 원래 anchor <code>^{splitModalAnchor}</code> 유지. 둘째부터 새 anchor
+          (이후 같은 장의 anchor는 +{splitParts.length - 1} 시프트). 기본값은 마침표 기준 자동 분리.
+        </p>
+        <div class="parts">
+          {#each splitParts as part, i}
+            <div class="part-row">
+              <span class="part-idx">[{i + 1}]</span>
+              <textarea
+                value={part}
+                on:input={(ev) => updateSplitPart(i, (ev.currentTarget as HTMLTextAreaElement).value)}
+                rows={2}
+                placeholder={i === 0 ? "첫 sentence (anchor 유지)" : "다음 sentence (새 anchor)"}
+              ></textarea>
+              <button
+                type="button"
+                class="x"
+                on:click={() => removeSplitPart(i)}
+                aria-label="이 줄 제거"
+                disabled={splitParts.length <= 2}
+              >✕</button>
             </div>
           {/each}
-          <button type="button" class="add-sub" on:click={addSubLine}>+ sub 줄 추가</button>
+          <button type="button" class="add-sub" on:click={addSplitPart}>+ 줄 추가</button>
         </div>
       </div>
       <footer>
@@ -711,12 +739,21 @@
     flex-wrap: wrap;
     font-size: 0.78rem;
   }
-  .reviewed-toggle {
+  .verse-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.35rem;
     cursor: pointer;
     color: var(--color-fg);
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 4px;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+  .verse-toggle:has(input:checked) {
+    background: var(--color-secondary-bg);
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
   }
   .status {
     color: var(--color-muted);
@@ -827,10 +864,25 @@
     margin-bottom: 0.25rem;
     color: var(--color-muted);
   }
-  .sub-head { font-size: 0.78rem; color: var(--color-muted); margin: 0 0 0.4rem; }
-  .sub-row {
+  .modal-hint {
+    margin: 0;
+    padding: 0.5rem 0.7rem;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-rule);
+    border-radius: 5px;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+    line-height: 1.5;
+  }
+  .modal-hint code {
+    padding: 0.05rem 0.3rem;
+    background: var(--color-bg);
+    border-radius: 3px;
+    font-size: 0.8rem;
+  }
+  .part-row {
     display: grid;
-    grid-template-columns: 3em 1fr 5em 2em;
+    grid-template-columns: 3em 1fr 2em;
     gap: 0.4rem;
     align-items: start;
     padding: 0.4rem;
@@ -839,12 +891,13 @@
     border-radius: 5px;
     margin-bottom: 0.4rem;
   }
-  .sub-idx {
+  .part-idx {
     font-family: ui-monospace, monospace;
     color: var(--color-muted);
     padding-top: 0.5rem;
+    font-size: 0.85rem;
   }
-  .vchk { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; padding-top: 0.5rem; }
+  .part-row .x:disabled { opacity: 0.3; cursor: not-allowed; }
   .add-sub {
     padding: 0.3rem 0.7rem;
     background: transparent;
