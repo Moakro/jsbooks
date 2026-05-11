@@ -68,6 +68,18 @@ for (const g of groups) {
   }
 }
 
+// 인접 시구를 cluster로 묶음 (한 인용구 박스 안에 통합 렌더). 비-시구는 각자 cluster 1개.
+type Cluster = { isVerse: boolean; sentences: Sentence[] };
+const clusters: Cluster[] = [];
+for (const s of sentences) {
+  const last = clusters[clusters.length - 1];
+  if (s.isVerse && last?.isVerse) {
+    last.sentences.push(s);
+  } else {
+    clusters.push({ isVerse: s.isVerse, sentences: [s] });
+  }
+}
+
 // Same-volume index
 const all = await getCollection("scripture");
 const sameVol = all
@@ -111,29 +123,61 @@ const historyPath = `content/scripture/${entry.id}.md`;
     >
       <span hidden data-pagefind-filter="kind:경전"></span>
       <span hidden data-pagefind-meta="scriptureName:천지개벽경"></span>
-      {sentences.map((s) => (
-        <section class:list={["verse", { "is-verse": s.isVerse }]} data-sentence-num={s.sentenceNum}>
-          <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
-          <div class="verse-label" data-pagefind-ignore>
-            <span class="verse-label-meta">
-              <a href={`#${s.anchor}`}>^{s.anchor}</a>
-              {!s.hangeulHTML && (
-                <span class="badge unmapped">한글 미매핑</span>
-              )}
-              <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", s.anchor)} />
-            </span>
-            <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
-              <span class="vt-label">전체보기</span>
-              <span class="vt-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+      {clusters.map((c) => (
+        c.isVerse ? (
+          <section class="verse verse-cluster" data-sentence-num={c.sentences[0].sentenceNum}>
+            {c.sentences.map((s) => (
+              <h4 class="verse-anchor-heading" id={s.anchor}>^{s.anchor}</h4>
+            ))}
+            <div class="verse-label" data-pagefind-ignore>
+              <span class="verse-label-meta">
+                <a href={`#${c.sentences[0].anchor}`}>^{c.sentences[0].anchor}</a>
+                {c.sentences.length > 1 && <span class="cluster-count">~ ^{c.sentences[c.sentences.length - 1].anchor}</span>}
               </span>
-            </button>
-          </div>
-          <div class="original-box" data-layer="hanja" set:html={s.hanjaHTML} />
-          {s.hangeulHTML && (
-            <div class="verse-body" data-layer="hangeul" set:html={s.hangeulHTML} />
-          )}
-        </section>
+              <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
+                <span class="vt-label">전체보기</span>
+                <span class="vt-icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+                </span>
+              </button>
+            </div>
+            <div class="original-box verse-stanza" data-layer="hanja">
+              {c.sentences.map((s) => (
+                <div class="verse-line" set:html={s.hanjaHTML} />
+              ))}
+            </div>
+            {c.sentences.some((s) => s.hangeulHTML) && (
+              <div class="verse-body verse-stanza" data-layer="hangeul">
+                {c.sentences.map((s) => (
+                  <div class="verse-line" set:html={s.hangeulHTML} />
+                ))}
+              </div>
+            )}
+          </section>
+        ) : (
+          <section class="verse" data-sentence-num={c.sentences[0].sentenceNum}>
+            <h4 class="verse-anchor-heading" id={c.sentences[0].anchor}>^{c.sentences[0].anchor}</h4>
+            <div class="verse-label" data-pagefind-ignore>
+              <span class="verse-label-meta">
+                <a href={`#${c.sentences[0].anchor}`}>^{c.sentences[0].anchor}</a>
+                {!c.sentences[0].hangeulHTML && (
+                  <span class="badge unmapped">한글 미매핑</span>
+                )}
+                <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong", c.sentences[0].anchor)} />
+              </span>
+              <button type="button" class="verse-toggle" data-toggle-all aria-label="전체보기 토글">
+                <span class="vt-label">전체보기</span>
+                <span class="vt-icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+                </span>
+              </button>
+            </div>
+            <div class="original-box" data-layer="hanja" set:html={c.sentences[0].hanjaHTML} />
+            {c.sentences[0].hangeulHTML && (
+              <div class="verse-body" data-layer="hangeul" set:html={c.sentences[0].hangeulHTML} />
+            )}
+          </section>
+        )
       ))}
     </div>
 
@@ -237,19 +281,21 @@ const historyPath = `content/scripture/${entry.id}.md`;
     overflow: hidden;
     transition: max-height 0.25s ease, opacity 0.18s ease, padding 0.2s ease, margin 0.2s ease;
   }
-  /* 시구 (markdown `> ` 표시): 좌측 들여쓰기 + 좌측 진홍 border로 인용구 시각화 */
-  .verse.is-verse .original-box {
-    margin-left: 1.2rem;
-    border-left: 3px solid var(--color-primary, #a8352a);
+  /* 시구 cluster: 인접 `> ` sentence들을 한 박스에 통합 렌더 */
+  .verse-cluster .verse-stanza {
+    padding: 0.65rem 0.95rem;
   }
-  .verse.is-verse .verse-body[data-layer="hangeul"] {
-    margin-left: 1.2rem;
-    padding-left: 0.6rem;
-    border-left: 3px solid var(--color-primary, #a8352a);
+  .verse-cluster .verse-line {
+    margin: 0;
+    padding: 0.15rem 0;
   }
-  /* 인접 시구 sentence는 시각적으로 한 묶음으로 (margin 줄임) */
-  .verse.is-verse + .verse.is-verse .original-box {
-    margin-top: -0.3rem;
+  .verse-cluster .verse-line + .verse-line {
+    border-top: 1px dashed rgba(168, 53, 42, 0.15);
+  }
+  .cluster-count {
+    margin-left: 0.3rem;
+    color: var(--color-muted);
+    font-size: 0.85em;
   }
   .verse-body[data-layer="hangeul"] {
     max-height: 4000px;
