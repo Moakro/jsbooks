@@ -66,10 +66,6 @@ const mappedSentences = groups.reduce(
   (n, g) => n + g.sentences.filter((s) => s.hangeul.length > 0).length,
   0,
 );
-const reviewedSentences = groups.reduce(
-  (n, g) => n + g.sentences.filter((s) => s.reviewed).length,
-  0,
-);
 ---
 
 <Base title={`매핑 권${vol} ${chap}장 — admin`}>
@@ -102,8 +98,8 @@ const reviewedSentences = groups.reduce(
     </header>
 
     <p class="meta">
-      한자 sentence {totalSentences}개 · 한글 매핑 {mappedSentences}/{totalSentences} ·
-      검수 완료 {reviewedSentences}/{totalSentences}
+      한자 sentence {totalSentences}개 · 한글 매핑 {mappedSentences}/{totalSentences}
+      ({totalSentences > 0 ? Math.round((mappedSentences * 100) / totalSentences) : 0}%)
     </p>
 
     <SentenceMappingEditor client:load groups={groups} vol={vol} chap={chap} />

@@ -8,18 +8,17 @@
  *   /api/admin/canonical-mapping/save-sentence  (v2, hangeul=string)
  *   /api/admin/scripture-editor/save-chapter
  *
- *   Sentence 구조 조작 (천지개벽경 평면 anchor 모델, X-Y-Z):
- *     /api/admin/sentence/merge-with-prev  { vol, chap, anchor }
- *     /api/admin/sentence/drop             { vol, chap, anchor }
- *     /api/admin/sentence/split             { vol, chap, anchor, parts: string[] }
- *     /api/admin/sentence/toggle-verse     { vol, chap, anchor }
+ *   Chapter 통합 저장 (v2 sentence-string 모델, 표준):
+ *     /api/admin/chapter/save-v2  { vol, chap, sentences: [{ hanja, hangeul, isVerse, originalAnchor? }] }
+ *       · 한자 markdown + canonical-mapping JSON + 한글본 백업을 한 번에 동기 갱신
+ *       · 빈 hanja 행 자동 제거 → 순서대로 ^X-Y-N 새 anchor 부여
+ *       · originalAnchor가 있으면 매핑 hangeul·reviewed 이관 (사용자가 보낸 hangeul 우선)
+ *       · reviewed = hangeul 비어있지 않을 때만 true (저장 = 검수 완료 자동)
+ *       · 응답에 migrations(old→new anchor map)와 새 groups 포함
  *
- *   참고: /api/admin/sentence/split-into-sub (sub-anchor 모델)는 코드(handleSplitIntoSub) 보존,
- *   라우팅 비활성화. 평면 분리(/split)가 표준.
- *
- *   Sentence 액션 endpoint는 모두 호출 직전 변경 대상 파일을 .bak/<ts>/에 자동 백업하고,
- *   한자 markdown + canonical-mapping JSON + 한글본 백업 markdown 셋을 sync.
- *   anchor shift는 같은 장 안에서만 적용. sub-anchor X-Y-Z.N은 부모 Z가 시프트되면 함께 따라감.
+ *   참고: 개별 sentence 액션(merge/drop/split/toggle-verse, split-into-sub)은 코드 보존
+ *   (handleMergeWithPrev, handleDrop, handleSplit, handleToggleVerse, handleSplitIntoSub)
+ *   라우팅 비활성화. 통합 chapter/save-v2가 표준 흐름.
  */
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
@@ -954,6 +953,120 @@ async function handleSplit(body) {
   };
 }
 
+/**
+ * E. chapter/save-v2 (v2 sentence-string 모델 통합 저장).
+ *
+ * body: {
+ *   vol, chap,                                    // 또는 isPreface
+ *   sentences: [
+ *     {
+ *       hanja: string,                            // 한자 본문 (`> ` 접두사 없이)
+ *       hangeul: string,                          // 한글 매핑
+ *       isVerse: boolean,                         // 시구 → markdown `> ` prefix
+ *       originalAnchor?: string                   // 기존 sentence의 anchor (없으면 새 sentence)
+ *     }, ...
+ *   ]
+ * }
+ *
+ * 처리:
+ *   1) hanja 빈 sentence 제외
+ *   2) 순서대로 새 anchor 부여 (^X-Y-1, ^X-Y-2, ...)
+ *   3) 한자 markdown 재직렬화 (isVerse면 `> ` prefix)
+ *   4) 매핑 JSON: 새 anchor → { hangeul, reviewed: !!hangeul }. originalAnchor로 hangeul·reviewed 이관 (사용자가 직접 hangeul도 보내므로 본문은 보내온 값 우선)
+ *   5) 매핑 JSON에서 이 chapter의 옛 anchor 중 사용 안 된 것 정리
+ *   6) 한글본 백업: `## N절 ^anchor` + 본문 (hangeul) 형식으로 재직렬화
+ *   7) 호출 직전 모든 변경 대상 .bak 백업
+ *
+ * 응답: { ok, sentences: [{ originalAnchor?, newAnchor }], migrations: { old → new }, changed, groups }
+ */
+async function handleChapterSaveV2(body) {
+  const { vol, chap, sentences: rawSentences } = body;
+  if (!Array.isArray(rawSentences)) throw new Error("sentences[] required");
+
+  // 한자 본문 비어 있는 행은 제외
+  const sentences = rawSentences
+    .map((s) => ({
+      hanja: String(s?.hanja ?? "").trim(),
+      hangeul: String(s?.hangeul ?? "").trim(),
+      isVerse: !!s?.isVerse,
+      originalAnchor: s?.originalAnchor ? String(s.originalAnchor) : null,
+    }))
+    .filter((s) => s.hanja);
+
+  const isPrefaceChapter = vol === 0 || vol === null || vol === undefined;
+  const ctx = await loadChapter({ vol, chap, isPreface: isPrefaceChapter });
+
+  // 새 anchor 부여
+  const anchorPrefix = isPrefaceChapter ? "preface" : `${vol}-${chap}`;
+  const newSentences = sentences.map((s, i) => ({
+    start: -1,
+    end: -1,
+    anchor: `${anchorPrefix}-${i + 1}`,
+    text: s.hanja,
+    isVerse: s.isVerse,
+  }));
+  const newHanjaBody = rebuildHanjaMarkdown(ctx.hanjaBody, newSentences);
+
+  // 매핑 JSON 갱신
+  const mapping = await loadMapping();
+
+  // 1) 이 chapter에 속하는 옛 anchor 키 수집 (정리 대상 후보)
+  const oldChapterKeys = new Set();
+  for (const k of Object.keys(mapping.verses)) {
+    const p = getAnchorParts(k);
+    if (isPrefaceChapter) {
+      if (p.kind === "preface") oldChapterKeys.add(k);
+    } else {
+      if (p.kind === "normal" && p.vol === vol && p.chap === chap) oldChapterKeys.add(k);
+    }
+  }
+
+  // 2) 새 anchor entries 생성 — 사용자가 보낸 hangeul + originalAnchor의 reviewed 보존
+  const migrations = {}; // originalAnchor → newAnchor
+  const newEntries = {};
+  for (let i = 0; i < sentences.length; i++) {
+    const newAnchor = newSentences[i].anchor;
+    const s = sentences[i];
+    if (s.originalAnchor) migrations[s.originalAnchor] = newAnchor;
+    const oldM = s.originalAnchor ? mapping.verses[s.originalAnchor] : null;
+    const reviewed = !!s.hangeul; // hangeul 있으면 자동 검수 완료. 빈 string은 reviewed=false
+    newEntries[newAnchor] = {
+      hangeul: s.hangeul,
+      reviewed,
+      ...(oldM?.confidence != null ? { confidence: oldM.confidence } : {}),
+    };
+  }
+
+  // 3) 옛 chapter anchor 모두 제거 + 새 entries 적용
+  for (const k of oldChapterKeys) delete mapping.verses[k];
+  for (const [k, v] of Object.entries(newEntries)) mapping.verses[k] = v;
+
+  // 4) 한글본 백업 markdown 재직렬화: `## N절 ^anchor` + hangeul 본문
+  let newHangeulBody = ctx.hangeulBody;
+  if (ctx.hangeulPath_exists) {
+    const items = newSentences.map((ns, i) => ({
+      num: i + 1,
+      anchor: ns.anchor,
+      bodyText: sentences[i].hangeul,
+    }));
+    newHangeulBody = rebuildHangeulBackup(ctx.hangeulBody, items);
+  }
+
+  await persistMapping(mapping);
+  const changed = await writeChapter({ ...ctx, hanjaBody: newHanjaBody, hangeulBody: newHangeulBody });
+  changed.push(MAPPING_PATH);
+  const groups = await buildEditorGroups({ hanjaBody: newHanjaBody });
+
+  return {
+    ok: true,
+    action: "chapter-save-v2",
+    new_anchors: newSentences.map((s) => s.anchor),
+    migrations,
+    changed,
+    groups,
+  };
+}
+
 /** D. toggle-verse: 현재 anchor sentence 앞에 `> ` toggle. */
 async function handleToggleVerse(body) {
   const { vol, chap, anchor } = body;
@@ -1028,50 +1141,30 @@ export default function canonicalMappingDev() {
           && req.url.startsWith("/api/admin/canonical-mapping/bulk");
         const isChapterSave = req.url.startsWith("/api/admin/scripture-editor/save-chapter");
         const isChangelogSave = req.url.startsWith("/api/admin/changelog/save");
-        const isSentenceMerge = req.url.startsWith("/api/admin/sentence/merge-with-prev");
-        const isSentenceDrop = req.url.startsWith("/api/admin/sentence/drop");
-        // 평면 분리(/sentence/split) 우선 — split-into-sub와 startsWith 충돌 방지.
-        // split-into-sub는 코드 보존(handleSplitIntoSub)하되 라우팅 비활성화.
-        const isSentenceSplit = req.url.startsWith("/api/admin/sentence/split")
-          && !req.url.startsWith("/api/admin/sentence/split-into-sub");
-        const isSentenceToggleVerse = req.url.startsWith("/api/admin/sentence/toggle-verse");
+        // 새 통합 endpoint — v2 sentence-string 모델 chapter 전체 저장
+        const isChapterSaveV2 = req.url.startsWith("/api/admin/chapter/save-v2");
+        // 개별 sentence 액션(merge/drop/split/toggle-verse)은 새 통합 흐름으로 흡수됨 — 라우팅 비활성화.
+        // 핸들러 코드는 보존하되 endpoint 매치에서 제외. 새 흐름이 안 맞을 때 코드를 복원해 라우팅 재활성화 가능.
         if (
           !isMappingSave &&
           !isMappingSaveSentence &&
           !isMappingSaveSentencesBulk &&
           !isMappingBulk &&
           !isChapterSave &&
-          !isChangelogSave &&
-          !isSentenceMerge &&
-          !isSentenceDrop &&
-          !isSentenceSplit &&
-          !isSentenceToggleVerse
+          !isChapterSaveV2 &&
+          !isChangelogSave
         ) {
           return next();
         }
         try {
           const body = await readBody(req);
-          if (isSentenceMerge) {
-            const out = await handleMergeWithPrev(body);
-            console.log(`[admin] merge-with-prev`, body, "→", { ok: out.ok, removed: out.removed });
-            notifyFileChange(out.changed ?? []);
-            return json(res, 200, out);
-          }
-          if (isSentenceDrop) {
-            const out = await handleDrop(body);
-            console.log(`[admin] drop`, body, "→", { ok: out.ok, removed: out.removed });
-            notifyFileChange(out.changed ?? []);
-            return json(res, 200, out);
-          }
-          if (isSentenceSplit) {
-            const out = await handleSplit(body);
-            console.log(`[admin] split`, body, "→", { ok: out.ok, anchor: out.anchor, new_anchors: out.new_anchors });
-            notifyFileChange(out.changed ?? []);
-            return json(res, 200, out);
-          }
-          if (isSentenceToggleVerse) {
-            const out = await handleToggleVerse(body);
-            console.log(`[admin] toggle-verse`, body, "→", { ok: out.ok, isVerse: out.isVerse });
+          if (isChapterSaveV2) {
+            const out = await handleChapterSaveV2(body);
+            console.log(
+              `[admin] chapter/save-v2 vol=${body.vol} chap=${body.chap}`,
+              "→",
+              { ok: out.ok, n: out.new_anchors?.length, migrations: Object.keys(out.migrations ?? {}).length },
+            );
             notifyFileChange(out.changed ?? []);
             return json(res, 200, out);
           }
