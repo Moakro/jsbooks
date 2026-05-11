@@ -11,6 +11,13 @@
  */
 import mapping from "../../content/scripture/_mappings/cheonjigaebyeokgyeong-canonical.json" with { type: "json" };
 
+// 어드민에서 매핑 JSON 저장 시 Vite HMR이 이 module을 invalidate해 dependents
+// (어드민 페이지 등)까지 full reload되던 문제 차단. JSON 변경은 어드민 API 응답으로
+// inline 갱신되므로 module HMR은 불필요.
+if (import.meta.hot) {
+  import.meta.hot.accept();
+}
+
 export type VerseMapping = {
   hangeul: string;
   reviewed?: boolean;
