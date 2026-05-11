@@ -121,52 +121,102 @@
    * 마지막 toggle-verse 응답에 새 groups가 포함되므로 그것으로 localGroups 동기화.
    */
   async function saveAllDirty() {
-    const targets: { group: Group; sentence: Sentence }[] = [];
+    const dirty: Sentence[] = [];
     for (const g of localGroups) {
       for (const s of g.sentences) {
         const st = saveState[s.anchor];
-        if (st === "dirty" || st === "error") targets.push({ group: g, sentence: s });
+        if (st === "dirty" || st === "error") dirty.push(s);
       }
     }
-    if (targets.length === 0) {
+    if (dirty.length === 0) {
       showSnackbar("변경 사항 없음", "info", 1500);
       return;
     }
+
+    // 매핑 변경 vs 시구 변경 분리
+    const mappingEntries: { anchor: string; hangeul: string; reviewed: boolean }[] = [];
+    const verseTargets: Sentence[] = [];
+    for (const s of dirty) {
+      const snap = originalSnapshot[s.anchor];
+      if (!snap || snap.hangeul !== s.hangeul) {
+        mappingEntries.push({ anchor: s.anchor, hangeul: s.hangeul, reviewed: true });
+      }
+      if (!snap || snap.isVerse !== s.isVerse) {
+        verseTargets.push(s);
+      }
+    }
+
     let ok = 0;
     let fail = 0;
     let lastVerseGroups: Group[] | null = null;
-    for (const { group, sentence } of targets) {
-      const snap = originalSnapshot[sentence.anchor];
-      const hangeulChanged = !snap || snap.hangeul !== sentence.hangeul;
-      const verseChanged = !snap || snap.isVerse !== sentence.isVerse;
+
+    // 1) 매핑 bulk fetch — 한 번의 요청으로 N건 저장 (reload 1회로 흡수)
+    if (mappingEntries.length > 0) {
+      const saving = { ...saveState };
+      for (const e of mappingEntries) saving[e.anchor] = "saving";
+      saveState = saving;
       try {
-        if (hangeulChanged) {
-          await saveSentence(group, sentence);
+        const res = await fetch("/api/admin/canonical-mapping/save-sentences-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entries: mappingEntries }),
+        });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out?.error ?? "bulk save failed");
+        const applied = out.applied ?? mappingEntries.length;
+        ok += applied;
+        fail += mappingEntries.length - applied;
+        const newSnap = { ...originalSnapshot };
+        const newSave = { ...saveState };
+        for (const e of mappingEntries) {
+          newSnap[e.anchor] = {
+            hangeul: e.hangeul,
+            isVerse: originalSnapshot[e.anchor]?.isVerse ?? false,
+          };
+          newSave[e.anchor] = "saved";
         }
-        if (verseChanged) {
-          const res = await fetch("/api/admin/sentence/toggle-verse", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ vol, chap, anchor: sentence.anchor }),
-          });
-          const out = await res.json();
-          if (!res.ok) throw new Error(out?.error ?? "toggle-verse failed");
-          if (Array.isArray(out?.groups)) lastVerseGroups = out.groups;
+        originalSnapshot = newSnap;
+        saveState = newSave;
+      } catch (e: any) {
+        fail += mappingEntries.length;
+        const errState = { ...saveState };
+        const errMap = { ...saveError };
+        for (const ent of mappingEntries) {
+          errState[ent.anchor] = "error";
+          errMap[ent.anchor] = e?.message ?? String(e);
         }
-        // snapshot 갱신
+        saveState = errState;
+        saveError = errMap;
+      }
+    }
+
+    // 2) 시구 변경 — 각 sentence별 toggle-verse (markdown 직접 수정이라 별도)
+    for (const s of verseTargets) {
+      try {
+        const res = await fetch("/api/admin/sentence/toggle-verse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vol, chap, anchor: s.anchor }),
+        });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out?.error ?? "toggle-verse failed");
+        if (Array.isArray(out?.groups)) lastVerseGroups = out.groups;
         originalSnapshot = {
           ...originalSnapshot,
-          [sentence.anchor]: { hangeul: sentence.hangeul, isVerse: sentence.isVerse },
+          [s.anchor]: {
+            hangeul: originalSnapshot[s.anchor]?.hangeul ?? s.hangeul,
+            isVerse: s.isVerse,
+          },
         };
-        saveState = { ...saveState, [sentence.anchor]: "saved" };
+        saveState = { ...saveState, [s.anchor]: "saved" };
         ok++;
       } catch (e: any) {
         fail++;
-        saveState = { ...saveState, [sentence.anchor]: "error" };
-        saveError = { ...saveError, [sentence.anchor]: e?.message ?? String(e) };
+        saveState = { ...saveState, [s.anchor]: "error" };
+        saveError = { ...saveError, [s.anchor]: e?.message ?? String(e) };
       }
     }
-    // isVerse 변경이 있었다면 마지막 응답의 groups로 동기화 (markdown 직렬화 결과 반영)
+
     if (lastVerseGroups) {
       localGroups = lastVerseGroups.map((g) => ({
         num: g.num,
@@ -174,12 +224,13 @@
       }));
       rebuildSnapshot();
     }
-    // saved 상태는 잠시 후 정리
+
     setTimeout(() => {
       const cleaned: typeof saveState = {};
       for (const [k, v] of Object.entries(saveState)) if (v !== "saved") cleaned[k] = v;
       saveState = cleaned;
     }, 1500);
+
     if (fail === 0) {
       showSnackbar(`${ok}건 저장 완료`, "success", 2200);
     } else {

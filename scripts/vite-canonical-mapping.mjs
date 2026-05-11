@@ -1017,10 +1017,15 @@ export default function canonicalMappingDev() {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url) return next();
         if (req.method !== "POST") return next();
-        const isMappingSaveSentence = req.url.startsWith("/api/admin/canonical-mapping/save-sentence");
+        // v2 bulk: sentence-string 매핑 여러 건을 한 번의 fetch로 처리 (reload 1회로 흡수)
+        const isMappingSaveSentencesBulk = req.url.startsWith("/api/admin/canonical-mapping/save-sentences-bulk");
+        const isMappingSaveSentence = !isMappingSaveSentencesBulk
+          && req.url.startsWith("/api/admin/canonical-mapping/save-sentence");
         // 주의: save-sentence가 save로 시작하므로 먼저 체크. isMappingSave는 그 외 v1 /save만 잡도록.
-        const isMappingSave = !isMappingSaveSentence && req.url.startsWith("/api/admin/canonical-mapping/save");
-        const isMappingBulk = req.url.startsWith("/api/admin/canonical-mapping/bulk");
+        const isMappingSave = !isMappingSaveSentence && !isMappingSaveSentencesBulk
+          && req.url.startsWith("/api/admin/canonical-mapping/save");
+        const isMappingBulk = !isMappingSaveSentencesBulk
+          && req.url.startsWith("/api/admin/canonical-mapping/bulk");
         const isChapterSave = req.url.startsWith("/api/admin/scripture-editor/save-chapter");
         const isChangelogSave = req.url.startsWith("/api/admin/changelog/save");
         const isSentenceMerge = req.url.startsWith("/api/admin/sentence/merge-with-prev");
@@ -1033,6 +1038,7 @@ export default function canonicalMappingDev() {
         if (
           !isMappingSave &&
           !isMappingSaveSentence &&
+          !isMappingSaveSentencesBulk &&
           !isMappingBulk &&
           !isChapterSave &&
           !isChangelogSave &&
@@ -1077,6 +1083,33 @@ export default function canonicalMappingDev() {
             notifyFileChange([MAPPING_PATH]);
             return json(res, 200, {
               ok: true,
+              count: Object.keys(mapping.verses).length,
+            });
+          }
+          if (isMappingSaveSentencesBulk) {
+            // body: { entries: [{ anchor, hangeul, reviewed }, ...] }
+            // 모든 entry를 메모리에 적용 후 mapping JSON을 단 1회 write → file watch reload 1회로 흡수.
+            const entries = Array.isArray(body?.entries) ? body.entries : [];
+            const mapping = await loadMapping();
+            const applied = [];
+            const errors = [];
+            for (const e of entries) {
+              try {
+                applySentenceMapping(mapping, e);
+                applied.push(e.anchor);
+              } catch (err) {
+                errors.push({ anchor: e?.anchor ?? null, error: err?.message ?? String(err) });
+              }
+            }
+            await persistMapping(mapping);
+            notifyFileChange([MAPPING_PATH]);
+            console.log(`[admin] save-sentences-bulk ${applied.length}/${entries.length}`,
+              errors.length ? `errors: ${errors.length}` : "");
+            return json(res, 200, {
+              ok: errors.length === 0,
+              applied: applied.length,
+              total: entries.length,
+              errors,
               count: Object.keys(mapping.verses).length,
             });
           }
