@@ -852,6 +852,17 @@ export default function canonicalMappingDev() {
     apply: "serve",
     configureServer(server) {
       viteServer = server;
+      // 어드민 도구가 vault 매핑·markdown을 수정할 때마다 chokidar가 변경을 감지해
+      // 페이지 full-reload되던 문제 차단. vault 전체를 Vite watch 대상에서 제외.
+      // 어드민은 응답으로 inline 갱신, 공개 페이지 미리보기는 사이드바 새로고침으로 처리.
+      try {
+        server.watcher.unwatch([
+          path.join(VAULT_ROOT, "scripture/_mappings/**"),
+          path.join(VAULT_ROOT, "scripture/cheonjigaebyeokgyeong/**"),
+          path.join(VAULT_ROOT, "scripture/cheonjigaebyeokgyeong-hangeul/**"),
+          path.join(VAULT_ROOT, ".bak/**"),
+        ]);
+      } catch {}
       server.middlewares.use(async (req, res, next) => {
         if (!req.url) return next();
         if (req.method !== "POST") return next();
