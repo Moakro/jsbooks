@@ -525,6 +525,23 @@ function getSubAnchors(sentences, parentAnchor) {
 
 // ─── 액션 핸들러 ─────────────────────────────────────────────────────────────
 
+/** 액션 직후 어드민 편집기가 사용할 groups 구조 빌드. 평면 모델이라 groups는 [{num:1, sentences:[...]}] 한 개. */
+async function buildEditorGroups({ hanjaBody }) {
+  const mapping = await loadMapping();
+  const { sentences } = parseHanjaSentences(hanjaBody);
+  const editorSentences = sentences.map((s) => {
+    const m = mapping.verses[s.anchor];
+    return {
+      anchor: s.anchor,
+      hanja: s.text,
+      hangeul: m?.hangeul ?? "",
+      reviewed: !!m?.reviewed,
+      isVerse: !!s.isVerse,
+    };
+  });
+  return [{ num: 1, sentences: editorSentences }];
+}
+
 async function loadChapter({ vol, chap, isPreface }) {
   const hanjaPath = chapterHanjaPath({ vol, chap, isPreface });
   const hangeulPath = chapterHangeulPath({ vol, chap, isPreface });
@@ -627,7 +644,8 @@ async function handleMergeWithPrev(body) {
   await persistMapping(mapping);
   const changed = await writeChapter({ ...ctx, hanjaBody: newHanjaBody, hangeulBody: newHangeulBody });
   changed.push(MAPPING_PATH);
-  return { ok: true, action: "merge-with-prev", merged_into: prev.anchor, removed: cur.anchor, changed };
+  const groups = await buildEditorGroups({ hanjaBody: newHanjaBody });
+  return { ok: true, action: "merge-with-prev", merged_into: prev.anchor, removed: cur.anchor, changed, groups };
 }
 
 /** B. drop: 현재 anchor sentence 제거 + 같은 장 내 이후 anchor sent 인덱스 -1 시프트. */
@@ -692,7 +710,8 @@ async function handleDrop(body) {
   await persistMapping(mapping);
   const changed = await writeChapter({ ...ctx, hanjaBody: newHanjaBody, hangeulBody: newHangeulBody });
   changed.push(MAPPING_PATH);
-  return { ok: true, action: "drop", removed: target.anchor, changed };
+  const groups = await buildEditorGroups({ hanjaBody: newHanjaBody });
+  return { ok: true, action: "drop", removed: target.anchor, changed, groups };
 }
 
 /** C. split-into-sub: 현재 anchor sentence를 컨테이너 + sub로 분리. */
@@ -773,12 +792,14 @@ async function handleSplitIntoSub(body) {
   await persistMapping(mapping);
   const changed = await writeChapter({ ...ctx, hanjaBody: newHanjaBody, hangeulBody: newHangeulBody });
   changed.push(MAPPING_PATH);
+  const groups = await buildEditorGroups({ hanjaBody: newHanjaBody });
   return {
     ok: true,
     action: "split-into-sub",
     container: anchor,
     subs: subSentences.map((s) => s.anchor),
     changed,
+    groups,
   };
 }
 
@@ -798,7 +819,8 @@ async function handleToggleVerse(body) {
 
   // mapping JSON·한글본은 변경 X
   const changed = await writeChapter({ ...ctx, hanjaBody: newHanjaBody, hangeulBody: ctx.hangeulBody });
-  return { ok: true, action: "toggle-verse", anchor, isVerse: newSentences[idx].isVerse, changed };
+  const groups = await buildEditorGroups({ hanjaBody: newHanjaBody });
+  return { ok: true, action: "toggle-verse", anchor, isVerse: newSentences[idx].isVerse, changed, groups };
 }
 
 // ─── Vite plugin ────────────────────────────────────────────────────────────
@@ -809,22 +831,21 @@ export default function canonicalMappingDev() {
   function triggerReload(changedPaths = []) {
     if (!viteServer) return;
     try {
-      // 1) Notify Vite's file watcher about each changed path so any module
-      //    that depends on the file (e.g., Astro content collection loader)
-      //    invalidates its cache.
       for (const p of changedPaths) {
-        try {
-          viteServer.watcher.emit("change", p);
-        } catch {
-          // best-effort
-        }
+        try { viteServer.watcher.emit("change", p); } catch {}
       }
-      // 2) Tell connected browsers to do a full page reload — picks up content
-      //    collection changes that Astro might otherwise serve from cache.
       viteServer.ws.send({ type: "full-reload", path: "*" });
-    } catch {
-      // ignore
-    }
+    } catch {}
+  }
+  /** 파일 변경만 알리고 브라우저 full-reload는 보내지 않음 — 어드민 inline
+   * 상태 갱신용. iframe·다른 탭의 공개 페이지는 다음 nav 시 새 콘텐츠를 받음.  */
+  function notifyFileChange(changedPaths = []) {
+    if (!viteServer) return;
+    try {
+      for (const p of changedPaths) {
+        try { viteServer.watcher.emit("change", p); } catch {}
+      }
+    } catch {}
   }
   return {
     name: "jsbooks-canonical-mapping-dev",
@@ -861,33 +882,34 @@ export default function canonicalMappingDev() {
           const body = await readBody(req);
           if (isSentenceMerge) {
             const out = await handleMergeWithPrev(body);
-            console.log(`[admin] merge-with-prev`, body, "→", out);
-            triggerReload(out.changed ?? []);
+            console.log(`[admin] merge-with-prev`, body, "→", { ok: out.ok, removed: out.removed });
+            notifyFileChange(out.changed ?? []);
             return json(res, 200, out);
           }
           if (isSentenceDrop) {
             const out = await handleDrop(body);
-            console.log(`[admin] drop`, body, "→", out);
-            triggerReload(out.changed ?? []);
+            console.log(`[admin] drop`, body, "→", { ok: out.ok, removed: out.removed });
+            notifyFileChange(out.changed ?? []);
             return json(res, 200, out);
           }
           if (isSentenceSplit) {
             const out = await handleSplitIntoSub(body);
-            console.log(`[admin] split-into-sub`, body, "→", out);
-            triggerReload(out.changed ?? []);
+            console.log(`[admin] split-into-sub`, body, "→", { ok: out.ok, container: out.container, subs: out.subs });
+            notifyFileChange(out.changed ?? []);
             return json(res, 200, out);
           }
           if (isSentenceToggleVerse) {
             const out = await handleToggleVerse(body);
-            console.log(`[admin] toggle-verse`, body, "→", out);
-            triggerReload(out.changed ?? []);
+            console.log(`[admin] toggle-verse`, body, "→", { ok: out.ok, isVerse: out.isVerse });
+            notifyFileChange(out.changed ?? []);
             return json(res, 200, out);
           }
           if (isMappingSaveSentence) {
             const mapping = await loadMapping();
             applySentenceMapping(mapping, body);
             await persistMapping(mapping);
-            triggerReload([MAPPING_PATH]);
+            // 어드민 페이지는 inline 갱신 — full-reload 보내지 않음. 파일 변경만 알림.
+            notifyFileChange([MAPPING_PATH]);
             return json(res, 200, {
               ok: true,
               count: Object.keys(mapping.verses).length,

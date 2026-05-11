@@ -13,6 +13,7 @@
    */
   import { onMount } from "svelte";
   import { confirmDialog } from "../../lib/confirmDialog";
+  import { showSnackbar } from "../../lib/admin-snackbar";
 
   type Sentence = {
     anchor: string;
@@ -65,6 +66,7 @@
       const out = await res.json();
       if (!res.ok) throw new Error(out?.error ?? "save failed");
       saveState = { ...saveState, [sentence.anchor]: "saved" };
+      showSnackbar(`^${sentence.anchor} 저장됨`, "success", 1800);
       setTimeout(() => {
         if (saveState[sentence.anchor] === "saved") {
           saveState = { ...saveState, [sentence.anchor]: "idle" };
@@ -73,6 +75,7 @@
     } catch (e: any) {
       saveState = { ...saveState, [sentence.anchor]: "error" };
       saveError = { ...saveError, [sentence.anchor]: e?.message ?? String(e) };
+      showSnackbar(`저장 실패 ^${sentence.anchor}: ${e?.message ?? String(e)}`, "error");
     }
   }
 
@@ -134,7 +137,16 @@
   }
 
   // ─── Action handlers ─────────────────────────────────────────────────────
-  async function callAction(endpoint: string, body: Record<string, unknown>, anchor: string, label: string) {
+  /**
+   * endpoint 호출 후 응답의 groups로 localGroups를 inline 갱신. 페이지 reload 없음.
+   * 성공 메시지는 호출부에서 showSnackbar로 직접 띄움.
+   */
+  async function callAction(
+    endpoint: string,
+    body: Record<string, unknown>,
+    anchor: string,
+    label: string,
+  ): Promise<any> {
     actionStatus = { ...actionStatus, [anchor]: label };
     actionError = { ...actionError, [anchor]: "" };
     try {
@@ -145,13 +157,21 @@
       });
       const out = await res.json();
       if (!res.ok) throw new Error(out?.error ?? `${endpoint} failed`);
-      actionStatus = { ...actionStatus, [anchor]: "완료 — reload" };
-      // vault markdown이 바뀌었으므로 페이지 reload로 새 상태 반영
-      setTimeout(() => location.reload(), 400);
+      // 서버가 응답에 새 groups를 보내주면 localGroups를 그것으로 교체 (inline 갱신, reload 없음)
+      if (Array.isArray(out?.groups)) {
+        localGroups = out.groups.map((g: Group) => ({
+          num: g.num,
+          sentences: g.sentences.map((s) => ({ ...s })),
+        }));
+      }
+      // 기존 액션 상태 표시는 cleanup (해당 anchor가 사라졌을 수 있음)
+      delete actionStatus[anchor];
+      actionStatus = { ...actionStatus };
       return out;
     } catch (e: any) {
       actionStatus = { ...actionStatus, [anchor]: "오류" };
       actionError = { ...actionError, [anchor]: e?.message ?? String(e) };
+      showSnackbar(`오류: ${e?.message ?? String(e)}`, "error");
       return null;
     }
   }
@@ -164,12 +184,13 @@
       danger: true,
     });
     if (!ok) return;
-    await callAction(
+    const out = await callAction(
       "/api/admin/sentence/merge-with-prev",
       { vol, chap, anchor: s.anchor },
       s.anchor,
       "합치는 중…",
     );
+    if (out) showSnackbar(`^${s.anchor}를 ^${out.merged_into}와 합쳤습니다 (anchor 제거)`, "success");
   }
 
   async function doDrop(s: Sentence) {
@@ -180,17 +201,22 @@
       danger: true,
     });
     if (!ok) return;
-    await callAction("/api/admin/sentence/drop", { vol, chap, anchor: s.anchor }, s.anchor, "삭제 중…");
+    const out = await callAction("/api/admin/sentence/drop", { vol, chap, anchor: s.anchor }, s.anchor, "삭제 중…");
+    if (out) showSnackbar(`^${s.anchor} 삭제 및 이후 anchor 시프트 완료`, "success");
   }
 
   async function doToggleVerse(s: Sentence) {
     const verb = s.isVerse ? "시구 표시 해제" : "시구 표시 추가";
-    await callAction(
+    const out = await callAction(
       "/api/admin/sentence/toggle-verse",
       { vol, chap, anchor: s.anchor },
       s.anchor,
       `${verb} 중…`,
     );
+    if (out) {
+      const verb2 = out.isVerse ? "시구 markup 추가" : "시구 markup 제거";
+      showSnackbar(`^${s.anchor}: ${verb2}`, "success");
+    }
   }
 
   function openSplitModal(s: Sentence) {
@@ -225,7 +251,7 @@
     }
     const anchor = splitModalAnchor;
     closeSplitModal();
-    await callAction(
+    const out = await callAction(
       "/api/admin/sentence/split-into-sub",
       {
         vol,
@@ -238,6 +264,12 @@
       anchor,
       "분리 중…",
     );
+    if (out) {
+      showSnackbar(
+        `^${anchor}를 컨테이너 + sub ${out.subs?.length ?? 0}개로 분리 완료`,
+        "success",
+      );
+    }
   }
 
   onMount(() => {

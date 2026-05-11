@@ -6,6 +6,7 @@ import { getRawMapping } from "../../../../lib/canonical-mapping";
 import AdminGate from "../../../../components/AdminGate.astro";
 import SentenceMappingEditor from "../../../../components/admin/SentenceMappingEditor.svelte";
 import AdminPreviewSidebar from "../../../../components/admin/AdminPreviewSidebar.svelte";
+import Snackbar from "../../../../components/admin/Snackbar.svelte";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -107,6 +108,7 @@ const reviewedSentences = groups.reduce(
 
     <SentenceMappingEditor client:load groups={groups} vol={vol} chap={chap} />
     <AdminPreviewSidebar client:load />
+    <Snackbar client:load />
   </AdminGate>
 </Base>
 
