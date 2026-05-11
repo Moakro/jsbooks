@@ -33,9 +33,36 @@
     sentences: g.sentences.map((s) => ({ ...s })),
   }));
 
+  // 마지막 저장 상태 snapshot (anchor → {hangeul, reviewed}).
+  // dirty 판정: 현재 값이 snapshot과 다르면 dirty, 같으면 dirty 해제 (체크-해제 같은 round-trip 정리).
+  type Snap = { hangeul: string; reviewed: boolean };
+  let originalSnapshot: Record<string, Snap> = {};
+  function rebuildSnapshot() {
+    const snap: Record<string, Snap> = {};
+    for (const g of localGroups) for (const s of g.sentences) snap[s.anchor] = { hangeul: s.hangeul, reviewed: s.reviewed };
+    originalSnapshot = snap;
+  }
+  rebuildSnapshot();
+
   type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
   let saveState: Record<string, SaveState> = {};
   let saveError: Record<string, string> = {};
+
+  /** sentence 현재값이 snapshot과 같은지 비교해 dirty 표시 갱신. */
+  function refreshDirty(anchor: string, hangeul: string, reviewed: boolean) {
+    const snap = originalSnapshot[anchor];
+    const isDirty = !snap || snap.hangeul !== hangeul || snap.reviewed !== reviewed;
+    if (isDirty) {
+      saveState = { ...saveState, [anchor]: "dirty" };
+    } else {
+      // 원래 값으로 복귀 — dirty/saved 잔여 정리
+      const cur = saveState[anchor];
+      if (cur === "dirty" || cur === "saved" || cur === "error") {
+        const { [anchor]: _, ...rest } = saveState;
+        saveState = rest;
+      }
+    }
+  }
 
   // 액션 진행 상태: anchor → action label (예: "삭제 중…")
   let actionStatus: Record<string, string> = {};
@@ -65,6 +92,8 @@
       });
       const out = await res.json();
       if (!res.ok) throw new Error(out?.error ?? "save failed");
+      // 저장 성공 → snapshot 갱신 (다음 dirty 판정 기준)
+      originalSnapshot = { ...originalSnapshot, [sentence.anchor]: { hangeul: sentence.hangeul, reviewed: sentence.reviewed } };
       saveState = { ...saveState, [sentence.anchor]: "saved" };
       showSnackbar(`^${sentence.anchor} 저장됨`, "success", 1800);
       setTimeout(() => {
@@ -79,17 +108,17 @@
     }
   }
 
-  function toggleReviewed(group: Group, sentence: Sentence) {
+  function toggleReviewed(_group: Group, sentence: Sentence) {
     sentence.reviewed = !sentence.reviewed;
     localGroups = [...localGroups];
-    markDirty(sentence.anchor);
+    refreshDirty(sentence.anchor, sentence.hangeul, sentence.reviewed);
   }
 
-  function handleHangeulInput(group: Group, sentence: Sentence, ev: Event) {
+  function handleHangeulInput(_group: Group, sentence: Sentence, ev: Event) {
     const t = (ev.target as HTMLTextAreaElement).value;
     sentence.hangeul = t;
     localGroups = [...localGroups];
-    markDirty(sentence.anchor);
+    refreshDirty(sentence.anchor, sentence.hangeul, sentence.reviewed);
   }
 
   function handleHangeulBlur(_group: Group, _sentence: Sentence) {
@@ -205,6 +234,8 @@
         for (const k of Object.keys(saveError)) if (alive.has(k)) cleanErr[k] = saveError[k];
         saveState = cleanSave;
         saveError = cleanErr;
+        // 액션 후의 vault 상태를 새 snapshot으로 (다음 dirty 판정 기준)
+        rebuildSnapshot();
       }
       // 기존 액션 상태 표시는 cleanup (해당 anchor가 사라졌을 수 있음)
       delete actionStatus[anchor];
