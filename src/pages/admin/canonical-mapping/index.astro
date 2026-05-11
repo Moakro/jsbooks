@@ -1,7 +1,7 @@
 ---
 import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
-import { parseVerses } from "../../../lib/verse-parser";
+import { parseSentencesFlat } from "../../../lib/verse-parser";
 import { getAllMappings } from "../../../lib/canonical-mapping";
 import AdminGate from "../../../components/AdminGate.astro";
 
@@ -20,7 +20,7 @@ type ChapStat = {
 const chapters: ChapStat[] = [];
 for (const e of canon) {
   if (!e.data.권 || !e.data.장) continue;
-  const verses = parseVerses(e.body ?? "");
+  const verses = parseSentencesFlat(e.body ?? "");
   let mapped = 0;
   for (const v of verses) {
     const m = mapping.verses[v.id];
