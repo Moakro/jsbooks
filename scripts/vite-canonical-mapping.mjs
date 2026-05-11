@@ -590,30 +590,54 @@ async function handleMergeWithPrev(body) {
   if (idx === 0) throw new Error("cannot merge first sentence with prev");
   const prev = sentences[idx - 1];
   const cur = sentences[idx];
+  const prevParts = getAnchorParts(prev.anchor);
+  const curParts = getAnchorParts(cur.anchor);
+  if (prevParts.subs.length > 0 || curParts.subs.length > 0) {
+    throw new Error("sub-anchor (X-Y-Z.N) merge는 미지원 — 컨테이너 anchor만 합치기 가능");
+  }
 
-  // hanja: prev.text += " " + cur.text; remove cur
+  // hanja: prev.text += " " + cur.text; cur 제거; cur 이후 같은 장 anchor -1 시프트
   const merged = `${prev.text} ${cur.text}`.replace(/\s+/g, " ").trim();
-  const newSentences = sentences.slice();
-  newSentences[idx - 1] = { ...prev, text: merged };
-  newSentences.splice(idx, 1);
+  const newSentences = sentences
+    .map((s, i) => {
+      if (i === idx - 1) return { ...prev, text: merged };
+      if (i === idx) return null;
+      if (sameChapterAndAfter(s.anchor, cur.anchor)) {
+        return { ...s, anchor: shiftAnchorSentBy(s.anchor, -1) };
+      }
+      return s;
+    })
+    .filter(Boolean);
   const newHanjaBody = rebuildHanjaMarkdown(ctx.hanjaBody, newSentences);
 
-  // mapping JSON: prev.hangeul += " " + cur.hangeul; delete cur key
+  // mapping JSON: prev에 hangeul 합치고 cur 키 삭제 + cur 이후 키 -1 시프트
   const mapping = await loadMapping();
   const prevM = mapping.verses[prev.anchor];
   const curM = mapping.verses[cur.anchor];
-  if (prevM || curM) {
-    const prevH = prevM?.hangeul ?? "";
-    const curH = curM?.hangeul ?? "";
-    const mergedH = `${prevH} ${curH}`.replace(/\s+/g, " ").trim();
-    mapping.verses[prev.anchor] = {
-      hangeul: mergedH,
-      reviewed: !!(prevM?.reviewed && curM?.reviewed),
-    };
-    delete mapping.verses[cur.anchor];
+  const prevH = prevM?.hangeul ?? "";
+  const curH = curM?.hangeul ?? "";
+  const mergedH = `${prevH} ${curH}`.replace(/\s+/g, " ").trim();
+  const mergedEntry = (mergedH || prevM?.reviewed || curM?.reviewed)
+    ? { hangeul: mergedH, reviewed: !!(prevM?.reviewed && curM?.reviewed) }
+    : null;
+  const shiftedVerses = {};
+  for (const [k, v] of Object.entries(mapping.verses)) {
+    if (k === cur.anchor) continue; // 합쳐졌으므로 cur 키 삭제
+    if (k === prev.anchor) {
+      if (mergedEntry) shiftedVerses[prev.anchor] = mergedEntry;
+      continue;
+    }
+    if (sameChapterAndAfter(k, cur.anchor)) {
+      shiftedVerses[shiftAnchorSentBy(k, -1)] = v;
+    } else {
+      shiftedVerses[k] = v;
+    }
   }
+  // prev가 기존 mapping에 없었지만 cur에 매핑이 있던 케이스 — merge 결과를 prev에 새로 부여
+  if (!shiftedVerses[prev.anchor] && mergedEntry) shiftedVerses[prev.anchor] = mergedEntry;
+  mapping.verses = shiftedVerses;
 
-  // 한글본 백업: prev 본문에 cur 본문 합치고 cur 헤딩 제거 + N 시프트 (cur 이후 N -1)
+  // 한글본 백업: prev 본문에 cur 본문 합치고 cur 헤딩 제거 + cur 이후 anchor·num -1 시프트
   let newHangeulBody = ctx.hangeulBody;
   if (ctx.hangeulPath_exists) {
     const parsed = parseHangeulBackup(ctx.hangeulBody);
@@ -632,10 +656,14 @@ async function handleMergeWithPrev(body) {
           if (it.anchor === prev.anchor) {
             return { num: it.num, anchor: it.anchor, bodyText: `${prevBody}\n\n${curBody}`.trim() };
           }
-          // cur 이후의 절은 num -1
           const bodyText = parsed.lines.slice(it.bodyStart, it.bodyEnd + 1).join("\n").trim();
-          const shiftedNum = it.num > curItem.num ? it.num - 1 : it.num;
-          return { num: shiftedNum, anchor: it.anchor, bodyText };
+          let newAnchor = it.anchor;
+          let newNum = it.num;
+          if (sameChapterAndAfter(it.anchor, cur.anchor)) {
+            newAnchor = shiftAnchorSentBy(it.anchor, -1);
+            newNum = it.num - 1;
+          }
+          return { num: newNum, anchor: newAnchor, bodyText };
         });
       newHangeulBody = rebuildHangeulBackup(ctx.hangeulBody, newItems);
     }
