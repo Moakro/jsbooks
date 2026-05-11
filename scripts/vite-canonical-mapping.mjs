@@ -394,6 +394,7 @@ function renderHanjaParagraph(text, anchor, isVerse) {
 /** 한자 markdown frontmatter 유지 + 새 sentence 배열로 body 재구성. */
 function rebuildHanjaMarkdown(originalBody, newSentences) {
   // # N장 (또는 # 서) heading은 첫 sentence 전에 한 번만.
+  // 본문 body는 frontmatter 다음에 빈 줄로 시작 — 원본과 동일한 leading newline 유지.
   const lines = originalBody.split("\n");
   let headingLine = "";
   for (const ln of lines) {
@@ -402,7 +403,7 @@ function rebuildHanjaMarkdown(originalBody, newSentences) {
       break;
     }
   }
-  const out = [];
+  const out = [""]; // leading blank line (frontmatter 다음)
   if (headingLine) {
     out.push(headingLine);
     out.push("");
@@ -411,7 +412,7 @@ function rebuildHanjaMarkdown(originalBody, newSentences) {
     out.push(renderHanjaParagraph(s.text, s.anchor, s.isVerse));
     out.push("");
   }
-  while (out.length && out[out.length - 1] === "") out.pop();
+  while (out.length > 1 && out[out.length - 1] === "") out.pop();
   return out.join("\n") + "\n";
 }
 
@@ -479,6 +480,7 @@ function parseHangeulBackup(body) {
 }
 function rebuildHangeulBackup(originalBody, newItems) {
   // newItems: [{ num, anchor, bodyText }]. headingLine 유지 (frontmatter는 외부 처리).
+  // leading blank line (frontmatter 다음) 유지.
   const origLines = originalBody.split("\n");
   let headingLine = "";
   for (const ln of origLines) {
@@ -487,7 +489,7 @@ function rebuildHangeulBackup(originalBody, newItems) {
       break;
     }
   }
-  const out = [];
+  const out = [""];
   if (headingLine) {
     out.push(headingLine);
     out.push("");
@@ -500,7 +502,7 @@ function rebuildHangeulBackup(originalBody, newItems) {
       out.push("");
     }
   }
-  while (out.length && out[out.length - 1] === "") out.pop();
+  while (out.length > 1 && out[out.length - 1] === "") out.pop();
   return out.join("\n") + "\n";
 }
 

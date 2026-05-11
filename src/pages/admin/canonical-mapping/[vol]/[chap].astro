@@ -5,6 +5,7 @@ import { parseVerseGroups } from "../../../../lib/verse-parser";
 import { getRawMapping } from "../../../../lib/canonical-mapping";
 import AdminGate from "../../../../components/AdminGate.astro";
 import SentenceMappingEditor from "../../../../components/admin/SentenceMappingEditor.svelte";
+import AdminPreviewSidebar from "../../../../components/admin/AdminPreviewSidebar.svelte";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -82,9 +83,17 @@ const reviewedSentences = groups.reduce(
         {prev && <a href={`/admin/canonical-mapping/${vol}/${prev.data.장}/`}>← {prev.data.장}장</a>}
         {!prev && <span class="muted">←</span>}
         <span>·</span>
-        <a href={`/library/cheonjigaebyeokgyeong/${vol}/${chap}/`} target="_blank">공개 페이지 ↗</a>
+        <a
+          href={`/library/cheonjigaebyeokgyeong/${vol}/${chap}/`}
+          class="preview-link"
+          data-preview-title={`공개 페이지 — 권 ${vol} ${chap}장`}
+        >👁 공개 페이지</a>
         <span>·</span>
-        <a href={`/library/cheonjigaebyeokgyeong-hangeul/${vol}/${chap}/`} target="_blank">한글본 백업 ↗</a>
+        <a
+          href={`/library/cheonjigaebyeokgyeong-hangeul/${vol}/${chap}/`}
+          class="preview-link"
+          data-preview-title={`한글본 백업 — 권 ${vol} ${chap}장`}
+        >👁 한글본 백업</a>
         <span>·</span>
         {next && <a href={`/admin/canonical-mapping/${vol}/${next.data.장}/`}>{next.data.장}장 →</a>}
         {!next && <span class="muted">→</span>}
@@ -97,8 +106,27 @@ const reviewedSentences = groups.reduce(
     </p>
 
     <SentenceMappingEditor client:load groups={groups} vol={vol} chap={chap} />
+    <AdminPreviewSidebar client:load />
   </AdminGate>
 </Base>
+
+<script is:inline>
+  // .preview-link 클릭 → 새 탭 대신 어드민 사이드바 iframe으로 열기.
+  (function () {
+    document.addEventListener("click", (e) => {
+      const a = e.target instanceof Element ? e.target.closest("a.preview-link") : null;
+      if (!a) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return; // 새 탭 단축키는 그대로
+      const href = a.getAttribute("href");
+      const title = a.getAttribute("data-preview-title") || a.textContent || "";
+      if (!href) return;
+      const api = window.__adminPreview;
+      if (!api) return; // 사이드바 hydrate 전 — 폴백으로 그냥 이동
+      e.preventDefault();
+      api.open(href, title);
+    });
+  })();
+</script>
 
 <style>
   .hd { margin-bottom: 1rem; }

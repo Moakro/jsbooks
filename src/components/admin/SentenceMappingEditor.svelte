@@ -95,10 +95,22 @@
 
   function statusLabel(s: SaveState): string {
     if (s === "saving") return "저장 중…";
-    if (s === "saved") return "저장됨";
-    if (s === "dirty") return "변경 (포커스 빠지면 저장)";
-    if (s === "error") return "오류";
+    if (s === "saved") return "✓ 저장됨";
+    if (s === "dirty") return "● 변경됨 — 포커스 빠지면 자동 저장";
+    if (s === "error") return "⚠ 오류";
     return "";
+  }
+
+  // ─── textarea auto-grow ─────────────────────────────────────────────────
+  function autosize(ta: HTMLTextAreaElement) {
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  }
+  function autosizeInit(node: HTMLTextAreaElement) {
+    // 초기 마운트 시 1회 + 폰트 로드 후 한번 더 (한글 폰트 늦게 로드되면 height 부족 가능)
+    requestAnimationFrame(() => autosize(node));
+    setTimeout(() => autosize(node), 200);
+    return {};
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -236,7 +248,8 @@
 
 <div class="editor">
   <p class="legend">
-    각 한자 문장에 대응하는 한글 본문을 입력하세요. 포커스가 빠지면 자동 저장 (Ctrl/⌘+S로 즉시 저장).
+    한글 textarea에 입력하면 textarea가 자동으로 늘어나고, 포커스가 빠지면 자동 저장됩니다 (Ctrl/⌘+S로 즉시 저장).
+    상태 라벨: <code class="lex">●</code> 변경 / <code class="lex">…</code> 저장 중 / <code class="lex">✓</code> 저장됨.
     <strong>검수 완료</strong>는 매핑 확정 표시. 액션 버튼은 한자 markdown + 매핑 JSON + 한글본 백업을 함께 수정합니다 (백업 자동).
   </p>
 
@@ -254,22 +267,23 @@
 
       {#each g.sentences as s, i (s.anchor)}
         <article class="sentence" class:unmapped={!s.hangeul} class:reviewed={s.reviewed} class:verse-mark={s.isVerse}>
-          <div class="anchor-col">
-            <code>^{s.anchor}</code>
-            <span class="ix">{i + 1}/{g.sentences.length}</span>
-            {#if s.isVerse}
-              <span class="vmark" title="시구 (blockquote)">📜</span>
-            {/if}
+          <div class="hanja">
+            <span class="anchor-pill" class:reviewed={s.reviewed} title={`${i + 1}/${g.sentences.length}`}>
+              <code>^{s.anchor}</code>
+              {#if s.isVerse}<span class="vmark" title="시구 (blockquote)">📜</span>{/if}
+            </span>
+            <span class="hanja-text">{s.hanja}</span>
           </div>
-          <div class="hanja">{s.hanja}</div>
           <div class="hangeul-wrap">
             <textarea
               data-anchor={s.anchor}
               value={s.hangeul}
-              on:input={(ev) => handleHangeulInput(g, s, ev)}
+              on:input={(ev) => { handleHangeulInput(g, s, ev); autosize(ev.currentTarget as HTMLTextAreaElement); }}
+              on:focus={(ev) => autosize(ev.currentTarget as HTMLTextAreaElement)}
               on:blur={() => handleHangeulBlur(g, s)}
+              use:autosizeInit
               placeholder="한글 번역을 입력…"
-              rows={Math.max(2, Math.ceil(s.hangeul.length / 60) || 2)}
+              rows={2}
             ></textarea>
             <div class="row-foot">
               <label class="reviewed-toggle">
@@ -280,7 +294,13 @@
                 />
                 검수 완료
               </label>
-              <span class="status" class:ok={saveState[s.anchor] === "saved"} class:err={saveState[s.anchor] === "error"}>
+              <span
+                class="status"
+                class:dirty={saveState[s.anchor] === "dirty"}
+                class:saving={saveState[s.anchor] === "saving"}
+                class:ok={saveState[s.anchor] === "saved"}
+                class:err={saveState[s.anchor] === "error"}
+              >
                 {statusLabel(saveState[s.anchor] ?? "idle")}
               </span>
               {#if saveState[s.anchor] === "error"}
@@ -390,6 +410,13 @@
     font-size: 0.82rem;
     color: var(--color-muted);
   }
+  .legend .lex {
+    padding: 0 0.25rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-rule);
+    border-radius: 3px;
+    font-size: 0.78rem;
+  }
   .group {
     border: 1px solid var(--color-rule);
     border-radius: 8px;
@@ -420,7 +447,7 @@
   }
   .sentence {
     display: grid;
-    grid-template-columns: 7em 1fr 1.2fr;
+    grid-template-columns: 1fr 1.2fr;
     gap: 0.7rem;
     padding: 0.65rem 0.85rem;
     border-top: 1px solid var(--color-rule);
@@ -432,43 +459,53 @@
     border-left: 4px solid var(--color-secondary);
     padding-left: 0.55rem;
   }
-  .sentence.reviewed .anchor-col code {
-    background: var(--color-primary);
-    color: var(--color-bg);
-    border-color: var(--color-primary);
-  }
-  .anchor-col {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    font-family: ui-monospace, monospace;
-    font-size: 0.75rem;
-    color: var(--color-muted);
-  }
-  .anchor-col code {
-    padding: 0.1rem 0.3rem;
-    border: 1px solid var(--color-rule);
-    border-radius: 3px;
-    background: var(--color-bg);
-  }
-  .anchor-col .ix { font-size: 0.68rem; color: var(--color-muted); }
-  .anchor-col .vmark { font-size: 0.85rem; }
   .hanja {
+    position: relative;
     background: #e8d8b8;
     color: #2a221a;
-    padding: 0.5rem 0.7rem;
+    padding: 1.6rem 0.7rem 0.55rem;
     border-radius: 5px;
     font-size: 0.92em;
     line-height: 1.65;
   }
+  .anchor-pill {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-family: ui-monospace, monospace;
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--color-primary);
+    padding: 0.12rem 0.4rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.6);
+  }
+  .anchor-pill code {
+    background: transparent;
+    padding: 0;
+    border: 0;
+    font-size: inherit;
+  }
+  .anchor-pill.reviewed {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    border-color: var(--color-primary);
+  }
+  .anchor-pill .vmark { font-size: 0.78rem; }
+  .hanja-text { display: block; }
   @media (prefers-color-scheme: dark) {
     .hanja { background: #2c2418; color: #f0e6d0; }
+    .anchor-pill { background: rgba(0, 0, 0, 0.3); }
     .sentence.unmapped { background: #382c1a; }
   }
   .hangeul-wrap { display: flex; flex-direction: column; gap: 0.3rem; }
   textarea {
     width: 100%;
-    min-height: 3.5em;
+    min-height: 3.2em;
     padding: 0.45rem 0.6rem;
     border: 1px solid var(--color-rule);
     border-radius: 5px;
@@ -477,7 +514,9 @@
     font: inherit;
     font-size: 0.93rem;
     line-height: 1.6;
-    resize: vertical;
+    resize: none;
+    overflow: hidden;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
   }
   textarea:focus {
     outline: none;
@@ -498,9 +537,18 @@
     cursor: pointer;
     color: var(--color-fg);
   }
-  .status { color: var(--color-muted); font-variant-numeric: tabular-nums; }
-  .status.ok { color: var(--color-secondary); }
-  .status.err { color: var(--color-primary); }
+  .status {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.74rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .status.dirty { color: #b45309; background: rgba(180, 83, 9, 0.1); }
+  .status.saving { color: var(--color-secondary); background: var(--color-secondary-bg); }
+  .status.ok { color: var(--color-secondary); background: var(--color-secondary-bg); font-weight: 600; }
+  .status.err { color: var(--color-primary); background: var(--color-primary-bg); font-weight: 600; }
   .err-msg { color: var(--color-primary); font-size: 0.74rem; }
 
   .actions {
