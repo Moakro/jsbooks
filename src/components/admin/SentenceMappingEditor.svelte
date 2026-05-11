@@ -196,6 +196,15 @@
           num: g.num,
           sentences: g.sentences.map((s) => ({ ...s })),
         }));
+        // 새 anchor 집합에 없는 saveState·saveError 항목 제거 (dirty 잔여 방지)
+        const alive = new Set<string>();
+        for (const g of localGroups) for (const s of g.sentences) alive.add(s.anchor);
+        const cleanSave: typeof saveState = {};
+        const cleanErr: typeof saveError = {};
+        for (const k of Object.keys(saveState)) if (alive.has(k)) cleanSave[k] = saveState[k];
+        for (const k of Object.keys(saveError)) if (alive.has(k)) cleanErr[k] = saveError[k];
+        saveState = cleanSave;
+        saveError = cleanErr;
       }
       // 기존 액션 상태 표시는 cleanup (해당 anchor가 사라졌을 수 있음)
       delete actionStatus[anchor];
@@ -491,31 +500,32 @@
     gap: 1.2rem;
   }
   .toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 4;
+    position: fixed;
+    top: 0.7rem;
+    right: 1rem;
+    z-index: 50;
     display: flex;
     align-items: center;
-    gap: 0.7rem;
-    padding: 0.5rem 0.8rem;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
     background: var(--color-bg);
     border: 1px solid var(--color-rule);
-    border-radius: 6px;
-    margin-bottom: -0.4rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    font-size: 0.85rem;
   }
   .toolbar.has-dirty {
     border-color: var(--color-primary);
     background: var(--color-primary-bg, #fbeae6);
   }
   .save-all {
-    padding: 0.45rem 0.95rem;
+    padding: 0.35rem 0.85rem;
     border: 1px solid var(--color-rule);
-    border-radius: 6px;
+    border-radius: 999px;
     background: var(--color-surface-2);
     color: var(--color-muted);
     cursor: not-allowed;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 600;
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   }
@@ -533,7 +543,13 @@
   }
   .toolbar-hint {
     color: var(--color-muted);
-    font-size: 0.85rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  /* 모바일에서는 hint 숨김 (버튼만) */
+  @media (max-width: 640px) {
+    .toolbar-hint { display: none; }
+    .toolbar { top: 0.5rem; right: 0.5rem; }
   }
   .legend {
     margin: 0 0 0.4rem;
