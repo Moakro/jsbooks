@@ -251,6 +251,8 @@ const historyPath = `content/scripture/${entry.id}.md`;
     border-radius: 5px;
     font-size: 0.92em;
     line-height: 1.7;
+    /* 사용자가 어드민 textarea에 입력한 줄바꿈 보존 (markdown 단일 \n → CSS로 줄바꿈) */
+    white-space: pre-line;
     max-height: 4000px;
     opacity: 1;
     overflow: hidden;
