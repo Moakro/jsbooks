@@ -71,10 +71,13 @@ async function backup(p) {
 }
 async function readBody(req) {
   return new Promise((resolve, reject) => {
-    let data = "";
-    req.on("data", (c) => (data += c));
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
       try {
+        // Buffer를 모은 후 한 번에 utf8 디코딩 — multi-byte 문자(한자/한글)가
+        // chunk 경계에 걸려 `<U+FFFD>` 깨짐 방지.
+        const data = Buffer.concat(chunks).toString("utf8");
         resolve(data ? JSON.parse(data) : {});
       } catch (e) {
         reject(e);
