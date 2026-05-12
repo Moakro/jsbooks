@@ -348,31 +348,37 @@
     gap: 0.4rem;
   }
   .toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 8;
+    position: fixed;
+    top: 0.7rem;
+    right: 1rem;
+    z-index: 50;
     display: flex;
     align-items: center;
-    gap: 0.7rem;
-    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+    padding: 0.4rem 0.65rem;
     background: var(--color-bg, #fbf8f4);
     border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 6px;
-    margin-bottom: 0.3rem;
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    font-size: 0.85rem;
   }
   .toolbar.has-dirty {
     border-color: var(--color-primary);
-    box-shadow: 0 1px 8px rgba(168, 53, 42, 0.18);
+    box-shadow: 0 2px 10px rgba(168, 53, 42, 0.22);
   }
   .save-all {
-    padding: 0.4rem 0.95rem;
+    padding: 0.35rem 0.9rem;
     border: 1px solid var(--color-rule);
-    border-radius: 5px;
+    border-radius: 999px;
     background: var(--color-bg);
     color: var(--color-fg);
     cursor: pointer;
     font-weight: 600;
     font-size: 0.88rem;
+  }
+  @media (max-width: 640px) {
+    .toolbar { top: 0.5rem; right: 0.5rem; }
+    .toolbar-hint, .toolbar-meta { display: none; }
   }
   .save-all.active {
     background: var(--color-primary);
