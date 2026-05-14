@@ -87,7 +87,8 @@ function backlinkHref(b: Backlink): string {
     }
     return `/library/${b.scriptureSlug}/${anchor}`;
   }
-  return `/library/${b.kind}/${encodeURIComponent(b.slug)}/`;
+  // 자료 카드(인물·지명·도수·용어·시기)는 /archive/ 섹션 (commit e6ec2d0 이후)
+  return `/archive/${b.kind}/${encodeURIComponent(b.slug)}/`;
 }
 
 function extractMeta(data: any, kind: Kind): { label: string; value: string }[] {
