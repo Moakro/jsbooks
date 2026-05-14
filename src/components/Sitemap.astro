@@ -13,11 +13,18 @@
 import { getCollection } from "astro:content";
 import Icon from "./Icon.svelte";
 
-type ScriptureEntry = { slug: string; label: string };
-const SCRIPTURE_ORDER: ScriptureEntry[] = [
-  { slug: "cheonjigaebyeokgyeong", label: "천지개벽경" },
-  { slug: "donggokbiseo", label: "동곡비서" },
-  { slug: "hwaeundang-silgi", label: "화은당실기" },
+// 경전 카탈로그 (WikiHome.astro와 동일 데이터 — _meta.md collection 도입 전까지 hardcode).
+type ScriptureCard = {
+  slug: string;
+  name: string;
+  hanja: string;
+  editor: string;
+  year: number;
+};
+const SCRIPTURE_ORDER: ScriptureCard[] = [
+  { slug: "cheonjigaebyeokgyeong", name: "천지개벽경", hanja: "天地開闢經", editor: "이중성", year: 1946 },
+  { slug: "donggokbiseo", name: "동곡비서", hanja: "銅谷秘書", editor: "이춘풍", year: 1990 },
+  { slug: "hwaeundang-silgi", name: "화은당실기", hanja: "華恩堂實記", editor: "김병철", year: 1960 },
 ];
 
 // 등록된 경전만 노출 (콘텐츠 collection에서 prefix가 발견되는 것)
@@ -28,13 +35,21 @@ for (const e of all) {
   const slug = slash > 0 ? e.id.slice(0, slash) : e.id;
   presentSlugs.add(slug);
 }
-const scriptures = SCRIPTURE_ORDER.filter((s) => presentSlugs.has(s.slug));
+const scriptures = SCRIPTURE_ORDER
+  .filter((s) => presentSlugs.has(s.slug))
+  .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
+type SitemapCard = {
+  label: string;
+  href: string;
+  note?: string;
+  placeholder?: boolean;
+};
 type SitemapSection = {
   slug: string;
   label: string;
   href: string;
-  cards: { label: string; href: string; note?: string; placeholder?: boolean }[];
+  cards?: SitemapCard[];
 };
 
 const SECTIONS: SitemapSection[] = [
@@ -42,7 +57,7 @@ const SECTIONS: SitemapSection[] = [
     slug: "scripture",
     label: "서재",
     href: "/library/",
-    cards: scriptures.map((s) => ({ label: s.label, href: `/library/${s.slug}/` })),
+    // cards 비워두고 별도 markup으로 경전 카드 렌더 (scriptures 변수 사용)
   },
   {
     slug: "archive",
@@ -99,12 +114,28 @@ const SECTIONS: SitemapSection[] = [
         </span>
       </a>
       <div class="sm-grid" data-section={sec.slug}>
-        {sec.cards.map((c) => (
-          <a class:list={["sm-card", { placeholder: c.placeholder }]} href={c.href}>
-            <span class="sm-card-label">{c.label}</span>
-            {c.note && <span class="sm-card-note">{c.note}</span>}
-          </a>
-        ))}
+        {sec.slug === "scripture" ? (
+          scriptures.map((s) => (
+            <a class="sm-card sm-card-scripture" href={`/library/${s.slug}/`}>
+              <span class="sc-title">
+                <span class="sc-name">{s.name}</span>
+                <span class="sc-hanja">{s.hanja}</span>
+              </span>
+              <span class="sc-meta">
+                <span>{s.editor}</span>
+                <span class="sc-dot" aria-hidden="true">·</span>
+                <span>{s.year}</span>
+              </span>
+            </a>
+          ))
+        ) : (
+          sec.cards?.map((c) => (
+            <a class:list={["sm-card", { placeholder: c.placeholder }]} href={c.href}>
+              <span class="sm-card-label">{c.label}</span>
+              {c.note && <span class="sm-card-note">{c.note}</span>}
+            </a>
+          ))
+        )}
       </div>
     </section>
   ))}
@@ -195,5 +226,41 @@ const SECTIONS: SitemapSection[] = [
   }
   .sm-card.placeholder .sm-card-label {
     font-weight: 500;
+  }
+
+  /* 경전 카드 — 한글명·한자명·편자·연도 노출 */
+  .sm-card-scripture {
+    padding: 0.8rem 1rem;
+    gap: 0.3rem;
+  }
+  .sc-title {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+  .sc-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--color-fg, #1f1c1a);
+    line-height: 1.25;
+  }
+  .sc-hanja {
+    font-size: 0.85rem;
+    color: var(--color-muted, #8a807a);
+    font-weight: 400;
+  }
+  .sc-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    color: var(--color-muted, #8a807a);
+  }
+  .sc-dot {
+    color: var(--color-disabled, #b8b0aa);
+  }
+  .sm-card-scripture:hover .sc-name {
+    color: var(--color-primary, #a8352a);
   }
 </style>
