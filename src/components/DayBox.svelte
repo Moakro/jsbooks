@@ -96,18 +96,32 @@
     text-decoration: none;
     color: rgba(255, 255, 255, 0.92);
     overflow: hidden;
-    box-shadow: var(--shadow-sm, 0 1px 3px rgba(60, 40, 25, 0.08));
+    box-shadow:
+      0 2px 6px rgba(60, 40, 25, 0.1),
+      0 8px 24px rgba(60, 40, 25, 0.08);
     transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
   @media (prefers-color-scheme: dark) {
     .daybox {
       background: linear-gradient(120deg, #3a1d18 0%, #143030 100%);
       border-color: rgba(255, 255, 255, 0.06);
+      box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.3),
+        0 8px 24px rgba(0, 0, 0, 0.4);
     }
   }
   .daybox:hover {
     transform: translateY(-1px);
-    box-shadow: var(--shadow-md, 0 4px 12px rgba(60, 40, 25, 0.1));
+    box-shadow:
+      0 4px 10px rgba(60, 40, 25, 0.14),
+      0 12px 32px rgba(60, 40, 25, 0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    .daybox:hover {
+      box-shadow:
+        0 4px 10px rgba(0, 0, 0, 0.4),
+        0 12px 32px rgba(0, 0, 0, 0.5);
+    }
   }
   .left {
     flex: 1;

@@ -42,11 +42,11 @@ function shortDate(iso: string): string {
 <section class="changelog">
   <header>
     <span class="ico" aria-hidden="true"><Icon icon="pencil-line" size={18} /></span>
-    <h2>최근 경전 작업 이력</h2>
+    <h2>Changelog</h2>
     <span class="meta">최근 {recent.length}건</span>
   </header>
   {recent.length === 0 ? (
-    <p class="muted">공개된 작업 이력이 아직 없습니다.</p>
+    <p class="muted">표시할 변경 사항이 아직 없습니다.</p>
   ) : (
     <ol>
       {recent.map((r) => (
@@ -61,11 +61,14 @@ function shortDate(iso: string): string {
 
 <style>
   .changelog {
-    background: var(--color-bg, #fbf8f4);
+    background: linear-gradient(180deg, #ffffff 0%, var(--color-bg, #fbf8f4) 100%);
     border: 1px solid var(--color-rule, #e8dfd9);
     border-radius: 10px;
     padding: 1rem 1.2rem 1.1rem;
     margin: 0 0 1rem;
+    box-shadow:
+      0 1px 2px rgba(60, 40, 25, 0.04),
+      0 2px 8px rgba(60, 40, 25, 0.06);
   }
   .changelog header {
     display: flex;
