@@ -35,11 +35,11 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       type: "section",
       label: "자료",
       items: [
-        { label: "인물", path: "/library/people/" },
-        { label: "지명", path: "/library/places/" },
-        { label: "도수", path: "/library/dosu/" },
-        { label: "용어", path: "/library/terms/" },
-        { label: "시기", path: "/library/dates/" },
+        { label: "인물", path: "/archive/people/" },
+        { label: "지명", path: "/archive/places/" },
+        { label: "도수", path: "/archive/dosu/" },
+        { label: "용어", path: "/archive/terms/" },
+        { label: "시기", path: "/archive/dates/" },
       ],
     },
     {
@@ -51,16 +51,16 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
     },
   ],
 
-  reference: [
+  archive: [
     {
       type: "section",
       label: "자료",
       items: [
-        { label: "인물", path: "/library/people/" },
-        { label: "지명", path: "/library/places/" },
-        { label: "도수", path: "/library/dosu/" },
-        { label: "용어", path: "/library/terms/" },
-        { label: "시기", path: "/library/dates/" },
+        { label: "인물", path: "/archive/people/" },
+        { label: "지명", path: "/archive/places/" },
+        { label: "도수", path: "/archive/dosu/" },
+        { label: "용어", path: "/archive/terms/" },
+        { label: "시기", path: "/archive/dates/" },
       ],
     },
   ],

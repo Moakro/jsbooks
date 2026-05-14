@@ -81,7 +81,8 @@
   });
 
   function hrefToCardRef(href: string): { kind: string; slug: string } | null {
-    const m = href.match(/^\/library\/(people|places|dosu|terms|dates)\/([^/]+)\/?$/);
+    // 카드는 /archive/ 섹션. 옛 /library/ URL도 호환 (잔존 페이지·외부 링크 대비)
+    const m = href.match(/^\/(?:archive|library)\/(people|places|dosu|terms|dates)\/([^/]+)\/?$/);
     if (!m) return null;
     return { kind: m[1], slug: decodeURIComponent(m[2]) };
   }

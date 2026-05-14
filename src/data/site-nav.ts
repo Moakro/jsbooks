@@ -1,5 +1,5 @@
 /**
- * Top header navigation — 3 site sections.
+ * Top header navigation — site sections.
  *
  * Order can be reshuffled later as the site matures (e.g. once user activity
  * grows, the operator may move "피드" or "소식" to the front).
@@ -10,7 +10,7 @@
 export type SectionSlug =
   | "home"
   | "scripture"
-  | "reference"
+  | "archive"
   | "news"
   | "feed"
   | "calendar"
@@ -43,26 +43,16 @@ export const HEADER_NAV: SectionDef[] = [
     slug: "scripture",
     label: "서재",
     href: "/library/",
-    // 경전 본문 prefix만. `/library/` root(catalog)는 resolveSection 별도 처리.
-    prefixes: [
-      "/library/cheonjigaebyeokgyeong",
-      "/library/cheonjigaebyeokgyeong-hangeul",
-      "/library/donggokbiseo",
-      "/library/hwaeundang-silgi",
-    ],
+    // 경전 본문만 — 자료(인물/지명/도수/용어/시기)는 /archive/로 분리됨.
+    // /library/ root(catalog)는 resolveSection이 별도로 scripture로 분류.
+    prefixes: ["/library/"],
   },
   {
-    slug: "reference",
+    slug: "archive",
     label: "자료",
-    href: "/library/people/",
-    // 카드 도서관 (인물·지명·도수·용어·시기) — 자료 섹션.
-    prefixes: [
-      "/library/people",
-      "/library/places",
-      "/library/dosu",
-      "/library/terms",
-      "/library/dates",
-    ],
+    // 도판 전반 데이터 — 현재는 인물/지명/도수/용어/시기. 향후 교단·주문 등 확장 여지.
+    href: "/archive/people/",
+    prefixes: ["/archive/"],
   },
   {
     slug: "feed",
@@ -103,8 +93,6 @@ export const ADMIN_SECTION: SectionDef = {
 /** Resolve which section a URL path belongs to (or null for fully neutral pages). */
 export function resolveSection(pathname: string): SectionSlug | null {
   if (pathname === "/") return "home";
-  // /library/ root (catalog) — 경전 본문/카드 어느 specific prefix에도 매칭 X. 서재로 fallback.
-  if (pathname === "/library/" || pathname === "/library") return "scripture";
   for (const def of HEADER_NAV) {
     if (def.prefixes.some((p) => pathname.startsWith(p))) return def.slug;
   }

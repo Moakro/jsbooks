@@ -24,7 +24,8 @@ function hrefFor(b: Backlink): string {
     }
     return `/library/${b.scriptureSlug}/${anchor}`;
   }
-  return `/library/${b.kind}/${encodeURIComponent(b.slug)}/`;
+  // 카드 kind(인물·지명·도수·용어·시기)는 /archive/ 섹션.
+  return `/archive/${b.kind}/${encodeURIComponent(b.slug)}/`;
 }
 ---
 
