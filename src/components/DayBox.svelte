@@ -41,7 +41,7 @@
   }
 </script>
 
-<a class="daybox" href="/calendar/" aria-label="달력 페이지로 이동">
+<div class="daybox">
   {#if info}
     <div class="left">
       <div class="row top">
@@ -82,7 +82,7 @@
       </div>
     {/if}
   {/if}
-</a>
+</div>
 
 <style>
   .daybox {
@@ -99,7 +99,6 @@
     box-shadow:
       0 2px 6px rgba(60, 40, 25, 0.1),
       0 8px 24px rgba(60, 40, 25, 0.08);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
   @media (prefers-color-scheme: dark) {
     .daybox {
@@ -108,19 +107,6 @@
       box-shadow:
         0 2px 6px rgba(0, 0, 0, 0.3),
         0 8px 24px rgba(0, 0, 0, 0.4);
-    }
-  }
-  .daybox:hover {
-    transform: translateY(-1px);
-    box-shadow:
-      0 4px 10px rgba(60, 40, 25, 0.14),
-      0 12px 32px rgba(60, 40, 25, 0.12);
-  }
-  @media (prefers-color-scheme: dark) {
-    .daybox:hover {
-      box-shadow:
-        0 4px 10px rgba(0, 0, 0, 0.4),
-        0 12px 32px rgba(0, 0, 0, 0.5);
     }
   }
   .left {

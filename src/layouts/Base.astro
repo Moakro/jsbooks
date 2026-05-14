@@ -5,6 +5,10 @@ import AuthLink from "../components/AuthLink.svelte";
 import ConfirmDialog from "../components/ConfirmDialog.svelte";
 import Sidebar from "../components/Sidebar.astro";
 import { HEADER_NAV, resolveSection } from "../data/site-nav";
+
+// 헤더에 노출할 섹션 — `calendar`는 데이터 로직 정비 전까지 메뉴에서 임시 제외.
+// (HEADER_NAV 자체는 유지: /calendar/ 직접 접근 시 resolveSection·사이드바는 계속 작동)
+const VISIBLE_NAV = HEADER_NAV.filter((s) => s.slug !== "calendar");
 import { shouldShowSidebar } from "../data/sidebar-nav";
 
 interface Props {
@@ -46,7 +50,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       <div class="header-row top">
         <a href="/" class="brand"><span class="brand-js">JS</span><span class="brand-books">Books</span></a>
         <nav class="nav-inline">
-          {HEADER_NAV.map((s) => (
+          {VISIBLE_NAV.map((s) => (
             <a href={s.href} class:list={[{ active: activeSection === s.slug }]}>{s.label}</a>
           ))}
         </nav>
@@ -67,7 +71,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
           </button>
         )}
         <div class="nav-scroll">
-          {HEADER_NAV.map((s) => (
+          {VISIBLE_NAV.map((s) => (
             <a href={s.href} class:list={[{ active: activeSection === s.slug }]}>{s.label}</a>
           ))}
         </div>
