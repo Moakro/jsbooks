@@ -7,8 +7,10 @@
     | "pencil-line"
     | "settings"
     | "sun"
+    | "moon"
     | "cloud"
     | "cloud-sun"
+    | "cloud-moon"
     | "cloud-rain"
     | "cloud-drizzle"
     | "cloud-snow"
@@ -79,6 +81,8 @@
     <path d="M20 12h2" />
     <path d="m6.34 17.66-1.41 1.41" />
     <path d="m19.07 4.93-1.41 1.41" />
+  {:else if icon === "moon"}
+    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
   {:else if icon === "cloud"}
     <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
   {:else if icon === "cloud-sun"}
@@ -87,6 +91,9 @@
     <path d="M20 12h2" />
     <path d="m19.07 4.93-1.41 1.41" />
     <path d="M15.947 12.65a4 4 0 0 0-5.925-4.128" />
+    <path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z" />
+  {:else if icon === "cloud-moon"}
+    <path d="M10.083 9A6.002 6.002 0 0 1 16 4a4.243 4.243 0 0 0 6 6c0 2.7-1.78 4.99-4.276 5.756" />
     <path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z" />
   {:else if icon === "cloud-rain"}
     <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />

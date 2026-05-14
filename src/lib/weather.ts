@@ -11,8 +11,10 @@
 
 export type WeatherIconName =
   | "sun"
+  | "moon"
   | "cloud"
   | "cloud-sun"
+  | "cloud-moon"
   | "cloud-rain"
   | "cloud-drizzle"
   | "cloud-snow"
@@ -24,6 +26,7 @@ export type WeatherSnapshot = {
   label: string;       // 맑음 / 구름 / 흐림 / 안개 / 비 / 눈 / 천둥 ...
   tempC: number;       // current temperature, rounded to int
   region: string;      // 서울
+  isDay: boolean;      // true=낮, false=밤 — 아이콘 sun↔moon 분기에 사용
   fetchedAt: number;   // ms epoch
 };
 
@@ -33,7 +36,8 @@ const DEFAULT_LOC = {
   region: "서울",
 };
 
-const CACHE_KEY = "jsbooks:weather:v1";
+// v2: isDay 필드 + moon/cloud-moon 아이콘 추가로 schema 변경. 옛 v1 캐시 자동 무효화.
+const CACHE_KEY = "jsbooks:weather:v2";
 const TTL_MS = 30 * 60 * 1000;
 
 function readCache(): WeatherSnapshot | null {
@@ -57,11 +61,10 @@ function writeCache(s: WeatherSnapshot): void {
   }
 }
 
-/** Map WMO weather codes (https://open-meteo.com/en/docs) → icon. */
-function wmoToIcon(code: number): WeatherIconName {
-  if (code === 0) return "sun";
-  if (code === 1) return "cloud-sun";
-  if (code === 2) return "cloud-sun";
+/** Map WMO weather codes (https://open-meteo.com/en/docs) → icon. 낮/밤 분기 (0·1·2만). */
+function wmoToIcon(code: number, isDay: boolean): WeatherIconName {
+  if (code === 0) return isDay ? "sun" : "moon";
+  if (code === 1 || code === 2) return isDay ? "cloud-sun" : "cloud-moon";
   if (code === 3) return "cloud";
   if (code === 45 || code === 48) return "cloud-fog";
   if (code >= 51 && code <= 57) return "cloud-drizzle";
@@ -97,18 +100,27 @@ export async function getWeather(): Promise<WeatherSnapshot | null> {
     const url =
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${DEFAULT_LOC.lat}&longitude=${DEFAULT_LOC.lon}` +
-      `&current=temperature_2m,weather_code` +
+      `&current=temperature_2m,weather_code,is_day` +
       `&timezone=Asia%2FSeoul`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
     const code: number = data?.current?.weather_code ?? 3;
     const temp: number = data?.current?.temperature_2m ?? 0;
+    // is_day: 1=낮, 0=밤. 필드 누락 시 로컬 시각 fallback (6시~18시 = 낮).
+    const isDay: boolean =
+      typeof data?.current?.is_day === "number"
+        ? data.current.is_day === 1
+        : (() => {
+            const h = new Date().getHours();
+            return h >= 6 && h < 18;
+          })();
     const snap: WeatherSnapshot = {
-      iconName: wmoToIcon(code),
+      iconName: wmoToIcon(code, isDay),
       label: wmoToLabel(code),
       tempC: Math.round(temp),
       region: DEFAULT_LOC.region,
+      isDay,
       fetchedAt: Date.now(),
     };
     writeCache(snap);
