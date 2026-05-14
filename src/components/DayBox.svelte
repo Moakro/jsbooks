@@ -2,7 +2,9 @@
   import { onMount } from "svelte";
   import { getDayInfo, type DayInfo } from "../lib/date";
   import { getWeather, type WeatherSnapshot } from "../lib/weather";
+  import { moonPhaseFromLunarDay } from "../lib/moon";
   import Icon from "./Icon.svelte";
+  import MoonIcon from "./MoonIcon.svelte";
 
   let info = $state<DayInfo | null>(null);
   let weather = $state<WeatherSnapshot | null>(null);
@@ -74,7 +76,16 @@
     </div>
     {#if weather}
       <div class="right" aria-label="{weather.label} {weather.tempC}도, {weather.region}">
-        <Icon icon={weather.iconName} size={42} strokeWidth={1.6} />
+        {#if !weather.isDay && info?.lunar && weather.iconName === "moon"}
+          <!-- 청명한 밤 — 날씨 moon 아이콘 대신 음력 위상 달 표시 + 위상명 -->
+          {@const phase = moonPhaseFromLunarDay(info.lunar.day)}
+          <span class="moon-wrap">
+            <MoonIcon {phase} size={42} />
+            <span class="moon-phase-label">{phase.name}</span>
+          </span>
+        {:else}
+          <Icon icon={weather.iconName} size={42} strokeWidth={1.6} />
+        {/if}
         <div class="info">
           <div class="temp">{weather.tempC}°</div>
           <div class="region">{weather.region}</div>
@@ -129,6 +140,19 @@
   }
   .right :global(svg) {
     flex-shrink: 0;
+  }
+  .moon-wrap {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    flex-shrink: 0;
+  }
+  .moon-phase-label {
+    font-size: 0.66rem;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.02em;
+    line-height: 1;
   }
   .right .info {
     display: flex;
