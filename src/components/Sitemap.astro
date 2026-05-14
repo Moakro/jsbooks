@@ -1,0 +1,199 @@
+---
+/**
+ * 메인 페이지 사이트맵 — 헤더 nav 5섹션을 세로로 펼친 카드 grid.
+ *
+ * 위치: src/pages/index.astro 의 ScriptureChangelog 다음.
+ * 톤: 본 사이트 도판 톤 (베이지/진홍/muted) 일관.
+ *
+ * 데이터:
+ *   - 서재: scripture 컬렉션에서 등록된 경전 자동 추출 (이름·홈 URL)
+ *   - 자료: 5종 hardcode
+ *   - 피드·뉴스·달력: placeholder (실제 데이터 추후 별도 작업)
+ */
+import { getCollection } from "astro:content";
+import Icon from "./Icon.svelte";
+
+type ScriptureEntry = { slug: string; label: string };
+const SCRIPTURE_ORDER: ScriptureEntry[] = [
+  { slug: "cheonjigaebyeokgyeong", label: "천지개벽경" },
+  { slug: "donggokbiseo", label: "동곡비서" },
+  { slug: "hwaeundang-silgi", label: "화은당실기" },
+];
+
+// 등록된 경전만 노출 (콘텐츠 collection에서 prefix가 발견되는 것)
+const all = await getCollection("scripture");
+const presentSlugs = new Set<string>();
+for (const e of all) {
+  const slash = e.id.indexOf("/");
+  const slug = slash > 0 ? e.id.slice(0, slash) : e.id;
+  presentSlugs.add(slug);
+}
+const scriptures = SCRIPTURE_ORDER.filter((s) => presentSlugs.has(s.slug));
+
+type SitemapSection = {
+  slug: string;
+  label: string;
+  href: string;
+  cards: { label: string; href: string; note?: string; placeholder?: boolean }[];
+};
+
+const SECTIONS: SitemapSection[] = [
+  {
+    slug: "scripture",
+    label: "서재",
+    href: "/library/",
+    cards: scriptures.map((s) => ({ label: s.label, href: `/library/${s.slug}/` })),
+  },
+  {
+    slug: "archive",
+    label: "자료",
+    href: "/archive/people/",
+    cards: [
+      { label: "인물", href: "/archive/people/" },
+      { label: "지명", href: "/archive/places/" },
+      { label: "도수", href: "/archive/dosu/" },
+      { label: "용어", href: "/archive/terms/" },
+      { label: "시기", href: "/archive/dates/" },
+    ],
+  },
+  {
+    slug: "feed",
+    label: "피드",
+    href: "/feed/",
+    // TODO: D1에서 최근 활동 끌어오기. 우선 placeholder 3개.
+    cards: [
+      { label: "최근 댓글", href: "/feed/comments/", note: "데이터 준비 중", placeholder: true },
+      { label: "짧은 글", href: "/feed/posts/", note: "데이터 준비 중", placeholder: true },
+      { label: "답사기·사진", href: "/feed/visits/", note: "데이터 준비 중", placeholder: true },
+    ],
+  },
+  {
+    slug: "news",
+    label: "뉴스",
+    href: "/news/",
+    // TODO: content/news/ collection이 생기면 최신 3개 끌어오기.
+    cards: [
+      { label: "공지", href: "/news/category/notice/", note: "데이터 준비 중", placeholder: true },
+      { label: "업데이트", href: "/news/category/update/", note: "데이터 준비 중", placeholder: true },
+      { label: "릴리스", href: "/news/category/release/", note: "데이터 준비 중", placeholder: true },
+    ],
+  },
+  {
+    slug: "calendar",
+    label: "달력",
+    href: "/calendar/",
+    cards: [
+      { label: "오늘 ±7일 일정", href: "/calendar/", note: "데이터 준비 중", placeholder: true },
+    ],
+  },
+];
+---
+
+<nav class="sitemap" aria-label="사이트맵">
+  {SECTIONS.map((sec) => (
+    <section class="sm-section">
+      <a class="sm-head" href={sec.href}>
+        <span class="sm-label">{sec.label}</span>
+        <span class="sm-chev" aria-hidden="true">
+          <Icon icon="arrow-right" size={14} strokeWidth={1.7} />
+        </span>
+      </a>
+      <div class="sm-grid" data-section={sec.slug}>
+        {sec.cards.map((c) => (
+          <a class:list={["sm-card", { placeholder: c.placeholder }]} href={c.href}>
+            <span class="sm-card-label">{c.label}</span>
+            {c.note && <span class="sm-card-note">{c.note}</span>}
+          </a>
+        ))}
+      </div>
+    </section>
+  ))}
+</nav>
+
+<style>
+  .sitemap {
+    display: flex;
+    flex-direction: column;
+    gap: 1.8rem;
+    margin: 1rem 0;
+  }
+  .sm-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .sm-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    align-self: flex-start;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+    color: var(--color-primary, #a8352a);
+    font-weight: 600;
+    font-size: 1rem;
+    text-decoration: none;
+    transition: border-color 0.15s ease, color 0.15s ease, gap 0.15s ease;
+  }
+  .sm-head:hover {
+    border-color: var(--color-primary, #a8352a);
+    gap: 0.55rem;
+  }
+  .sm-chev {
+    display: inline-flex;
+    opacity: 0.7;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .sm-head:hover .sm-chev {
+    opacity: 1;
+    transform: translateX(2px);
+  }
+
+  .sm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.7rem;
+  }
+  /* 카드가 너무 적으면(예: 달력 1개) 좌측 정렬 유지하면서 너비 제한 */
+  .sm-grid[data-section="calendar"] {
+    grid-template-columns: minmax(180px, 340px);
+  }
+
+  .sm-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--color-rule, #e8dfd9);
+    border-radius: 6px;
+    background: var(--color-bg, #fbf8f4);
+    color: var(--color-fg, #1f1c1a);
+    text-decoration: none;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  }
+  .sm-card:hover {
+    border-color: var(--color-primary, #a8352a);
+    background: var(--color-primary-bg, #fbf3f1);
+    transform: translateY(-1px);
+  }
+  .sm-card.placeholder {
+    background: var(--color-surface-2, #f6efe9);
+    color: var(--color-muted, #8a807a);
+  }
+  .sm-card.placeholder:hover {
+    color: var(--color-fg, #1f1c1a);
+  }
+  .sm-card-label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1.3;
+  }
+  .sm-card-note {
+    font-size: 0.74rem;
+    color: var(--color-muted, #8a807a);
+    line-height: 1.4;
+  }
+  .sm-card.placeholder .sm-card-label {
+    font-weight: 500;
+  }
+</style>
