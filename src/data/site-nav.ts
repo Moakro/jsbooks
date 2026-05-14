@@ -7,7 +7,15 @@
  * The header uses `prefix` to highlight the active section: any URL starting
  * with one of these prefixes lights up the corresponding tab.
  */
-export type SectionSlug = "home" | "scripture" | "news" | "feed" | "calendar" | "account" | "admin";
+export type SectionSlug =
+  | "home"
+  | "scripture"
+  | "reference"
+  | "news"
+  | "feed"
+  | "calendar"
+  | "account"
+  | "admin";
 
 export interface SectionDef {
   slug: SectionSlug;
@@ -35,8 +43,26 @@ export const HEADER_NAV: SectionDef[] = [
     slug: "scripture",
     label: "서재",
     href: "/library/",
-    // /library/* covers scripture body, cards, and the catalog page.
-    prefixes: ["/library/"],
+    // 경전 본문 prefix만. `/library/` root(catalog)는 resolveSection 별도 처리.
+    prefixes: [
+      "/library/cheonjigaebyeokgyeong",
+      "/library/cheonjigaebyeokgyeong-hangeul",
+      "/library/donggokbiseo",
+      "/library/hwaeundang-silgi",
+    ],
+  },
+  {
+    slug: "reference",
+    label: "자료",
+    href: "/library/people/",
+    // 카드 도서관 (인물·지명·도수·용어·시기) — 자료 섹션.
+    prefixes: [
+      "/library/people",
+      "/library/places",
+      "/library/dosu",
+      "/library/terms",
+      "/library/dates",
+    ],
   },
   {
     slug: "feed",
@@ -77,6 +103,8 @@ export const ADMIN_SECTION: SectionDef = {
 /** Resolve which section a URL path belongs to (or null for fully neutral pages). */
 export function resolveSection(pathname: string): SectionSlug | null {
   if (pathname === "/") return "home";
+  // /library/ root (catalog) — 경전 본문/카드 어느 specific prefix에도 매칭 X. 서재로 fallback.
+  if (pathname === "/library/" || pathname === "/library") return "scripture";
   for (const def of HEADER_NAV) {
     if (def.prefixes.some((p) => pathname.startsWith(p))) return def.slug;
   }

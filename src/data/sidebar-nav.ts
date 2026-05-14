@@ -33,7 +33,7 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
     { type: "scriptures-list" },
     {
       type: "section",
-      label: "참조",
+      label: "자료",
       items: [
         { label: "인물", path: "/library/people/" },
         { label: "지명", path: "/library/places/" },
@@ -48,6 +48,20 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       path: "/account/library/",
       auth: true,
       icon: "settings",
+    },
+  ],
+
+  reference: [
+    {
+      type: "section",
+      label: "자료",
+      items: [
+        { label: "인물", path: "/library/people/" },
+        { label: "지명", path: "/library/places/" },
+        { label: "도수", path: "/library/dosu/" },
+        { label: "용어", path: "/library/terms/" },
+        { label: "시기", path: "/library/dates/" },
+      ],
     },
   ],
 
