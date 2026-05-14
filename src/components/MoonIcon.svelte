@@ -14,8 +14,8 @@
   let {
     phase,
     size = 42,
-    color = "rgba(255, 235, 200, 0.95)",
-    dim = "rgba(255, 255, 255, 0.12)",
+    color = "#f5e9c8",
+    dim = "rgba(15, 10, 8, 0.85)",
   }: {
     phase: MoonPhase;
     size?: number;
@@ -31,15 +31,13 @@
       // 망 — 전체 원
       return `M ${-r},0 a ${r},${r} 0 1 0 ${2 * r},0 a ${r},${r} 0 1 0 ${-2 * r},0 Z`;
     }
-    // 외곽 반원 방향: waxing → 오른쪽(sweep=1, screen상 시계방향), waning → 왼쪽(sweep=0)
+    const rx = r * Math.abs(1 - 2 * lit);
+    const isGibbous = lit > 0.5;
+    // 외곽 반원: waxing → 오른쪽(sweep=1, 시계방향), waning → 왼쪽(sweep=0)
     const outerSweep = waxing ? 1 : 0;
-    // 내부 반타원 rx 크기
-    const rxMag = r * Math.abs(1 - 2 * lit);
-    // 내부 sweep: crescent(lit<0.5)면 외곽과 같은 방향(같은 쪽으로 꺾임), gibbous(lit>0.5)면 반대.
-    const innerSweep = waxing
-      ? lit < 0.5 ? 1 : 0
-      : lit < 0.5 ? 0 : 1;
-    return `M 0,${-r} A ${r},${r} 0 0 ${outerSweep} 0,${r} A ${rxMag},${r} 0 0 ${innerSweep} 0,${-r} Z`;
+    // terminator: crescent면 외곽과 같은 방향, gibbous면 반대
+    const innerSweep = isGibbous ? 1 - outerSweep : outerSweep;
+    return `M 0,${-r} A ${r},${r} 0 0 ${outerSweep} 0,${r} A ${rx},${r} 0 0 ${innerSweep} 0,${-r} Z`;
   }
 
   let d = $derived(pathFor(phase.lit, phase.waxing));
@@ -62,8 +60,8 @@
   {#if d}
     <path {d} fill={color} />
   {/if}
-  <!-- 외곽선 — 살짝 -->
-  <circle cx="0" cy="0" r={r} fill="none" stroke="rgba(255, 255, 255, 0.25)" stroke-width="0.5" />
+  <!-- 외곽선 — 어두운 면 위에서도 달 윤곽이 보이도록 따스한 톤 -->
+  <circle cx="0" cy="0" r={r} fill="none" stroke="rgba(255, 230, 180, 0.35)" stroke-width="0.6" />
   <!-- 삭일 때 작은 별 두 개 (어두움 강조) -->
   {#if isNew}
     <circle cx="-6" cy="-7" r="0.5" fill="rgba(255, 255, 255, 0.6)" />
