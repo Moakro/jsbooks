@@ -448,10 +448,15 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         display: none;
       }
       /* Bare 레이아웃(메인 등): 사이드바 자리 없이 가로 중앙정렬. max-width는 기본
-         규칙(820px)을 상속 — 경전 본문 폭과 일치. */
-      .main-wrap.is-bare .pre-main {
-        margin-left: auto;
-        margin-right: auto;
+         규칙(820px)을 상속 — 경전 본문 폭과 일치.
+         주의: 모바일에서는 media 규칙의 좌우 gutter(1.25rem)가 살아남아야 카드가
+         화면 가장자리에 붙지 않는다. 본 룰은 2-클래스 특정도라 media 1-클래스보다
+         이겨버리므로 데스크톱 전용(@media min-width:1024)으로 한정. */
+      @media (min-width: 1024px) {
+        .main-wrap.is-bare .pre-main {
+          margin-left: auto;
+          margin-right: auto;
+        }
       }
       main {
         max-width: 820px;
