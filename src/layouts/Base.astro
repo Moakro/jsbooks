@@ -456,6 +456,9 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         .main-wrap.is-bare .pre-main {
           margin-left: auto;
           margin-right: auto;
+          /* bare 페이지(메인 등)는 사이드바 영역이 비어있어 시각적으로 좁아 보임.
+             경전 페이지의 sidebar+main 합산 폭 정도로 확장. */
+          max-width: 1080px;
         }
       }
       main {
