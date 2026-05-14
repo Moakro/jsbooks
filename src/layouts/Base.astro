@@ -436,8 +436,6 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       .main-wrap {
         flex: 1;
         min-width: 0;
-        display: flex;
-        flex-direction: column;
       }
       .pre-main {
         max-width: 820px;
@@ -449,17 +447,11 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       .pre-main:empty {
         display: none;
       }
-      /* Bare layouts (e.g. home): on tablet+ override the fixed sidebar-aligned
-         margin so the pre-main stays horizontally centered. Mobile keeps its
-         0.75rem gutter from the default rule below. */
-      @media (min-width: 1024px) {
-        .main-wrap.is-bare .pre-main {
-          margin-left: auto;
-          margin-right: auto;
-          /* bare 페이지(메인 등)는 사이드바 영역이 비어있어 시각적으로 좁아 보임.
-             경전 페이지의 sidebar+main 합산 폭 정도로 확장. */
-          max-width: 1080px;
-        }
+      /* Bare 레이아웃(메인 등): 사이드바 자리 없이 가로 중앙정렬. max-width는 기본
+         규칙(820px)을 상속 — 경전 본문 폭과 일치. */
+      .main-wrap.is-bare .pre-main {
+        margin-left: auto;
+        margin-right: auto;
       }
       main {
         max-width: 820px;
