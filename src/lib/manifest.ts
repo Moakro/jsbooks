@@ -25,6 +25,17 @@ export async function buildCardManifest(): Promise<CardManifest> {
           byName.set(m[1], { kind, canonical: entry.id });
         }
       }
+
+      // Frontmatter `aliases` 필드 — 카드 본 이름 외 다른 호칭으로도 wikilink 해결.
+      // 예: 강증산.md의 aliases: [대선생, 상제, 옥황상제] → [[대선생]] 등 모두 강증산으로.
+      const aliases = (entry.data as { aliases?: string[] }).aliases;
+      if (Array.isArray(aliases)) {
+        for (const alias of aliases) {
+          if (typeof alias === "string" && alias && !byName.has(alias)) {
+            byName.set(alias, { kind, canonical: entry.id });
+          }
+        }
+      }
     }
   }
 

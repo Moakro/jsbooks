@@ -46,6 +46,7 @@ const people = defineCollection({
     birth_place: z.string().optional(),
     本貫: z.string().optional(),
     status: z.string().optional(),
+    aliases: z.array(z.string()).optional(),
   }),
 });
 
@@ -57,6 +58,7 @@ const places = defineCollection({
     name_hanja: z.string().optional(),
     region: z.string().optional(),
     status: z.string().optional(),
+    aliases: z.array(z.string()).optional(),
   }),
 });
 
@@ -67,6 +69,7 @@ const dosu = defineCollection({
     name: z.string(),
     name_hanja: z.string().optional(),
     status: z.string().optional(),
+    aliases: z.array(z.string()).optional(),
   }),
 });
 
@@ -77,6 +80,7 @@ const terms = defineCollection({
     name: z.string(),
     name_hanja: z.string().optional(),
     status: z.string().optional(),
+    aliases: z.array(z.string()).optional(),
   }),
 });
 
@@ -88,6 +92,7 @@ const dates = defineCollection({
     ganji: z.string().optional(),
     year: z.number().optional(),
     status: z.string().optional(),
+    aliases: z.array(z.string()).optional(),
   }),
 });
 
