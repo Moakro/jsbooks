@@ -66,7 +66,7 @@ export const GET: APIRoute = async ({ params }) => {
       meta: extractMeta(entry.data, kind),
       status: entry.data.status ?? null,
       bodyHTML,
-      pageHref: `/library/${kind}/${encodeURIComponent(slug)}/`,
+      pageHref: `/archive/${kind}/${encodeURIComponent(slug)}/`,
       backlinks: backlinks.map((b) => ({
         ...b,
         href: backlinkHref(b),
