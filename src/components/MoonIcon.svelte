@@ -33,10 +33,12 @@
     }
     const rx = r * Math.abs(1 - 2 * lit);
     const isGibbous = lit > 0.5;
-    // 외곽 반원: waxing → 오른쪽(sweep=1, 시계방향), waning → 왼쪽(sweep=0)
+    // outer: waxing이면 오른쪽 반원(sweep=1), waning이면 왼쪽 반원(sweep=0)
     const outerSweep = waxing ? 1 : 0;
-    // terminator: crescent면 외곽과 같은 방향, gibbous면 반대
-    const innerSweep = isGibbous ? 1 - outerSweep : outerSweep;
+    // terminator:
+    //   - crescent(lit<0.5): 빛난 쪽으로 휘어들어 lit 영역을 작게. outerSweep과 반대 방향.
+    //   - gibbous(lit>0.5): 어두운 쪽으로 휘어들어 lit 영역을 크게. outerSweep과 같은 방향.
+    const innerSweep = isGibbous ? outerSweep : 1 - outerSweep;
     return `M 0,${-r} A ${r},${r} 0 0 ${outerSweep} 0,${r} A ${rx},${r} 0 0 ${innerSweep} 0,${-r} Z`;
   }
 
