@@ -43,14 +43,14 @@ export const HEADER_NAV: SectionDef[] = [
     slug: "scripture",
     label: "서재",
     href: "/library/",
-    // 경전 본문만 — 자료(인물/지명/도수/용어/시기)는 /archive/로 분리됨.
+    // 경전 본문만 — 자료(인물/장소/도수/용어/시기)는 /archive/로 분리됨.
     // /library/ root(catalog)는 resolveSection이 별도로 scripture로 분류.
     prefixes: ["/library/"],
   },
   {
     slug: "archive",
     label: "자료",
-    // 도판 전반 데이터 — 현재는 인물/지명/도수/용어/시기. 향후 교단·주문 등 확장 여지.
+    // 도판 전반 데이터 — 현재는 인물/장소/도수/용어/시기. 향후 교단·주문 등 확장 여지.
     href: "/archive/people/",
     prefixes: ["/archive/"],
   },

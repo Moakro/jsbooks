@@ -59,7 +59,7 @@ export function resolveWikilink(
     return { href: `/library/cheonjigaebyeokgyeong/${vol}/${chap}/`, mode: "page" };
   }
 
-  // Card lookup — opens side-card. 카드(인물·지명·도수·용어·시기)는 /archive/ 섹션.
+  // Card lookup — opens side-card. 카드(인물·장소·도수·용어·시기)는 /archive/ 섹션.
   const entry = manifest.byName.get(trimmed);
   if (entry) {
     return {

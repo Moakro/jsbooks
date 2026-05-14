@@ -36,7 +36,7 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       label: "자료",
       items: [
         { label: "인물", path: "/archive/people/" },
-        { label: "지명", path: "/archive/places/" },
+        { label: "장소", path: "/archive/places/" },
         { label: "도수", path: "/archive/dosu/" },
         { label: "용어", path: "/archive/terms/" },
         { label: "시기", path: "/archive/dates/" },
@@ -57,7 +57,7 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       label: "자료",
       items: [
         { label: "인물", path: "/archive/people/" },
-        { label: "지명", path: "/archive/places/" },
+        { label: "장소", path: "/archive/places/" },
         { label: "도수", path: "/archive/dosu/" },
         { label: "용어", path: "/archive/terms/" },
         { label: "시기", path: "/archive/dates/" },

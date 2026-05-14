@@ -15,7 +15,7 @@ type Kind = (typeof KINDS)[number];
 
 const KIND_LABEL: Record<Kind, string> = {
   people: "인물",
-  places: "지명",
+  places: "장소",
   dosu: "도수",
   terms: "용어",
   dates: "시기",
@@ -87,7 +87,7 @@ function backlinkHref(b: Backlink): string {
     }
     return `/library/${b.scriptureSlug}/${anchor}`;
   }
-  // 자료 카드(인물·지명·도수·용어·시기)는 /archive/ 섹션 (commit e6ec2d0 이후)
+  // 자료 카드(인물·장소·도수·용어·시기)는 /archive/ 섹션 (commit e6ec2d0 이후)
   return `/archive/${b.kind}/${encodeURIComponent(b.slug)}/`;
 }
 

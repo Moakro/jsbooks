@@ -10,7 +10,7 @@ const { backlinks } = Astro.props;
 const KIND_LABEL: Record<string, string> = {
   scripture: "경전",
   people: "인물",
-  places: "지명",
+  places: "장소",
   dosu: "도수",
   terms: "용어",
   dates: "시기",
@@ -24,7 +24,7 @@ function hrefFor(b: Backlink): string {
     }
     return `/library/${b.scriptureSlug}/${anchor}`;
   }
-  // 카드 kind(인물·지명·도수·용어·시기)는 /archive/ 섹션.
+  // 카드 kind(인물·장소·도수·용어·시기)는 /archive/ 섹션.
   return `/archive/${b.kind}/${encodeURIComponent(b.slug)}/`;
 }
 ---

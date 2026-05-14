@@ -44,7 +44,7 @@
   const KIND_PILL: Record<string, string> = {
     scripture: "경전",
     people: "인물",
-    places: "지명",
+    places: "장소",
     dosu: "도수",
     terms: "용어",
     dates: "시기",
