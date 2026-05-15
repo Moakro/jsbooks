@@ -59,6 +59,16 @@ const places = defineCollection({
     region: z.string().optional(),
     status: z.string().optional(),
     aliases: z.array(z.string()).optional(),
+    coord: z.tuple([z.number(), z.number()]).optional(),
+    photos: z
+      .array(
+        z.object({
+          src: z.string(),
+          caption: z.string().optional(),
+        }),
+      )
+      .optional(),
+    nearby: z.array(z.string()).optional(),
   }),
 });
 
