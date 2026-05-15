@@ -1,0 +1,39 @@
+---
+// Renders the auto-generated scripture version stamp built by
+// scripts/build-scripture-versions.ts. Source: content/_data/scripture-versions.json.
+// Quiet by design — used in scripture intro page headers.
+import versions from "../../content/_data/scripture-versions.json";
+
+interface Props {
+  slug: string;
+}
+const { slug } = Astro.props;
+const v = (versions as Record<string, { version: string; hash: string; iso: string }>)[slug];
+---
+
+{v && (
+  <p class="scripture-version" title={v.iso}>
+    <span>{v.version}</span>
+    <span class="dot">·</span>
+    <span class="hash">{v.hash}</span>
+  </p>
+)}
+
+<style>
+  .scripture-version {
+    margin: 0.2rem 0 0;
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .scripture-version .dot {
+    margin: 0 0.35em;
+    opacity: 0.6;
+  }
+  .scripture-version .hash {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.74rem;
+  }
+</style>

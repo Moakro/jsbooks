@@ -7,8 +7,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "node --experimental-strip-types --no-warnings scripts/build-history.ts && astro dev",
-    "build": "node --experimental-strip-types --no-warnings scripts/build-history.ts && astro build && bash scripts/build-pagefind.sh",
+    "dev": "node --experimental-strip-types --no-warnings scripts/build-history.ts && node --experimental-strip-types --no-warnings scripts/build-scripture-versions.ts && astro dev",
+    "build": "node --experimental-strip-types --no-warnings scripts/build-history.ts && node --experimental-strip-types --no-warnings scripts/build-scripture-versions.ts && astro build && bash scripts/build-pagefind.sh",
     "preview": "pnpm run build && wrangler dev",
     "astro": "astro",
     "embed": "node --experimental-strip-types --no-warnings scripts/embed.ts",
