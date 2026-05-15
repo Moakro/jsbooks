@@ -70,6 +70,7 @@ export default {
       // ──── Comments ────
       if (path === "/api/comments" && req.method === "GET") return listComments(req, env);
       if (path === "/api/comments" && req.method === "POST") return createComment(req, env);
+      if (path === "/api/comments/counts" && req.method === "GET") return countComments(req, env);
 
       const m = path.match(/^\/api\/comments\/([^/]+)(?:\/(react|flag|pin))?$/);
       if (m) {
@@ -571,6 +572,44 @@ function sanitizeAttachments(input: unknown, env: Env): Attachment[] {
     if (out.length >= MAX_ATTACHMENTS) break;
   }
   return out;
+}
+
+// Batch count: GET /api/comments/counts?targets=verse:slug:1,verse:slug:2,...
+// Returns { counts: { "<target>": N, ... } } — only entries with N > 0 are guaranteed present;
+// callers should default missing keys to 0.
+async function countComments(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const raw = url.searchParams.get("targets");
+  if (!raw) return json({ counts: {} });
+  const targets = raw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 500);
+  if (targets.length === 0) return json({ counts: {} });
+
+  // Group by target_type for a single SQL per type
+  const byType = new Map<string, string[]>();
+  for (const t of targets) {
+    if (!t.includes(":")) continue;
+    const [type, ...rest] = t.split(":");
+    if (!ALLOWED_TARGET_TYPES.has(type)) continue;
+    const id = rest.join(":");
+    if (!id) continue;
+    if (!byType.has(type)) byType.set(type, []);
+    byType.get(type)!.push(id);
+  }
+
+  const counts: Record<string, number> = {};
+  for (const [type, ids] of byType) {
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = await env.DB.prepare(
+      `SELECT target_id, COUNT(*) AS n
+         FROM comments
+        WHERE target_type=? AND status='published' AND target_id IN (${placeholders})
+        GROUP BY target_id`,
+    ).bind(type, ...ids).all<{ target_id: string; n: number }>();
+    for (const r of rows.results ?? []) {
+      counts[`${type}:${r.target_id}`] = r.n;
+    }
+  }
+  return json({ counts });
 }
 
 async function listComments(req: Request, env: Env): Promise<Response> {

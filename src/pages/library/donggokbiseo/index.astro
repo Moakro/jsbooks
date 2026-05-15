@@ -11,6 +11,7 @@ import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 import ScriptureVersionTag from "../../../components/ScriptureVersionTag.astro";
 import AiMatchNotice from "../../../components/AiMatchNotice.astro";
+import ScriptureCommentLayer from "../../../components/scripture/ScriptureCommentLayer.svelte";
 
 const all = await getCollection("scripture");
 const verses_entry = all.find((e) => e.id === "donggokbiseo/01_본문");
@@ -72,6 +73,8 @@ const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
   <ScriptureChapterNav scriptureSlug="donggokbiseo" currentId={verses_entry.id} />
 
   <Comments client:load targetKind="scripture" targetId="donggokbiseo" />
+
+  <ScriptureCommentLayer client:only="svelte" slug="donggokbiseo" />
 </Base>
 
 <style>
