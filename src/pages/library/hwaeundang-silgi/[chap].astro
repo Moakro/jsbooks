@@ -8,6 +8,7 @@ import { renderWikilinks } from "../../../lib/wikilink";
 import { parseVerses } from "../../../lib/verse-parser";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
+import ScriptureCommentLayer from "../../../components/scripture/ScriptureCommentLayer.svelte";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -82,6 +83,8 @@ const historyPath = `content/scripture/${entry.id}.md`;
 
   <Comments client:idle target={`chapter:${장}`} />
   <History path={historyPath} />
+
+  <ScriptureCommentLayer client:only="svelte" slug="hwaeundang-silgi" />
 </Base>
 
 <style>
