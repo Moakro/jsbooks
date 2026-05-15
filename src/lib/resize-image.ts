@@ -1,17 +1,20 @@
 /**
- * Client-side image resize for upload.
+ * Client-side image resize + per-user dedup for upload.
  *
  * - Reads any browser-supported image (jpeg/png/webp/heic via canvas decode)
- * - Scales so longest side ≤ MAX_PX (default 800)
- * - Encodes as JPEG with given quality
- * - Returns a Blob ready to POST as request body
+ * - Scales so longest side ≤ MAX_DIM_PX (default 1600)
+ * - Encodes as WebP with given quality (default 0.85)
+ * - Computes sha256 hex of the resized blob and asks the worker if this
+ *   user already uploaded the same content — if so, returns the existing
+ *   URL without sending bytes again.
  *
- * Heavy lifting all stays in the browser; the worker only sees the resized
- * payload, never the original.
+ * Heavy lifting (decode, resize, encode, hash) all stays in the browser;
+ * the worker only sees the final resized payload, never the original.
  */
 
-export const MAX_DIM_PX = 800;
-export const JPEG_QUALITY = 0.85;
+export const MAX_DIM_PX = 1600;
+export const WEBP_QUALITY = 0.85;
+export const OUTPUT_CONTENT_TYPE = "image/webp";
 
 export type ResizedImage = {
   blob: Blob;
@@ -23,7 +26,7 @@ export type ResizedImage = {
 export async function resizeImage(
   file: File,
   maxDim: number = MAX_DIM_PX,
-  quality: number = JPEG_QUALITY,
+  quality: number = WEBP_QUALITY,
 ): Promise<ResizedImage> {
   if (!file.type.startsWith("image/")) {
     throw new Error("이미지 파일만 업로드 가능합니다");
@@ -46,10 +49,10 @@ export async function resizeImage(
   }
 
   const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/jpeg", quality),
+    canvas.toBlob(resolve, OUTPUT_CONTENT_TYPE, quality),
   );
   if (!blob) throw new Error("이미지 인코딩 실패");
-  return { blob, width: dstW, height: dstH, contentType: "image/jpeg" };
+  return { blob, width: dstW, height: dstH, contentType: OUTPUT_CONTENT_TYPE };
 }
 
 async function loadBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
@@ -75,23 +78,61 @@ async function loadBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
   });
 }
 
-/** POST a resized image to the comments-worker upload endpoint. */
+export async function sha256Hex(blob: Blob): Promise<string> {
+  const buf = await blob.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  const bytes = new Uint8Array(digest);
+  let hex = "";
+  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+  return hex;
+}
+
+/**
+ * Resize → hash → ask worker for prior upload → upload only if new.
+ * Returns { url, width, height } in both cached and fresh cases.
+ */
 export async function uploadResizedImage(file: File): Promise<{
   url: string;
   width: number;
   height: number;
 }> {
   const r = await resizeImage(file);
+  const hash = await sha256Hex(r.blob);
+
+  // 사용자가 같은 사진을 이미 올린 적이 있으면 그 URL을 그대로 사용한다.
+  // /api/upload/check 실패 시(네트워크·인증) 그냥 신규 업로드로 진행.
+  try {
+    const check = await fetch("/api/upload/check", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hash }),
+    });
+    if (check.ok) {
+      const j = (await check.json()) as { exists?: boolean; url?: string; width?: number; height?: number };
+      if (j.exists && j.url) {
+        return { url: j.url, width: j.width ?? r.width, height: j.height ?? r.height };
+      }
+    }
+  } catch {
+    // ignore — fall through to upload
+  }
+
   const res = await fetch("/api/upload/image", {
     method: "POST",
     credentials: "same-origin",
-    headers: { "Content-Type": r.contentType },
+    headers: {
+      "Content-Type": r.contentType,
+      "X-Upload-Hash": hash,
+      "X-Image-Width": String(r.width),
+      "X-Image-Height": String(r.height),
+    },
     body: r.blob,
   });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
     throw new Error(j?.error ?? `업로드 실패 (${res.status})`);
   }
-  const j = (await res.json()) as { url: string };
-  return { url: j.url, width: r.width, height: r.height };
+  const j = (await res.json()) as { url: string; width?: number; height?: number };
+  return { url: j.url, width: j.width ?? r.width, height: j.height ?? r.height };
 }

@@ -1,8 +1,8 @@
 ---
 import Base from "../../../layouts/Base.astro";
-import Backlinks from "../../../components/Backlinks.astro";
 import History from "../../../components/History.astro";
 import Comments from "../../../components/Comments.svelte";
+import PlaceDetail, { type NearbyItem } from "../../../components/archive/PlaceDetail.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderMarkdownBody } from "../../../lib/wikilink";
@@ -20,27 +20,61 @@ const { entry } = Astro.props;
 const manifest = await buildCardManifest();
 const bodyHTML = renderMarkdownBody(entry.body ?? "", manifest);
 const backlinks = backlinksFor(await buildBacklinkIndex(), "places", entry.id);
+
+// places lookup map for nearby resolution and place-kind backlink decoration
+const allPlaces = await getCollection("places");
+const placeById = new Map(allPlaces.map((p) => [p.id, p]));
+
+function toNearbyItem(slug: string): NearbyItem | null {
+  const p = placeById.get(slug);
+  if (!p) return null;
+  return {
+    slug,
+    name: p.data.name,
+    name_hanja: p.data.name_hanja,
+    region: p.data.region,
+    isStub: p.data.status === "stub",
+  };
+}
+
+const nearbySlugs = new Set<string>(entry.data.nearby ?? []);
+for (const b of backlinks) {
+  if (b.kind === "places" && b.slug !== entry.id) {
+    nearbySlugs.add(b.slug);
+  }
+}
+const placesNearby: NearbyItem[] = [];
+const seenNearby = new Set<string>();
+for (const slug of nearbySlugs) {
+  if (seenNearby.has(slug)) continue;
+  seenNearby.add(slug);
+  const item = toNearbyItem(slug);
+  if (item) placesNearby.push(item);
+}
+placesNearby.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+const scriptureBacklinks = backlinks.filter((b) => b.kind === "scripture");
+const otherBacklinks = backlinks.filter(
+  (b) => b.kind !== "scripture" && b.kind !== "places",
+);
+
 const historyPath = `content/places/${entry.id}.md`;
 ---
 
 <Base title={`${entry.data.name} — 장소`}>
   <p class="meta"><a href="/archive/places/">← 장소</a></p>
-  <h1 data-pagefind-body data-pagefind-filter="kind:장소" data-pagefind-meta={`title:${entry.data.name} (장소)`}>
-    {entry.data.name}
-    {entry.data.name_hanja && (
-      <span style="font-size: 0.75em; color: var(--hanja); font-weight: normal">
-        ({entry.data.name_hanja})
-      </span>
-    )}
-  </h1>
-  {entry.data.birth && <p class="meta">생: {entry.data.birth}</p>}
-  {entry.data.birth_place && <p class="meta">출생지: {entry.data.birth_place}</p>}
-  {entry.data.本貫 && <p class="meta">본관: {entry.data.本貫}</p>}
-  {entry.data.status === "stub" && (
-    <p class="meta" style="color: var(--accent)">※ 스텁(stub) — 보강 예정</p>
-  )}
-  <article class="prose-body" set:html={bodyHTML} />
-  <Backlinks backlinks={backlinks} />
+  <PlaceDetail
+    name={entry.data.name}
+    name_hanja={entry.data.name_hanja}
+    region={entry.data.region}
+    isStub={entry.data.status === "stub"}
+    coord={entry.data.coord}
+    photos={entry.data.photos}
+    bodyHTML={bodyHTML}
+    scriptureBacklinks={scriptureBacklinks}
+    placesNearby={placesNearby}
+    otherBacklinks={otherBacklinks}
+  />
   <Comments client:idle target={`card:places:${entry.id}`} />
   <History path={historyPath} />
 </Base>

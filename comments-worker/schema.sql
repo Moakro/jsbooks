@@ -37,22 +37,40 @@ CREATE INDEX IF NOT EXISTS idx_dnh_user ON display_name_history(user_id);
 --   target_type='card'    → target_id = "people:이마두"
 --   target_type='chapter' → target_id = "2:2" (권:장)
 CREATE TABLE IF NOT EXISTS comments (
-  id           TEXT PRIMARY KEY,                  -- UUID
-  target_type  TEXT NOT NULL,
-  target_id    TEXT NOT NULL,
-  user_id      TEXT NOT NULL REFERENCES users(id),
-  parent_id    TEXT REFERENCES comments(id),      -- 답글 (NULL 이면 루트)
-  body         TEXT NOT NULL,                     -- 마크다운 원본
-  body_html    TEXT NOT NULL,                     -- 서버 sanitized HTML
-  type         TEXT NOT NULL,                     -- memo|question|cross|cite
-  status       TEXT NOT NULL DEFAULT 'published', -- published|hidden|deleted
-  attachments  TEXT,                              -- JSON: [{type:'image',url,width?,height?},{type:'map',lat,lng,zoom?,label?}]
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  id                  TEXT PRIMARY KEY,                  -- UUID
+  target_type         TEXT NOT NULL,
+  target_id           TEXT NOT NULL,
+  user_id             TEXT NOT NULL REFERENCES users(id),
+  parent_id           TEXT REFERENCES comments(id),      -- 답글 (NULL 이면 루트)
+  body                TEXT NOT NULL,                     -- 마크다운 원본
+  body_html           TEXT NOT NULL,                     -- 서버 sanitized HTML
+  type                TEXT NOT NULL,                     -- memo|question|cross|cite
+  status              TEXT NOT NULL DEFAULT 'published', -- published|hidden|deleted
+  attachments         TEXT,                              -- JSON: [{type:'image',url,width?,height?},{type:'map',lat,lng,zoom?,label?}]
+  is_pinned           INTEGER NOT NULL DEFAULT 0,        -- 운영자 고정 (L≥4)
+  promoted_to_note_id TEXT,                              -- 향후 주석 승격 hook (현재 미사용)
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(target_type, target_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_comments_pinned ON comments(target_type, target_id, is_pinned, created_at);
+
+-- 사용자별 사진 dedup. 동일 사용자가 같은 sha256 재업로드 시
+-- 기존 url 반환하고 새 업로드를 막는다. orphan cleanup은 별도 트랙.
+CREATE TABLE IF NOT EXISTS user_uploaded_photos (
+  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  hash         TEXT NOT NULL,
+  url          TEXT NOT NULL,
+  r2_key       TEXT NOT NULL,
+  width        INTEGER NOT NULL,
+  height       INTEGER NOT NULL,
+  size_bytes   INTEGER NOT NULL,
+  content_type TEXT NOT NULL,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, hash)
+);
 
 -- ──────────────── reactions (도움됨) ────────────────
 CREATE TABLE IF NOT EXISTS reactions (

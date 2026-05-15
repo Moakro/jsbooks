@@ -9,6 +9,7 @@ import { correspondencesFor } from "../../../lib/correspondences";
 import CorrespondenceBadges from "../../../components/CorrespondenceBadges.astro";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
+import ScriptureVersionTag from "../../../components/ScriptureVersionTag.astro";
 import AiMatchNotice from "../../../components/AiMatchNotice.astro";
 import ScriptureCommentLayer from "../../../components/scripture/ScriptureCommentLayer.svelte";
 
@@ -37,6 +38,7 @@ const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
   <p class="meta"><a href="/library/">← 서재</a></p>
   <h1>동곡비서 (銅谷秘書)</h1>
   <p class="meta">이춘풍(李春風) 엮음 · 1990년 5월 5일 (경오년)</p>
+  <ScriptureVersionTag slug="donggokbiseo" />
 
   <p class="meta" style="font-size: 0.9rem; margin-top: 0.5rem">
     본문 {verses.length}절. 권·장 위계 없이 평면 시퀀스로 수록되어 있습니다.

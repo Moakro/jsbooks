@@ -1,0 +1,312 @@
+---
+import type { Backlink } from "../../lib/backlinks";
+
+export interface NearbyItem {
+  slug: string;
+  name: string;
+  name_hanja?: string;
+  region?: string;
+  isStub?: boolean;
+}
+
+interface Props {
+  name: string;
+  name_hanja?: string;
+  region?: string;
+  isStub?: boolean;
+  coord?: [number, number];
+  photos?: { src: string; caption?: string }[];
+  bodyHTML: string;
+  scriptureBacklinks: Backlink[];
+  placesNearby: NearbyItem[];
+  otherBacklinks: Backlink[];
+}
+
+const {
+  name,
+  name_hanja,
+  region,
+  isStub,
+  coord,
+  photos,
+  bodyHTML,
+  scriptureBacklinks,
+  placesNearby,
+  otherBacklinks,
+} = Astro.props;
+
+const osmHref = coord
+  ? `https://www.openstreetmap.org/?mlat=${coord[0]}&mlon=${coord[1]}#map=15/${coord[0]}/${coord[1]}`
+  : null;
+
+const KIND_LABEL: Record<string, string> = {
+  people: "인물",
+  dosu: "도수",
+  terms: "용어",
+  dates: "시기",
+};
+
+function scriptureHref(b: Backlink): string {
+  if (b.kind !== "scripture") return "#";
+  const anchor = b.verseId ? `#${b.verseId}` : "";
+  if (b.vol && b.chap) {
+    return `/library/${b.scriptureSlug}/${b.vol}/${b.chap}/${anchor}`;
+  }
+  return `/library/${b.scriptureSlug}/${anchor}`;
+}
+
+function cardHref(b: Backlink): string {
+  if (b.kind === "scripture") return "#";
+  return `/archive/${b.kind}/${encodeURIComponent(b.slug)}/`;
+}
+---
+
+<h1
+  data-pagefind-body
+  data-pagefind-filter="kind:장소"
+  data-pagefind-meta={`title:${name} (장소)`}
+>
+  {name}
+  {name_hanja && (
+    <span class="hanja">({name_hanja})</span>
+  )}
+</h1>
+{region && <p class="meta">지역: {region}</p>}
+{isStub && (
+  <p class="meta stub-note">※ 스텁(stub) — 보강 예정</p>
+)}
+
+<article class="prose-body" set:html={bodyHTML} />
+
+{photos && photos.length > 0 && (
+  <section class="place-section">
+    <h2>사진</h2>
+    <div class="photo-grid">
+      {photos.map((p) => (
+        <figure>
+          <img src={p.src} alt={p.caption ?? name} loading="lazy" />
+          {p.caption && <figcaption>{p.caption}</figcaption>}
+        </figure>
+      ))}
+    </div>
+  </section>
+)}
+
+{coord && (
+  <section class="place-section">
+    <h2>위치</h2>
+    <p class="coord-line">
+      <span class="coord-text">{coord[0].toFixed(5)}, {coord[1].toFixed(5)}</span>
+      <a class="coord-link" href={osmHref} target="_blank" rel="noopener noreferrer">
+        지도에서 보기 →
+      </a>
+    </p>
+  </section>
+)}
+
+{placesNearby.length > 0 && (
+  <section class="place-section">
+    <h2>관련 장소 ({placesNearby.length})</h2>
+    <ul class="nearby-grid">
+      {placesNearby.map((p) => (
+        <li class={p.isStub ? "is-stub" : ""}>
+          <a href={`/archive/places/${encodeURIComponent(p.slug)}/`}>
+            <span class="nearby-name">{p.name}</span>
+            {p.name_hanja && <span class="nearby-hanja">({p.name_hanja})</span>}
+            {p.region && <span class="nearby-region">{p.region}</span>}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+{scriptureBacklinks.length > 0 && (
+  <section class="place-section">
+    <h2>이 장소가 등장하는 절 ({scriptureBacklinks.length})</h2>
+    <ul class="scripture-list">
+      {scriptureBacklinks.map((b) => (
+        <li>
+          <a href={scriptureHref(b)}>
+            <span class="kind-pill">경전</span>
+            <span class="bl-title">{b.title}</span>
+          </a>
+          {b.excerpt && <p class="bl-excerpt">{b.excerpt}</p>}
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+{otherBacklinks.length > 0 && (
+  <section class="place-section">
+    <h2>기타 인용 ({otherBacklinks.length})</h2>
+    <ul class="scripture-list">
+      {otherBacklinks.map((b) => (
+        <li>
+          <a href={cardHref(b)}>
+            <span class="kind-pill">{KIND_LABEL[b.kind] ?? b.kind}</span>
+            <span class="bl-title">{b.title}</span>
+          </a>
+          {b.excerpt && <p class="bl-excerpt">{b.excerpt}</p>}
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+<style>
+  .hanja {
+    font-size: 0.75em;
+    color: var(--hanja);
+    font-weight: normal;
+  }
+  .meta {
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    margin: 0.2rem 0;
+  }
+  .stub-note {
+    color: var(--accent);
+  }
+  .place-section {
+    margin-top: 2.5rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--color-rule);
+  }
+  .place-section h2 {
+    font-size: 1.05rem;
+    color: var(--color-primary);
+    margin: 0 0 0.8rem;
+  }
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.8rem;
+  }
+  .photo-grid figure {
+    margin: 0;
+  }
+  .photo-grid img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+  }
+  .photo-grid figcaption {
+    margin-top: 0.3rem;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    line-height: 1.4;
+  }
+  .coord-line {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin: 0;
+  }
+  .coord-text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9rem;
+    color: var(--color-fg);
+  }
+  .coord-link {
+    color: var(--color-secondary);
+    font-size: 0.9rem;
+    text-decoration: none;
+  }
+  .coord-link:hover {
+    text-decoration: underline;
+  }
+  .nearby-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
+  }
+  .nearby-grid li {
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    background: var(--color-secondary-bg);
+  }
+  .nearby-grid li.is-stub {
+    opacity: 0.7;
+  }
+  .nearby-grid a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.6rem 0.8rem;
+    color: var(--color-fg);
+    text-decoration: none;
+  }
+  .nearby-grid a:hover .nearby-name {
+    color: var(--color-secondary);
+  }
+  .nearby-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .nearby-hanja {
+    font-size: 0.78rem;
+    color: var(--hanja);
+  }
+  .nearby-region {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+  }
+  .scripture-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .scripture-list li {
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    padding: 0.55rem 0.85rem;
+    background: var(--color-secondary-bg);
+  }
+  .scripture-list li a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--color-fg);
+    font-size: 0.95rem;
+  }
+  .scripture-list li a:hover .bl-title {
+    color: var(--color-secondary);
+    border-bottom: 1px solid var(--color-secondary);
+  }
+  .kind-pill {
+    font-size: 0.72rem;
+    color: var(--color-secondary);
+    border: 1px solid var(--color-secondary);
+    border-radius: 999px;
+    padding: 1px 8px;
+    flex-shrink: 0;
+  }
+  .bl-title {
+    font-weight: 600;
+  }
+  .bl-excerpt {
+    margin: 0.3rem 0 0;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+  @media (max-width: 480px) {
+    .nearby-grid {
+      grid-template-columns: 1fr;
+    }
+    .photo-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
+  }
+</style>
