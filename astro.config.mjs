@@ -30,5 +30,11 @@ export default defineConfig({
     },
   },
 
-  adapter: cloudflare(),
+  // dev 모드에서 workerd 런타임 emulation 비활성 — node SSR로 단순화.
+  // workerd@1.20260504.1에서 일부 페이지(`/`, `/archive/*/`) SSR 도중 stream을
+  // close 안 하고 `Cannot read properties of null (reading 'function')` throw하던
+  // 이슈 회피. production 빌드(Pages)는 영향 없음.
+  adapter: cloudflare({
+    platformProxy: { enabled: false },
+  }),
 });
