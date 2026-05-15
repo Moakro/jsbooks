@@ -47,12 +47,14 @@ CREATE TABLE IF NOT EXISTS comments (
   type         TEXT NOT NULL,                     -- memo|question|cross|cite
   status       TEXT NOT NULL DEFAULT 'published', -- published|hidden|deleted
   attachments  TEXT,                              -- JSON: [{type:'image',url,width?,height?},{type:'map',lat,lng,zoom?,label?}]
+  promoted_to_note_id TEXT,                       -- footnote id (`uc-YYYY-MM-DD-N`) when 운영자가 자료 주석으로 승격함
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(target_type, target_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_comments_promoted ON comments(promoted_to_note_id);
 
 -- ──────────────── reactions (도움됨) ────────────────
 CREATE TABLE IF NOT EXISTS reactions (

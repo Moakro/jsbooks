@@ -166,6 +166,11 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       path: "/admin/users/",
     },
     {
+      type: "link",
+      label: "댓글 → 주석",
+      path: "/admin/notes/",
+    },
+    {
       type: "section",
       label: "천지개벽경",
       items: [

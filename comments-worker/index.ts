@@ -57,6 +57,9 @@ export default {
 
       // ──── Admin (level >= 4) ────
       if (path === "/api/admin/users" && req.method === "GET") return adminListUsers(req, env);
+      if (path === "/api/admin/comments" && req.method === "GET") return adminListComments(req, env);
+      const promoteMatch = path.match(/^\/api\/admin\/comments\/([^/]+)\/promote$/);
+      if (promoteMatch && req.method === "POST") return adminPromoteComment(req, env, promoteMatch[1]);
 
       // ──── Uploads (R2) ────
       if (path === "/api/upload/image" && req.method === "POST") return uploadImage(req, env);
@@ -428,6 +431,83 @@ async function adminListUsers(req: Request, env: Env): Promise<Response> {
   return json({ users: rs.results ?? [] });
 }
 
+interface AdminCommentRow {
+  id: string;
+  target_type: string;
+  target_id: string;
+  body: string;
+  type: string;
+  status: string;
+  promoted_to_note_id: string | null;
+  created_at: string;
+  user_id: string;
+  display_name: string | null;
+  helpful_count: number;
+}
+
+// List comments for admin promotion UI. Filters:
+//   ?unpromoted=1   (default 1) — only comments NOT yet promoted
+//   ?type=question  — restrict to one comment type
+//   ?limit=N        — max rows (default 100, max 500)
+async function adminListComments(req: Request, env: Env): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "unauthenticated" }, 401);
+  const me = await loadUser(env, uid);
+  if (!me || me.level < 4) return json({ error: "forbidden" }, 403);
+
+  const url = new URL(req.url);
+  const unpromoted = (url.searchParams.get("unpromoted") ?? "1") === "1";
+  const typeFilter = url.searchParams.get("type");
+  const limitRaw = parseInt(url.searchParams.get("limit") ?? "100", 10);
+  const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 100, 1), 500);
+
+  const where: string[] = ["c.status = 'published'"];
+  const binds: unknown[] = [];
+  if (unpromoted) where.push("c.promoted_to_note_id IS NULL");
+  if (typeFilter && ALLOWED_TYPES.has(typeFilter)) {
+    where.push("c.type = ?");
+    binds.push(typeFilter);
+  }
+
+  const sql = `
+    SELECT c.id, c.target_type, c.target_id, c.body, c.type, c.status,
+           c.promoted_to_note_id, c.created_at,
+           u.id AS user_id, u.display_name,
+           (SELECT COUNT(*) FROM reactions r WHERE r.comment_id=c.id AND r.type='helpful') AS helpful_count
+    FROM comments c
+    JOIN users u ON u.id = c.user_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY c.created_at DESC
+    LIMIT ?`;
+  const rs = await env.DB.prepare(sql).bind(...binds, limit).all<AdminCommentRow>();
+  return json({ comments: rs.results ?? [] });
+}
+
+// Mark a comment as promoted into a vault note.
+// Body: { note_id: string }   (e.g. "uc-2026-05-15-1")
+// To clear an accidental promotion: { note_id: null }
+async function adminPromoteComment(req: Request, env: Env, id: string): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "unauthenticated" }, 401);
+  const me = await loadUser(env, uid);
+  if (!me || me.level < 4) return json({ error: "forbidden" }, 403);
+
+  const body = await req.json().catch(() => ({})) as { note_id?: string | null };
+  const noteId = body.note_id;
+  if (noteId !== null && (typeof noteId !== "string" || !/^uc-\d{4}-\d{2}-\d{2}-\d+$/.test(noteId))) {
+    return json({ error: "note_id 형식이 잘못되었습니다 (uc-YYYY-MM-DD-N)" }, 400);
+  }
+
+  const found = await env.DB.prepare("SELECT id FROM comments WHERE id=?").bind(id).first();
+  if (!found) return json({ error: "not found" }, 404);
+
+  await env.DB.prepare(
+    `UPDATE comments SET promoted_to_note_id=?, updated_at=datetime('now') WHERE id=?`,
+  ).bind(noteId, id).run();
+
+  return json({ ok: true, id, promoted_to_note_id: noteId });
+}
+
 // ───────────────────── comments ─────────────────────
 
 const ALLOWED_TYPES = new Set(["memo", "question", "cross", "cite"]);
@@ -496,7 +576,7 @@ async function listComments(req: Request, env: Env): Promise<Response> {
 
   const rows = await env.DB.prepare(
     `SELECT c.id, c.target_type, c.target_id, c.parent_id, c.body_html, c.type,
-            c.status, c.attachments, c.created_at, c.updated_at,
+            c.status, c.attachments, c.promoted_to_note_id, c.created_at, c.updated_at,
             u.id AS user_id, u.display_name AS author_name,
             u.avatar_url AS author_avatar, u.affiliation AS author_affiliation,
             u.level AS author_level,
@@ -534,6 +614,7 @@ async function listComments(req: Request, env: Env): Promise<Response> {
       created_at: r.created_at,
       updated_at: r.updated_at,
       attachments,
+      promoted_to_note_id: r.promoted_to_note_id ?? null,
       author: {
         display_name: r.author_name,
         avatar_url: r.author_avatar,
