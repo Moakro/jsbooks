@@ -7,11 +7,9 @@ import { parseVerseGroups } from "../../../../lib/verse-parser";
 import { getMapping } from "../../../../lib/canonical-mapping";
 import { correspondencesFor } from "../../../../lib/correspondences";
 import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
-import Comments from "../../../../components/Comments.svelte";
 import History from "../../../../components/History.astro";
 import ScriptureChapterNav from "../../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../../components/ScriptureStickyBar.astro";
-import ScriptureCommentLayer from "../../../../components/scripture/ScriptureCommentLayer.svelte";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -96,7 +94,12 @@ const chapPct = Math.round(((idx + 1) / totalChaps) * 100);
 const historyPath = `content/scripture/${entry.id}.md`;
 ---
 
-<Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`} scriptureSlug="cheonjigaebyeokgyeong">
+<Base
+  title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경`}
+  scriptureSlug="cheonjigaebyeokgyeong"
+  chapterAnchor={`${권}-${장}`}
+  chapterLabel={`권 ${권} ${권_이름} · ${장}장`}
+>
   <ScriptureStickyBar
     scriptureName="천지개벽경"
     scriptureSlug="cheonjigaebyeokgyeong"
@@ -197,10 +200,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
 
   <ScriptureChapterNav scriptureSlug="cheonjigaebyeokgyeong" currentId={entry.id} />
 
-  <Comments client:idle target={`chapter:${권}:${장}`} />
   <History path={historyPath} />
-
-  <ScriptureCommentLayer client:only="svelte" slug="cheonjigaebyeokgyeong" />
 </Base>
 
 <style>
