@@ -2,6 +2,7 @@
 import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
+import ScriptureVersionTag from "../../../components/ScriptureVersionTag.astro";
 
 const all = (await getCollection("scripture")).filter((e) =>
   e.id.startsWith("hwaeundang-silgi/"),
@@ -19,6 +20,7 @@ const chapters = all
   <p class="meta"><a href="/library/">← 서재</a></p>
   <h1>화은당실기 (華恩堂實記)</h1>
   <p class="meta">정사 김병철(金炳徹) 편술 · 1960년 초간 / 1989년 재간</p>
+  <ScriptureVersionTag slug="hwaeundang-silgi" />
 
   {preface && (
     <section class="vol-section">

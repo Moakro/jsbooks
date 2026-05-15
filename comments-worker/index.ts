@@ -13,6 +13,9 @@
  *   DELETE /api/comments/:id       — soft-delete (owner) or hide (curator+)
  *   POST /api/comments/:id/react   — toggle reaction (e.g. helpful)
  *   POST /api/comments/:id/flag    — flag comment
+ *   POST /api/comments/:id/pin     — toggle pin (level >= 4)
+ *   POST /api/upload/image         — upload resized image (optional X-Upload-Hash for dedup)
+ *   POST /api/upload/check         — body { hash } → check user's prior upload
  *
  * Session: signed JWT in HttpOnly cookie (`jb_session`).
  * SameSite=Lax, Secure, ~30 day expiry. JWT signing uses HS256 with AUTH_SECRET.
@@ -68,15 +71,19 @@ export default {
       if (path === "/api/comments" && req.method === "GET") return listComments(req, env);
       if (path === "/api/comments" && req.method === "POST") return createComment(req, env);
 
-      const m = path.match(/^\/api\/comments\/([^/]+)(?:\/(react|flag))?$/);
+      const m = path.match(/^\/api\/comments\/([^/]+)(?:\/(react|flag|pin))?$/);
       if (m) {
         const id = m[1];
         const sub = m[2];
         if (sub === "react" && req.method === "POST") return toggleReaction(req, env, id);
         if (sub === "flag" && req.method === "POST") return flagComment(req, env, id);
+        if (sub === "pin" && req.method === "POST") return pinComment(req, env, id);
         if (req.method === "PATCH") return editComment(req, env, id);
         if (req.method === "DELETE") return deleteComment(req, env, id);
       }
+
+      // ──── Upload check (dedup) ────
+      if (path === "/api/upload/check" && req.method === "POST") return checkUpload(req, env);
 
       return json({ error: "not found" }, 404);
     } catch (e: unknown) {
@@ -574,17 +581,20 @@ async function listComments(req: Request, env: Env): Promise<Response> {
   const targetId = rest.join(":");
   if (!ALLOWED_TARGET_TYPES.has(targetType)) return json({ error: "invalid target type" }, 400);
 
+  // published + deleted 모두 반환. deleted는 답글이 있어 placeholder로 남은 행.
+  // hidden(큐레이터 숨김)은 노출 안 함.
   const rows = await env.DB.prepare(
     `SELECT c.id, c.target_type, c.target_id, c.parent_id, c.body_html, c.type,
-            c.status, c.attachments, c.promoted_to_note_id, c.created_at, c.updated_at,
+            c.status, c.attachments, c.is_pinned, c.promoted_to_note_id, c.created_at, c.updated_at,
             u.id AS user_id, u.display_name AS author_name,
             u.avatar_url AS author_avatar, u.affiliation AS author_affiliation,
             u.level AS author_level,
-            (SELECT COUNT(*) FROM reactions r WHERE r.comment_id=c.id AND r.type='helpful') AS helpful_count
+            (SELECT COUNT(*) FROM reactions r WHERE r.comment_id=c.id AND r.type='helpful') AS helpful_count,
+            (SELECT COUNT(*) FROM comments cc WHERE cc.parent_id=c.id AND cc.status IN ('published','deleted')) AS reply_count
      FROM comments c
      JOIN users u ON u.id = c.user_id
-     WHERE c.target_type=? AND c.target_id=? AND c.status='published'
-     ORDER BY c.created_at ASC`,
+     WHERE c.target_type=? AND c.target_id=? AND c.status IN ('published','deleted')
+     ORDER BY c.is_pinned DESC, c.created_at ASC`,
   ).bind(targetType, targetId).all();
 
   const me = await currentUserId(req, env);
@@ -599,8 +609,9 @@ async function listComments(req: Request, env: Env): Promise<Response> {
   }
 
   const comments = (rows.results ?? []).map((r: any) => {
+    const isDeleted = r.status === "deleted";
     let attachments: any[] = [];
-    if (r.attachments) {
+    if (!isDeleted && r.attachments) {
       try {
         const parsed = JSON.parse(r.attachments);
         if (Array.isArray(parsed)) attachments = parsed;
@@ -609,20 +620,26 @@ async function listComments(req: Request, env: Env): Promise<Response> {
     return {
       id: r.id,
       parent_id: r.parent_id,
-      body_html: r.body_html,
+      body_html: isDeleted ? "" : r.body_html,
       type: r.type,
+      status: r.status,
+      is_pinned: r.is_pinned === 1,
+      reply_count: r.reply_count ?? 0,
       created_at: r.created_at,
       updated_at: r.updated_at,
       attachments,
       promoted_to_note_id: r.promoted_to_note_id ?? null,
-      author: {
-        display_name: r.author_name,
-        avatar_url: r.author_avatar,
-        affiliation: r.author_affiliation,
-        level: r.author_level,
-      },
-      helpful_count: r.helpful_count,
-      you_helpful: myReactions.has(r.id),
+      author: isDeleted
+        ? { display_name: "", avatar_url: null, affiliation: null, level: 0 }
+        : {
+            display_name: r.author_name,
+            avatar_url: r.author_avatar,
+            affiliation: r.author_affiliation,
+            level: r.author_level,
+          },
+      helpful_count: isDeleted ? 0 : r.helpful_count,
+      you_helpful: !isDeleted && myReactions.has(r.id),
+      author_id: isDeleted ? null : r.user_id,
     };
   });
 
@@ -675,6 +692,15 @@ async function editComment(req: Request, env: Env, id: string): Promise<Response
   const owner = await env.DB.prepare("SELECT user_id FROM comments WHERE id=?").bind(id).first<{ user_id: string }>();
   if (!owner) return json({ error: "not found" }, 404);
   if (owner.user_id !== uid) return json({ error: "forbidden" }, 403);
+
+  // 답글이 하나라도 있으면 수정 잠금 (published + deleted 모두 카운트, hidden 제외)
+  const replyCount = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM comments WHERE parent_id=? AND status IN ('published','deleted')",
+  ).bind(id).first<{ n: number }>();
+  if ((replyCount?.n ?? 0) > 0) {
+    return json({ error: "답글이 있어 수정할 수 없습니다" }, 403);
+  }
+
   const body = await req.json().catch(() => ({})) as {
     body?: string;
     type?: string;
@@ -712,11 +738,43 @@ async function deleteComment(req: Request, env: Env, id: string): Promise<Respon
   const isOwner = owner.user_id === uid;
   const isCurator = (u?.level ?? 0) >= 3;
   if (!isOwner && !isCurator) return json({ error: "forbidden" }, 403);
-  const newStatus = isOwner ? "deleted" : "hidden";
+
+  if (isOwner) {
+    // 답글 유무에 따라 hard vs soft. published+deleted 모두 답글로 카운트.
+    const replyCount = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM comments WHERE parent_id=? AND status IN ('published','deleted')",
+    ).bind(id).first<{ n: number }>();
+    if ((replyCount?.n ?? 0) === 0) {
+      // hard delete. reactions/flags는 ON DELETE CASCADE로 함께 정리.
+      // R2 첨부는 보존 (orphan cleanup 별도 트랙).
+      await env.DB.prepare("DELETE FROM comments WHERE id=?").bind(id).run();
+      return json({ ok: true, status: "removed" });
+    }
+    await env.DB.prepare(
+      `UPDATE comments SET status='deleted', body='', body_html='', attachments=NULL, updated_at=datetime('now') WHERE id=?`,
+    ).bind(id).run();
+    return json({ ok: true, status: "deleted" });
+  }
+
+  // 큐레이터(level>=3) — 숨김 처리 (현행 유지)
   await env.DB.prepare(
-    `UPDATE comments SET status=?, updated_at=datetime('now') WHERE id=?`,
-  ).bind(newStatus, id).run();
-  return json({ ok: true, status: newStatus });
+    `UPDATE comments SET status='hidden', updated_at=datetime('now') WHERE id=?`,
+  ).bind(id).run();
+  return json({ ok: true, status: "hidden" });
+}
+
+async function pinComment(req: Request, env: Env, id: string): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "not authenticated" }, 401);
+  const u = await loadUser(env, uid);
+  if (!u || (u.level ?? 0) < 4) return json({ error: "forbidden" }, 403);
+  const row = await env.DB.prepare("SELECT is_pinned FROM comments WHERE id=?").bind(id).first<{ is_pinned: number }>();
+  if (!row) return json({ error: "not found" }, 404);
+  const next = row.is_pinned === 1 ? 0 : 1;
+  await env.DB.prepare(
+    `UPDATE comments SET is_pinned=?, updated_at=datetime('now') WHERE id=?`,
+  ).bind(next, id).run();
+  return json({ ok: true, is_pinned: next === 1 });
 }
 
 async function toggleReaction(req: Request, env: Env, id: string): Promise<Response> {
@@ -767,7 +825,7 @@ function sanitizeHTML(text: string): string {
 // ───────────────────── uploads ─────────────────────
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024; // 1.5 MB hard cap; client should resize to ~800px first.
+const MAX_IMAGE_BYTES = 2.5 * 1024 * 1024; // 2.5 MB hard cap; client resizes to ≤1600px webp Q85 first.
 const UPLOAD_RATE_LIMIT_PER_HOUR = 30;
 
 function extFromContentType(ct: string): string {
@@ -794,6 +852,24 @@ async function uploadImage(req: Request, env: Env): Promise<Response> {
     return json({ error: `파일이 너무 큼 (max ${Math.round(MAX_IMAGE_BYTES / 1024)} KB)` }, 413);
   }
 
+  // 클라이언트가 헤더로 sha256 hex(64자)를 보내면 dedup index에 등록한다.
+  // 동일 (uid, hash) 이미 있으면 기존 url을 그대로 반환하고 새 업로드는 skip.
+  const hashHeader = req.headers.get("X-Upload-Hash");
+  const widthHeader = req.headers.get("X-Image-Width");
+  const heightHeader = req.headers.get("X-Image-Height");
+  const hash = hashHeader && /^[0-9a-f]{64}$/i.test(hashHeader) ? hashHeader.toLowerCase() : null;
+  const width = widthHeader ? Math.max(0, parseInt(widthHeader, 10)) : 0;
+  const height = heightHeader ? Math.max(0, parseInt(heightHeader, 10)) : 0;
+
+  if (hash) {
+    const existing = await env.DB.prepare(
+      "SELECT url, width, height FROM user_uploaded_photos WHERE user_id=? AND hash=?",
+    ).bind(uid, hash).first<{ url: string; width: number; height: number }>();
+    if (existing) {
+      return json({ ok: true, deduped: true, url: existing.url, width: existing.width, height: existing.height });
+    }
+  }
+
   const buf = await req.arrayBuffer();
   if (buf.byteLength > MAX_IMAGE_BYTES) {
     return json({ error: `파일이 너무 큼 (max ${Math.round(MAX_IMAGE_BYTES / 1024)} KB)` }, 413);
@@ -818,10 +894,35 @@ async function uploadImage(req: Request, env: Env): Promise<Response> {
 
   await env.UPLOADS.put(key, buf, {
     httpMetadata: { contentType: ct, cacheControl: "public, max-age=31536000, immutable" },
-    customMetadata: { uid, originalSize: String(buf.byteLength) },
+    customMetadata: { uid, originalSize: String(buf.byteLength), ...(hash ? { hash } : {}) },
   });
 
   const base = (env.UPLOADS_PUBLIC_BASE || "").replace(/\/$/, "");
   const url = `${base}/${key}`;
+
+  if (hash) {
+    // INSERT OR IGNORE — 동시성 race에서도 안전. 충돌 시 기존 url 유지.
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO user_uploaded_photos
+         (user_id, hash, url, r2_key, width, height, size_bytes, content_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(uid, hash, url, key, width, height, buf.byteLength, ct).run();
+  }
+
   return json({ ok: true, url, key, bytes: buf.byteLength, contentType: ct });
+}
+
+async function checkUpload(req: Request, env: Env): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "not authenticated" }, 401);
+  const body = await req.json().catch(() => ({})) as { hash?: string };
+  const hash = body.hash;
+  if (!hash || !/^[0-9a-f]{64}$/i.test(hash)) {
+    return json({ error: "invalid hash" }, 400);
+  }
+  const row = await env.DB.prepare(
+    "SELECT url, width, height FROM user_uploaded_photos WHERE user_id=? AND hash=?",
+  ).bind(uid, hash.toLowerCase()).first<{ url: string; width: number; height: number }>();
+  if (!row) return json({ exists: false });
+  return json({ exists: true, url: row.url, width: row.width, height: row.height });
 }

@@ -4,6 +4,7 @@ import { getCollection } from "astro:content";
 import AiMatchNotice from "../../../components/AiMatchNotice.astro";
 import AdminGate from "../../../components/AdminGate.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
+import ScriptureVersionTag from "../../../components/ScriptureVersionTag.astro";
 
 const allScripture = await getCollection("scripture");
 const all = allScripture.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong-hangeul/"));
@@ -39,6 +40,7 @@ const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
     <p class="meta"><a href="/library/">← 서재</a></p>
     <h1>천지개벽경 한글본 (백업) <span class="badge">admin</span></h1>
     <p class="meta">학암 이중성(李重盛) 편술 · 1946년 — 한글본 자체. 관리자 전용 보존본.</p>
+    <ScriptureVersionTag slug="cheonjigaebyeokgyeong-hangeul" />
 
     <AiMatchNotice />
 

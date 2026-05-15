@@ -1,38 +1,22 @@
 ---
 /**
- * Site-wide rollup of recent commits that touched any scripture markdown
- * (content/scripture/**). De-duplicated by commit hash, filtered to entries
- * that are explicitly public (via `--public` token in commit body, or admin
- * override in content/_data/changelog-display.json), shown newest-first.
+ * Site-wide changelog. Surfaces commits that touched any vault content
+ * (`content/scripture/**`, `content/{dates,dosu,people,places,terms}/*.md`)
+ * and were marked public via the `--public` body token or admin override.
+ *
+ * Aggregation, dedupe, and category mapping live in lib/history.ts so the
+ * admin tooling and any future feed can share the same view.
  */
-import data from "../data/history.json";
-import { displayMessageForCommit, type HistoryEntry } from "../lib/history";
+import { aggregateChangelog } from "../lib/history";
 import Icon from "./Icon.svelte";
 
 interface Props {
-  /** Maximum number of commits to display. Default 30. */
+  /** Maximum number of entries to display. Default 30. */
   limit?: number;
 }
 const { limit = 30 } = Astro.props;
 
-const files: Record<string, HistoryEntry[]> = (data as any).files ?? {};
-
-const seen = new Set<string>();
-const all: { entry: HistoryEntry; message: string }[] = [];
-for (const [path, entries] of Object.entries(files)) {
-  if (!path.startsWith("content/scripture/")) continue;
-  for (const e of entries) {
-    if (seen.has(e.hash)) continue;
-    seen.add(e.hash);
-    const msg = displayMessageForCommit(e);
-    if (!msg) continue;
-    all.push({ entry: e, message: msg });
-  }
-}
-all.sort((a, b) =>
-  a.entry.date < b.entry.date ? 1 : a.entry.date > b.entry.date ? -1 : 0,
-);
-const recent = all.slice(0, limit);
+const recent = aggregateChangelog().slice(0, limit);
 
 function shortDate(iso: string): string {
   return iso.slice(0, 10);
@@ -52,7 +36,18 @@ function shortDate(iso: string): string {
       {recent.map((r) => (
         <li>
           <span class="date">{shortDate(r.entry.date)}</span>
-          <span class="subject">{r.message}</span>
+          <span class="body">
+            <span class="badges">
+              {r.categories.map((c) => (
+                <a class={`badge badge-${c.group}`} href={c.href}>
+                  <span class="badge-group">{c.group === "scripture" ? "경전" : "자료"}</span>
+                  <span class="badge-sep">·</span>
+                  <span class="badge-label">{c.label}</span>
+                </a>
+              ))}
+            </span>
+            <span class="subject">{r.message}</span>
+          </span>
         </li>
       ))}
     </ol>
@@ -121,6 +116,46 @@ function shortDate(iso: string): string {
     color: var(--color-muted, #8a807a);
     font-variant-numeric: tabular-nums;
     font-size: 0.85rem;
+  }
+  .body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem 0.55rem;
+  }
+  .badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25em;
+    padding: 0.08em 0.55em;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    text-decoration: none;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .badge:hover { filter: brightness(0.97); }
+  .badge-scripture {
+    background: #fbecea;
+    color: #a8352a;
+    border-color: #f0d5d0;
+  }
+  .badge-archive {
+    background: #f3ece1;
+    color: #7a5a32;
+    border-color: #e6dac5;
+  }
+  .badge-sep {
+    opacity: 0.55;
+  }
+  .badge-label {
+    font-weight: 600;
   }
   .subject {
     color: var(--color-fg, #1f1c1a);
