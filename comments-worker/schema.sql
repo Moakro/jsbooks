@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS comments (
   status              TEXT NOT NULL DEFAULT 'published', -- published|hidden|deleted
   attachments         TEXT,                              -- JSON: [{type:'image',url,width?,height?},{type:'map',lat,lng,zoom?,label?}]
   is_pinned           INTEGER NOT NULL DEFAULT 0,        -- 운영자 고정 (L≥4)
-  promoted_to_note_id TEXT,                              -- 향후 주석 승격 hook (현재 미사용)
+  promoted_to_note_id TEXT,                              -- footnote id (`uc-YYYY-MM-DD-N`) when 운영자가 자료 주석으로 승격함
   created_at          TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -56,6 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(target_type, target_i
 CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);
 CREATE INDEX IF NOT EXISTS idx_comments_pinned ON comments(target_type, target_id, is_pinned, created_at);
+CREATE INDEX IF NOT EXISTS idx_comments_promoted ON comments(promoted_to_note_id);
 
 -- 사용자별 사진 dedup. 동일 사용자가 같은 sha256 재업로드 시
 -- 기존 url 반환하고 새 업로드를 막는다. orphan cleanup은 별도 트랙.

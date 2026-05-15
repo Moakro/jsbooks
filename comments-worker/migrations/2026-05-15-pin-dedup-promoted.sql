@@ -9,6 +9,7 @@ ALTER TABLE comments ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE comments ADD COLUMN promoted_to_note_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_comments_pinned
   ON comments(target_type, target_id, is_pinned, created_at);
+CREATE INDEX IF NOT EXISTS idx_comments_promoted ON comments(promoted_to_note_id);
 
 -- 사용자별 사진 dedup. 동일 사용자가 같은 sha256을 다시 올리면
 -- 기존 r2_key·url을 반환하여 재업로드를 막는다. orphan cleanup은 별도 트랙.

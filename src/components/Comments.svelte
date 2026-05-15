@@ -18,6 +18,7 @@
     created_at: string;
     updated_at: string;
     attachments?: Attachment[];
+    promoted_to_note_id?: string | null;
     author_id: string | null;
     author: {
       display_name: string;
@@ -322,6 +323,7 @@
             id={`comment-${c.id}`}
             class="comment c-{c.type}"
             class:pinned={c.is_pinned}
+            class:promoted={!!c.promoted_to_note_id}
             class:deleted={c.status === "deleted"}
             class:highlight={highlightId === c.id}
           >
@@ -354,6 +356,14 @@
                   {/if}
                 </span>
               </header>
+
+              {#if c.promoted_to_note_id}
+                <a class="promoted-badge" href={`#fn-${c.promoted_to_note_id}`} title="이 댓글이 자료 주석으로 반영되었습니다">
+                  <span class="promoted-icon" aria-hidden="true">📝</span>
+                  자료에 반영됨
+                  <span class="promoted-id">{c.promoted_to_note_id}</span>
+                </a>
+              {/if}
 
               {#if parentMentionLabel(c)}
                 <button
@@ -610,6 +620,32 @@
   }
   .c-memo {
     border-left: 3px solid var(--color-rule);
+  }
+  .comment.promoted {
+    background: var(--color-secondary-bg, #fff7e6);
+  }
+  .promoted-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0 0 0.5rem;
+    padding: 0.18rem 0.55rem;
+    border: 1px solid var(--color-secondary);
+    color: var(--color-secondary);
+    background: var(--color-bg);
+    border-radius: 999px;
+    font-size: 0.78rem;
+    text-decoration: none;
+    line-height: 1.2;
+  }
+  .promoted-badge:hover {
+    background: var(--color-secondary-bg);
+  }
+  .promoted-icon { font-size: 0.85em; }
+  .promoted-id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    color: var(--color-muted);
   }
   .comment header {
     display: flex;

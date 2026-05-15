@@ -95,15 +95,78 @@ export function renderWikilinks(text: string, manifest: CardManifest): string {
 import { marked } from "marked";
 
 /**
+ * footnote 정의 라인을 본문에서 분리 + inline ref `[^id]`를
+ * `<sup class="fn-ref">` 태그로 치환. 사용자 기여 주석(`uc-` prefix)은
+ * `fn-ref--uc` 클래스를 추가로 부여해 시각적으로 구분.
+ *
+ * 반환: { body: 정의 제거된 본문, footnotes: [{ id, raw }] }
+ */
+const FOOTNOTE_DEF_RE = /^\[\^([^\]]+)\]:\s*(.+)$/;
+
+export interface FootnoteDef {
+  id: string;
+  raw: string;
+}
+
+export function extractFootnotes(text: string): { body: string; footnotes: FootnoteDef[] } {
+  const lines = text.split("\n");
+  const keep: string[] = [];
+  const footnotes: FootnoteDef[] = [];
+  for (const ln of lines) {
+    const m = ln.match(FOOTNOTE_DEF_RE);
+    if (m) {
+      footnotes.push({ id: m[1], raw: m[2] });
+    } else {
+      keep.push(ln);
+    }
+  }
+  return { body: keep.join("\n"), footnotes };
+}
+
+const FOOTNOTE_REF_RE = /\[\^([^\]]+)\]/g;
+
+function renderFootnoteRefInline(text: string): string {
+  return text.replace(FOOTNOTE_REF_RE, (_whole, id) => {
+    const isUc = id.startsWith("uc-");
+    const cls = isUc ? "fn-ref fn-ref--uc" : "fn-ref";
+    const safe = escapeAttr(id);
+    return `<sup class="${cls}"><a href="#fn-${safe}" id="fnref-${safe}">${escapeText(id)}</a></sup>`;
+  });
+}
+
+/**
+ * Footnote 정의 목록을 HTML로 렌더링. 사용자 기여(`uc-`)는 `uc` 클래스 추가.
+ * 호출자가 본문 아래에 직접 삽입한다.
+ *
+ * 입력 raw는 wikilink 등이 이미 적용된 HTML 조각이 아니므로, 호출자가 필요하면
+ * 사전에 renderWikilinks를 적용해 둔다 (renderMarkdownBody 내부에서 처리).
+ */
+export function renderFootnotesHTML(footnotes: FootnoteDef[]): string {
+  if (footnotes.length === 0) return "";
+  const items = footnotes.map((fn) => {
+    const isUc = fn.id.startsWith("uc-");
+    const cls = isUc ? "fn-def fn-def--uc" : "fn-def";
+    const safe = escapeAttr(fn.id);
+    return `<li id="fn-${safe}" class="${cls}">${fn.raw} <a class="fn-backref" href="#fnref-${safe}" aria-label="원문으로">↩</a></li>`;
+  });
+  return `<aside class="footnotes" aria-label="주석"><ol>${items.join("")}</ol></aside>`;
+}
+
+/**
  * Render a markdown body to HTML, including wikilink resolution.
  * Wikilinks are resolved BEFORE markdown parsing using placeholders to
  * prevent [[..]] from being misinterpreted by the markdown parser.
+ *
+ * Footnotes (`[^id]: ...` 정의 + `[^id]` inline ref) 도 함께 처리. 정의는
+ * 본문 아래 `<aside class="footnotes">` 블록으로, ref는 `<sup>` 링크로.
  */
 export function renderMarkdownBody(text: string, manifest: CardManifest): string {
+  const { body: bodyWithoutFootnotes, footnotes } = extractFootnotes(text);
+
   const placeholders: string[] = [];
   const PLACEHOLDER = (i: number) => `\x00WL${i}\x00`;
 
-  const withPlaceholders = text.replace(WIKILINK_RE, (_whole, target, display) => {
+  const withWikilinks = bodyWithoutFootnotes.replace(WIKILINK_RE, (_whole, target, display) => {
     const resolved = resolveWikilink(target, manifest);
     const label = display ?? target;
     let html: string;
@@ -118,11 +181,40 @@ export function renderMarkdownBody(text: string, manifest: CardManifest): string
     return PLACEHOLDER(idx);
   });
 
-  let html = marked.parse(withPlaceholders, { async: false }) as string;
+  // footnote inline ref 치환은 marked 통과 전에 sup HTML로 변환 (marked는 raw HTML 보존)
+  const withFootnoteRefs = renderFootnoteRefInline(withWikilinks);
 
-  // Restore placeholders
+  let html = marked.parse(withFootnoteRefs, { async: false }) as string;
   html = html.replace(/\x00WL(\d+)\x00/g, (_, i) => placeholders[parseInt(i, 10)]);
+
+  if (footnotes.length > 0) {
+    // 정의 본문에도 wikilink + inline markdown(링크) 적용. parseInline은 inline-level
+    // markdown만 처리하므로 `<p>` 래핑 없이 깨끗하게 li 안에 들어감.
+    const renderedDefs = footnotes.map((fn) => {
+      const rawWithWiki = fn.raw.replace(WIKILINK_RE, (_w, target, display) => {
+        const resolved = resolveWikilink(target, manifest);
+        const label = display ?? target;
+        if (!resolved) {
+          return `<span class="wikilink-missing">${escapeText(label)}</span>`;
+        }
+        const cls = resolved.mode === "page" ? "wikilink page" : "wikilink";
+        return `<a class="${cls}" href="${resolved.href}">${escapeText(label)}</a>`;
+      });
+      const inlineHtml = marked.parseInline(rawWithWiki, { async: false }) as string;
+      return { id: fn.id, raw: inlineHtml };
+    });
+    html += renderFootnotesHTML(renderedDefs);
+  }
+
   return html;
+}
+
+/**
+ * 천지개벽경 sentence 본문같이 marked를 통과하지 않는 경로용 — wikilink + footnote
+ * inline ref를 함께 처리. 정의 분리는 호출자가 별도로 다룬다.
+ */
+export function renderInlineWithFootnotes(text: string, manifest: CardManifest): string {
+  return renderFootnoteRefInline(renderWikilinks(text, manifest));
 }
 
 function escapeText(s: string): string {
