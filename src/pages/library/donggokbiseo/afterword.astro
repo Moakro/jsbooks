@@ -14,7 +14,12 @@ const manifest = await buildCardManifest();
 const bodyHTML = renderMarkdownBody(after.body ?? "", manifest);
 ---
 
-<Base title="출간 후기 — 동곡비서" scriptureSlug="donggokbiseo">
+<Base
+  title="출간 후기 — 동곡비서"
+  scriptureSlug="donggokbiseo"
+  chapterAnchor="afterword"
+  chapterLabel="출간 후기"
+>
   <ScriptureStickyBar
     scriptureName="동곡비서"
     scriptureSlug="donggokbiseo"

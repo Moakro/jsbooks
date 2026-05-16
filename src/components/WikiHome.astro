@@ -5,6 +5,7 @@
  * Base layout's `pre-main` slot by the calling page so they sit outside
  * the main card surface.
  */
+import LibraryBadges from "./LibraryBadges.svelte";
 
 interface ScriptureCard {
   slug: string;
@@ -69,7 +70,7 @@ const scriptures: ScriptureCard[] = [
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name, "ko"))
       .map((s) => (
-      <li class={`card ${s.status}`}>
+      <li class={`card ${s.status}`} data-scripture-slug={s.slug}>
         <a href={`/library/${s.slug}/`} class="card-link">
           <div class="spine"></div>
           <div class="card-body">
@@ -92,6 +93,7 @@ const scriptures: ScriptureCard[] = [
     새 경전이 추가되면 <a href="/news/" class="page-link">뉴스</a>에서 알려드립니다.
   </p>
 </section>
+<LibraryBadges client:load mode="scriptures" />
 
 <style>
   .catalog {
@@ -111,10 +113,12 @@ const scriptures: ScriptureCard[] = [
     border: 1px solid var(--color-rule);
     border-radius: var(--radius-md);
     background: var(--color-surface);
-    overflow: hidden;
+    overflow: visible; /* badge가 카드 모서리 바깥으로 노출되도록 */
     box-shadow: var(--shadow-sm);
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    position: relative;
   }
+  .card .card-link { border-radius: var(--radius-md); overflow: hidden; }
   .card:hover {
     border-color: var(--color-primary);
     transform: translateY(-2px);

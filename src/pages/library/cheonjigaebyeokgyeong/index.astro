@@ -4,6 +4,7 @@ import { getCollection } from "astro:content";
 import AiMatchNotice from "../../../components/AiMatchNotice.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 import ScriptureVersionTag from "../../../components/ScriptureVersionTag.astro";
+import LibraryBadges from "../../../components/LibraryBadges.svelte";
 
 const allScripture = await getCollection("scripture");
 const all = allScripture.filter((e) => e.id.startsWith("cheonjigaebyeokgyeong/"));
@@ -46,7 +47,7 @@ const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
     <section class="vol-section">
       <h2>서문</h2>
       <div class="chap-grid">
-        <a class="chap-btn" href="/library/cheonjigaebyeokgyeong/preface/">序</a>
+        <a class="chap-btn" href="/library/cheonjigaebyeokgyeong/preface/" data-chapter-anchor="preface">序</a>
       </div>
     </section>
   )}
@@ -59,13 +60,18 @@ const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
       </h2>
       <div class="chap-grid">
         {vol.chapters.map((c) => (
-          <a class="chap-btn" href={`/library/cheonjigaebyeokgyeong/${num}/${c.data.장}/`}>
+          <a
+            class="chap-btn"
+            href={`/library/cheonjigaebyeokgyeong/${num}/${c.data.장}/`}
+            data-chapter-anchor={`${num}-${c.data.장}`}
+          >
             {c.data.장}
           </a>
         ))}
       </div>
     </section>
   ))}
+  <LibraryBadges client:load mode="chapters" scriptureSlug="cheonjigaebyeokgyeong" />
 </Base>
 
 <style>
@@ -90,6 +96,7 @@ const volList = [...volumes.entries()].sort(([a], [b]) => a - b);
     gap: 0.4rem;
   }
   .chap-btn {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;

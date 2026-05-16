@@ -1,6 +1,5 @@
 ---
 import Base from "../../../layouts/Base.astro";
-import Comments from "../../../components/Comments.svelte";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderWikilinks } from "../../../lib/wikilink";
@@ -11,7 +10,6 @@ import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 import ScriptureVersionTag from "../../../components/ScriptureVersionTag.astro";
 import AiMatchNotice from "../../../components/AiMatchNotice.astro";
-import ScriptureCommentLayer from "../../../components/scripture/ScriptureCommentLayer.svelte";
 
 const all = await getCollection("scripture");
 const verses_entry = all.find((e) => e.id === "donggokbiseo/01_본문");
@@ -29,7 +27,12 @@ const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
 });
 ---
 
-<Base title="동곡비서 (銅谷秘書) — jsbooks" scriptureSlug="donggokbiseo">
+<Base
+  title="동곡비서 (銅谷秘書) — jsbooks"
+  scriptureSlug="donggokbiseo"
+  chapterAnchor="0"
+  chapterLabel="동곡비서 본문"
+>
   <ScriptureStickyBar
     scriptureName="동곡비서"
     scriptureSlug="donggokbiseo"
@@ -71,10 +74,6 @@ const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
   </div>
 
   <ScriptureChapterNav scriptureSlug="donggokbiseo" currentId={verses_entry.id} />
-
-  <Comments client:load targetKind="scripture" targetId="donggokbiseo" />
-
-  <ScriptureCommentLayer client:only="svelte" slug="donggokbiseo" />
 </Base>
 
 <style>

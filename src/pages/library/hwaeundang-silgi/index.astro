@@ -3,6 +3,7 @@ import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 import ScriptureVersionTag from "../../../components/ScriptureVersionTag.astro";
+import LibraryBadges from "../../../components/LibraryBadges.svelte";
 
 const all = (await getCollection("scripture")).filter((e) =>
   e.id.startsWith("hwaeundang-silgi/"),
@@ -26,7 +27,7 @@ const chapters = all
     <section class="vol-section">
       <h2>서문</h2>
       <div class="chap-grid">
-        <a class="chap-btn" href="/library/hwaeundang-silgi/preface/">序</a>
+        <a class="chap-btn" href="/library/hwaeundang-silgi/preface/" data-chapter-anchor="preface">序</a>
       </div>
     </section>
   )}
@@ -35,7 +36,11 @@ const chapters = all
     <h2>본문</h2>
     <div class="chap-grid">
       {chapters.map((c) => (
-        <a class="chap-btn" href={`/library/hwaeundang-silgi/${c.data.장}/`}>
+        <a
+          class="chap-btn"
+          href={`/library/hwaeundang-silgi/${c.data.장}/`}
+          data-chapter-anchor={String(c.data.장)}
+        >
           {c.data.장}장
         </a>
       ))}
@@ -46,10 +51,11 @@ const chapters = all
     <section class="vol-section">
       <h2>부록</h2>
       <div class="chap-grid">
-        <a class="chap-btn" href="/library/hwaeundang-silgi/appendix/">附錄</a>
+        <a class="chap-btn" href="/library/hwaeundang-silgi/appendix/" data-chapter-anchor="appendix">附錄</a>
       </div>
     </section>
   )}
+  <LibraryBadges client:load mode="chapters" scriptureSlug="hwaeundang-silgi" />
 </Base>
 
 <style>
@@ -67,6 +73,7 @@ const chapters = all
     gap: 0.4rem;
   }
   .chap-btn {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;

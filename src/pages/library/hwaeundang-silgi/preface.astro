@@ -1,6 +1,5 @@
 ---
 import Base from "../../../layouts/Base.astro";
-import Comments from "../../../components/Comments.svelte";
 import History from "../../../components/History.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
@@ -18,7 +17,12 @@ const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
 const historyPath = `content/scripture/${preface.id}.md`;
 ---
 
-<Base title="서문 — 화은당실기" scriptureSlug="hwaeundang-silgi">
+<Base
+  title="서문 — 화은당실기"
+  scriptureSlug="hwaeundang-silgi"
+  chapterAnchor="preface"
+  chapterLabel="서문"
+>
   <ScriptureStickyBar
     scriptureName="화은당실기"
     scriptureSlug="hwaeundang-silgi"
@@ -38,7 +42,6 @@ const historyPath = `content/scripture/${preface.id}.md`;
 
   <ScriptureChapterNav scriptureSlug="hwaeundang-silgi" currentId={preface.id} />
 
-  <Comments client:idle target={`preface`} />
   <History path={historyPath} />
 </Base>
 

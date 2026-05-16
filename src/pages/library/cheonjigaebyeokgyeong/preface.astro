@@ -7,7 +7,6 @@ import { parseVerseGroups } from "../../../lib/verse-parser";
 import { getMapping } from "../../../lib/canonical-mapping";
 import { correspondencesFor } from "../../../lib/correspondences";
 import CorrespondenceBadges from "../../../components/CorrespondenceBadges.astro";
-import Comments from "../../../components/Comments.svelte";
 import History from "../../../components/History.astro";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
@@ -57,7 +56,12 @@ for (const g of parseVerseGroups(preface.body ?? "")) {
 const historyPath = `content/scripture/${preface.id}.md`;
 ---
 
-<Base title="서(序) — 천지개벽경" scriptureSlug="cheonjigaebyeokgyeong">
+<Base
+  title="서(序) — 천지개벽경"
+  scriptureSlug="cheonjigaebyeokgyeong"
+  chapterAnchor="preface"
+  chapterLabel="서(序)"
+>
   <ScriptureStickyBar
     scriptureName="천지개벽경"
     scriptureSlug="cheonjigaebyeokgyeong"
@@ -141,7 +145,6 @@ const historyPath = `content/scripture/${preface.id}.md`;
 
   <ScriptureChapterNav scriptureSlug="cheonjigaebyeokgyeong" currentId={preface.id} />
 
-  <Comments client:idle target={`preface`} />
   <History path={historyPath} />
 </Base>
 

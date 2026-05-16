@@ -1,6 +1,5 @@
 ---
 import Base from "../../../layouts/Base.astro";
-import Comments from "../../../components/Comments.svelte";
 import History from "../../../components/History.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
@@ -8,7 +7,6 @@ import { renderWikilinks } from "../../../lib/wikilink";
 import { parseVerses } from "../../../lib/verse-parser";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
-import ScriptureCommentLayer from "../../../components/scripture/ScriptureCommentLayer.svelte";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -45,7 +43,12 @@ const chapPct = Math.round(((idx + 1) / totalChaps) * 100);
 const historyPath = `content/scripture/${entry.id}.md`;
 ---
 
-<Base title={`제${장}장 ${장_이름} — 화은당실기`} scriptureSlug="hwaeundang-silgi">
+<Base
+  title={`제${장}장 ${장_이름} — 화은당실기`}
+  scriptureSlug="hwaeundang-silgi"
+  chapterAnchor={String(장)}
+  chapterLabel={`제${장}장 ${장_이름}`}
+>
   <ScriptureStickyBar
     scriptureName="화은당실기"
     scriptureSlug="hwaeundang-silgi"
@@ -81,10 +84,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
 
   <ScriptureChapterNav scriptureSlug="hwaeundang-silgi" currentId={entry.id} />
 
-  <Comments client:idle target={`chapter:${장}`} />
   <History path={historyPath} />
-
-  <ScriptureCommentLayer client:only="svelte" slug="hwaeundang-silgi" />
 </Base>
 
 <style>

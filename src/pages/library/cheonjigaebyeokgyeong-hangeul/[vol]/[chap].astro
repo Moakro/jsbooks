@@ -1,7 +1,6 @@
 ---
 import Base from "../../../../layouts/Base.astro";
 import History from "../../../../components/History.astro";
-import Comments from "../../../../components/Comments.svelte";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../../lib/manifest";
 import { renderWikilinks } from "../../../../lib/wikilink";
@@ -11,7 +10,6 @@ import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.as
 import AdminGate from "../../../../components/AdminGate.astro";
 import ScriptureChapterNav from "../../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../../components/ScriptureStickyBar.astro";
-import ScriptureCommentLayer from "../../../../components/scripture/ScriptureCommentLayer.svelte";
 
 export async function getStaticPaths() {
   const all = await getCollection("scripture");
@@ -50,7 +48,12 @@ const chapPct = Math.round(((idx + 1) / totalChaps) * 100);
 const historyPath = `content/scripture/${entry.id}.md`;
 ---
 
-<Base title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경 (한글본 백업)`} scriptureSlug="cheonjigaebyeokgyeong-hangeul">
+<Base
+  title={`권 ${권} ${권_이름} · ${장}장 — 천지개벽경 (한글본 백업)`}
+  scriptureSlug="cheonjigaebyeokgyeong-hangeul"
+  chapterAnchor={`${권}-${장}`}
+  chapterLabel={`권 ${권} ${권_이름} · ${장}장 (백업)`}
+>
   <AdminGate>
     <ScriptureStickyBar
       scriptureName="천지개벽경 한글본 (백업)"
@@ -89,10 +92,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
 
     <ScriptureChapterNav scriptureSlug="cheonjigaebyeokgyeong-hangeul" currentId={entry.id} />
 
-    <Comments client:idle target={`chapter-hangeul:${권}:${장}`} />
     <History path={historyPath} />
-
-    <ScriptureCommentLayer client:only="svelte" slug="cheonjigaebyeokgyeong-hangeul" />
   </AdminGate>
 </Base>
 

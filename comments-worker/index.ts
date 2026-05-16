@@ -16,6 +16,8 @@
  *   POST /api/comments/:id/pin     — toggle pin (level >= 4)
  *   POST /api/upload/image         — upload resized image (optional X-Upload-Hash for dedup)
  *   POST /api/upload/check         — body { hash } → check user's prior upload
+ *   POST /api/visits/touch         — body { scripture, chapter } → upsert last_visited
+ *   GET  /api/visits/badges        — ?scripture=<slug> 또는 (없으면) 전 경전 합계
  *
  * Session: signed JWT in HttpOnly cookie (`jb_session`).
  * SameSite=Lax, Secure, ~30 day expiry. JWT signing uses HS256 with AUTH_SECRET.
@@ -85,6 +87,10 @@ export default {
 
       // ──── Upload check (dedup) ────
       if (path === "/api/upload/check" && req.method === "POST") return checkUpload(req, env);
+
+      // ──── Visits ────
+      if (path === "/api/visits/touch" && req.method === "POST") return touchVisit(req, env);
+      if (path === "/api/visits/badges" && req.method === "GET") return visitsBadges(req, env);
 
       return json({ error: "not found" }, 404);
     } catch (e: unknown) {
@@ -859,6 +865,245 @@ function sanitizeHTML(text: string): string {
   // paragraphs by blank lines, single newline → <br>
   const paras = escaped.split(/\n\s*\n/).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`);
   return paras.join("");
+}
+
+// ───────────────────── visits ─────────────────────
+
+// chapter anchor 형식 검증 — "vol-chap" 또는 평면 "0" 또는 "preface"
+function isValidChapterAnchor(s: string): boolean {
+  if (s === "0" || s === "preface" || s === "appendix") return true;
+  return /^\d+-\d+$/.test(s) || /^\d+$/.test(s);
+}
+
+// POST /api/visits/touch — { scripture, chapter }
+// 로그인: D1 upsert. 비로그인: 200 OK (클라이언트가 localStorage 처리).
+async function touchVisit(req: Request, env: Env): Promise<Response> {
+  const body = await req.json().catch(() => ({})) as { scripture?: string; chapter?: string };
+  const scripture = (body.scripture ?? "").trim();
+  const chapter = (body.chapter ?? "").trim();
+  if (!scripture || !/^[a-z0-9-]+$/.test(scripture)) return json({ error: "invalid scripture" }, 400);
+  if (!chapter || !isValidChapterAnchor(chapter)) return json({ error: "invalid chapter" }, 400);
+
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ ok: true, anonymous: true });
+
+  await env.DB.prepare(
+    `INSERT INTO user_visits (user_id, scripture_slug, chapter_anchor, last_visited)
+     VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(user_id, scripture_slug, chapter_anchor)
+     DO UPDATE SET last_visited = datetime('now')`,
+  ).bind(uid, scripture, chapter).run();
+  return json({ ok: true });
+}
+
+// GET /api/visits/badges?scripture=<slug>
+//   응답: { chapters: { "vol-chap": { total, new } }, scripture_total: { total, new } }
+// scripture 미지정 시: 모든 경전 — { scriptures: { "<slug>": { total, new } } }
+async function visitsBadges(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const scripture = url.searchParams.get("scripture")?.trim();
+  const uid = await currentUserId(req, env);
+
+  const cacheHeaders = { "Cache-Control": "private, max-age=30" };
+
+  if (!scripture) {
+    // 경전별 합계 모드 — 모든 verse·chapter 댓글 총수 + new 수 집계.
+    // verse target_id 패턴: "<slug>:<anchor>"; chapter target_id: "<vol>:<chap>".
+    // 새 댓글 = visits 없거나 created_at > last_visited.
+    // 효율을 위해 verse 댓글은 target_id의 첫 segment(slug)로 group.
+    const versesRows = await env.DB.prepare(
+      `SELECT
+         substr(target_id, 1, instr(target_id, ':') - 1) AS slug,
+         COUNT(*) AS n,
+         MAX(created_at) AS latest
+       FROM comments
+       WHERE target_type='verse' AND status='published' AND instr(target_id, ':') > 0
+       GROUP BY slug`,
+    ).all<{ slug: string; n: number; latest: string }>();
+
+    // chapter 댓글: target_id = "vol:chap" — 별도 매핑 테이블이 없으므로 카운트만.
+    // chapter target은 cheonjigaebyeokgyeong 한정 사용 — verse 합계에 합치지 않고
+    // 응답에서는 verse 슬러그별로만 노출 (chapter 댓글은 chapter 페이지 진입 시 별도).
+    const totals: Record<string, { total: number; new: number }> = {};
+    for (const r of versesRows.results ?? []) {
+      if (r.slug) totals[r.slug] = { total: r.n, new: 0 };
+    }
+
+    if (uid) {
+      // 회원별 last_visited per (slug, chapter). 단일 슬러그 합계는 전체 chapter
+      // last_visited 중 가장 오래된 것을 기준으로 잡으면 "새" 누락이 줄어든다.
+      // 단순화: 슬러그 합계의 new 는 (visits에 그 슬러그 항목이 0개면 total, 아니면
+      // 가장 오래된 last_visited 기준 새 댓글 수)로 계산.
+      const visits = await env.DB.prepare(
+        `SELECT scripture_slug, MIN(last_visited) AS oldest_visit
+         FROM user_visits WHERE user_id = ?
+         GROUP BY scripture_slug`,
+      ).bind(uid).all<{ scripture_slug: string; oldest_visit: string }>();
+      const oldestBySlug = new Map<string, string>();
+      for (const v of visits.results ?? []) oldestBySlug.set(v.scripture_slug, v.oldest_visit);
+
+      for (const slug of Object.keys(totals)) {
+        const oldest = oldestBySlug.get(slug);
+        if (!oldest) {
+          totals[slug].new = totals[slug].total;
+          continue;
+        }
+        const nr = await env.DB.prepare(
+          `SELECT COUNT(*) AS n FROM comments
+           WHERE target_type='verse' AND status='published'
+             AND substr(target_id, 1, instr(target_id, ':') - 1) = ?
+             AND created_at > ?`,
+        ).bind(slug, oldest).first<{ n: number }>();
+        totals[slug].new = nr?.n ?? 0;
+      }
+    } else {
+      // 비로그인: total만 응답, new=0. 클라이언트가 localStorage로 다시 계산.
+    }
+
+    return json({ scriptures: totals, anonymous: !uid }, 200, cacheHeaders);
+  }
+
+  // 단일 scripture 모드: chapter 단위 집계.
+  // verse 댓글 target_id 형식 = "<slug>:<anchor>".
+  //   - cheonjigaebyeokgyeong anchor = "vol-chap-sentenceNum" → 첫 두 segment가 chapter key.
+  //   - donggokbiseo anchor = 평면 숫자 → 모두 chapter "0".
+  //   - hwaeundang-silgi anchor = "chap-N" → 첫 segment가 chapter key.
+  // chapter 댓글 (target_type='chapter') target_id = "vol:chap" → chapter key = "vol-chap" (replace ":" with "-").
+  // 분할은 클라이언트가 chapter key를 SQL에 미리 전달하기 어렵기 때문에
+  // 행 단위로 자바스크립트에서 chapter key를 도출한다.
+
+  const versePrefix = `${scripture}:`;
+  const verseRows = await env.DB.prepare(
+    `SELECT target_id, COUNT(*) AS n, MAX(created_at) AS latest
+     FROM comments
+     WHERE target_type='verse' AND status='published'
+       AND target_id LIKE ? ESCAPE '\\'
+     GROUP BY target_id`,
+  ).bind(versePrefix.replace(/[%_]/g, "\\$&") + "%").all<{ target_id: string; n: number; latest: string }>();
+
+  // chapter-level 댓글은 천지개벽경에만 존재 (target_id = "vol:chap").
+  const chapterRows = scripture === "cheonjigaebyeokgyeong"
+    ? await env.DB.prepare(
+        `SELECT target_id, COUNT(*) AS n, MAX(created_at) AS latest
+         FROM comments
+         WHERE target_type='chapter' AND status='published'
+         GROUP BY target_id`,
+      ).all<{ target_id: string; n: number; latest: string }>()
+    : { results: [] as { target_id: string; n: number; latest: string }[] };
+
+  function chapterKeyFromAnchor(anchor: string): string {
+    // anchor 형식별 chapter key 추출
+    if (scripture === "cheonjigaebyeokgyeong") {
+      // "vol-chap-sentenceNum" 또는 "preface-N"
+      if (anchor.startsWith("preface")) return "preface";
+      const m = anchor.match(/^(\d+)-(\d+)/);
+      if (m) return `${m[1]}-${m[2]}`;
+      return anchor;
+    }
+    if (scripture === "hwaeundang-silgi") {
+      if (anchor.startsWith("preface")) return "preface";
+      if (anchor.startsWith("appendix")) return "appendix";
+      const m = anchor.match(/^(\d+)/);
+      if (m) return m[1];
+      return anchor;
+    }
+    // 평면 경전 (donggokbiseo)
+    return "0";
+  }
+
+  const chapters: Record<string, { total: number; new: number; latest: string | null }> = {};
+
+  for (const r of verseRows.results ?? []) {
+    const anchor = r.target_id.slice(versePrefix.length);
+    if (!anchor) continue;
+    const key = chapterKeyFromAnchor(anchor);
+    if (!chapters[key]) chapters[key] = { total: 0, new: 0, latest: null };
+    chapters[key].total += r.n;
+    if (!chapters[key].latest || r.latest > chapters[key].latest) chapters[key].latest = r.latest;
+  }
+  for (const r of chapterRows.results ?? []) {
+    const key = r.target_id.replace(":", "-");
+    if (!chapters[key]) chapters[key] = { total: 0, new: 0, latest: null };
+    chapters[key].total += r.n;
+    if (!chapters[key].latest || r.latest > chapters[key].latest) chapters[key].latest = r.latest;
+  }
+
+  let scriptureTotal = 0;
+  let scriptureNew = 0;
+
+  if (uid) {
+    // 회원 last_visited per (slug, chapter)
+    const visits = await env.DB.prepare(
+      `SELECT chapter_anchor, last_visited FROM user_visits
+       WHERE user_id = ? AND scripture_slug = ?`,
+    ).bind(uid, scripture).all<{ chapter_anchor: string; last_visited: string }>();
+    const visitMap = new Map<string, string>();
+    for (const v of visits.results ?? []) visitMap.set(v.chapter_anchor, v.last_visited);
+
+    for (const [key, entry] of Object.entries(chapters)) {
+      scriptureTotal += entry.total;
+      const lv = visitMap.get(key);
+      if (!lv) {
+        entry.new = entry.total;
+        scriptureNew += entry.total;
+        continue;
+      }
+      // chapter 안의 새 댓글 수: 정확히는 chapter별 verse/chapter 댓글 created_at > lv 카운트.
+      // 효율을 위해 latest만 비교해 "있다/없다" 판단 후, 있다면 정확 카운트.
+      if (!entry.latest || entry.latest <= lv) {
+        entry.new = 0;
+        continue;
+      }
+      // 정확 카운트
+      const verseN = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM comments
+         WHERE target_type='verse' AND status='published'
+           AND target_id LIKE ? ESCAPE '\\'
+           AND created_at > ?`,
+      ).bind(`${versePrefix.replace(/[%_]/g, "\\$&")}${chapterKeyPattern(scripture, key)}`, lv)
+        .first<{ n: number }>();
+      let n = verseN?.n ?? 0;
+      if (scripture === "cheonjigaebyeokgyeong") {
+        const m = key.match(/^(\d+)-(\d+)$/);
+        if (m) {
+          const chN = await env.DB.prepare(
+            `SELECT COUNT(*) AS n FROM comments
+             WHERE target_type='chapter' AND status='published'
+               AND target_id = ?
+               AND created_at > ?`,
+          ).bind(`${m[1]}:${m[2]}`, lv).first<{ n: number }>();
+          n += chN?.n ?? 0;
+        }
+      }
+      entry.new = n;
+      scriptureNew += n;
+    }
+  } else {
+    for (const entry of Object.values(chapters)) scriptureTotal += entry.total;
+  }
+
+  const out: Record<string, { total: number; new: number }> = {};
+  for (const [k, v] of Object.entries(chapters)) out[k] = { total: v.total, new: v.new };
+
+  return json({
+    chapters: out,
+    scripture_total: { total: scriptureTotal, new: scriptureNew },
+    anonymous: !uid,
+  }, 200, cacheHeaders);
+}
+
+// chapter key → SQL LIKE 패턴 (verse anchor prefix). 효율적인 LIKE.
+function chapterKeyPattern(scripture: string, chapterKey: string): string {
+  if (scripture === "cheonjigaebyeokgyeong") {
+    if (chapterKey === "preface") return "preface-%";
+    return `${chapterKey}-%`;
+  }
+  if (scripture === "hwaeundang-silgi") {
+    if (chapterKey === "preface") return "preface-%";
+    if (chapterKey === "appendix") return "appendix-%";
+    return `${chapterKey}-%`;
+  }
+  return "%"; // 평면: 모두 chapter 0
 }
 
 // ───────────────────── uploads ─────────────────────

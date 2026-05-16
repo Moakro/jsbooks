@@ -16,10 +16,21 @@ interface Props {
   description?: string;
   /** Slug of the scripture currently being viewed, for sidebar highlight. */
   scriptureSlug?: string | null;
+  /** Chapter anchor (e.g. "2-3" or "preface") — enables SideCard scripture mode. */
+  chapterAnchor?: string | null;
+  /** Human label for the chapter (shown in SideCard header). */
+  chapterLabel?: string | null;
   /** Skip the main card surface — page renders only `pre-main` widgets on the shell. */
   bare?: boolean;
 }
-const { title, description = "증산계열 경전 도서관 · 북리더 앱", scriptureSlug = null, bare = false } = Astro.props;
+const {
+  title,
+  description = "증산계열 경전 도서관 · 북리더 앱",
+  scriptureSlug = null,
+  chapterAnchor = null,
+  chapterLabel = null,
+  bare = false,
+} = Astro.props;
 const path = Astro.url.pathname;
 const activeSection = resolveSection(path);
 const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
@@ -95,7 +106,12 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
     <footer>
       <small>증산계열 경전 도서관 · 누구나 무료로 사용, 후원으로 운영합니다</small>
     </footer>
-    <SideCard client:load />
+    <SideCard
+      client:load
+      scriptureSlug={scriptureSlug}
+      chapterAnchor={chapterAnchor}
+      chapterLabel={chapterLabel}
+    />
     <ConfirmDialog client:load />
     <script>
       // Sidebar toggle: mobile slide-in / desktop optional collapse.
