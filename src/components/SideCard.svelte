@@ -2,6 +2,7 @@
   import { onMount, tick } from "svelte";
   import Icon from "./Icon.svelte";
   import Comments from "./Comments.svelte";
+  import { relativeTime, absoluteTime } from "../lib/relative-time";
 
   // ──────────────────────────── Types ─────────────────────────────
   type BacklinkData = {
@@ -120,6 +121,22 @@
   let chapterBadges = $state<Record<string, { total: number; new: number }> | null>(null);
   let verseCounts = $state<Record<string, number>>({});
 
+  type VerseFeedEntry = {
+    anchor: string;
+    count: number;
+    latest: {
+      body: string;
+      user_nickname: string;
+      is_admin: boolean;
+      created_at: string;
+      has_photos: boolean;
+    };
+  };
+  let verseFeedData = $state<VerseFeedEntry[] | null>(null);
+
+  // 현재 시각 — 상대시간 갱신용 (1분마다 tick)
+  let nowTick = $state(Date.now());
+
   let detailEls = $state<Record<TabKey, HTMLElement | undefined>>({
     library: undefined,
     archive: undefined,
@@ -164,14 +181,20 @@
       touchVisit();
       loadChapterContext();
       loadChapterBadges();
+      loadVerseFeed();
       // verse 댓글 카운트는 chapter context 로딩 직후 verse_anchors가 있어야 fetch
       tick().then(() => injectVerseCommentBadges());
     }
+
+    const nowInterval = window.setInterval(() => {
+      nowTick = Date.now();
+    }, 60_000);
 
     return () => {
       document.removeEventListener("click", handleClick);
       document.removeEventListener("keydown", handleKey);
       window.removeEventListener("jsbooks:minimize-sidecard", onMinimizeRequest);
+      window.clearInterval(nowInterval);
     };
   });
 
@@ -248,10 +271,15 @@
   async function loadVerseCounts() {
     if (!scriptureSlug || !chapterContext) return;
     const anchors = chapterContext.verse_anchors;
-    if (anchors.length === 0) return;
-    const targets = anchors.map((a) => `verse:${scriptureSlug}:${a}`).join(",");
+    const list: string[] = anchors.map((a) => `verse:${scriptureSlug}:${a}`);
+    // chapter-level target (cheonjigaebyeokgyeong vol-chap만)
+    if (chapterAnchor && /^\d+-\d+$/.test(chapterAnchor)) {
+      const [vol, chap] = chapterAnchor.split("-");
+      list.push(`chapter:${vol}:${chap}`);
+    }
+    if (list.length === 0) return;
     try {
-      const res = await fetch(`/api/comments/counts?targets=${encodeURIComponent(targets)}`, {
+      const res = await fetch(`/api/comments/counts?targets=${encodeURIComponent(list.join(","))}`, {
         credentials: "same-origin",
       });
       if (!res.ok) return;
@@ -259,6 +287,21 @@
       verseCounts = data.counts ?? {};
       updateBadgeCounts();
     } catch {}
+  }
+
+  async function loadVerseFeed() {
+    if (!scriptureSlug || !chapterAnchor) return;
+    try {
+      const res = await fetch(
+        `/api/comments/verse-feed?scripture=${encodeURIComponent(scriptureSlug)}&chapter=${encodeURIComponent(chapterAnchor)}`,
+        { credentials: "same-origin" },
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      verseFeedData = Array.isArray(data.verses) ? data.verses : [];
+    } catch {
+      verseFeedData = [];
+    }
   }
 
   // ──────────────────── verse-comment-badge inject ─────────────────
@@ -552,23 +595,20 @@
   // chapter:vol:chap 형식만 지원). 다른 페이지는 verse-level만 노출.
   const hasChapterLevel = $derived(!!chapterAnchor && /^\d+-\d+$/.test(chapterAnchor));
 
+  const chapterLevelCount = $derived.by(() => {
+    if (!hasChapterLevel || !chapterAnchor) return 0;
+    const [vol, chap] = chapterAnchor.split("-");
+    return verseCounts[`chapter:${vol}:${chap}`] ?? 0;
+  });
+
   const tabCount = $derived({
     library: chapterContext?.scripture_refs.length ?? 0,
     archive: chapterContext?.card_refs.length ?? 0,
     feed:
       (chapterContext?.verse_anchors.filter(
         (a) => (verseCounts[`verse:${scriptureSlug}:${a}`] ?? 0) > 0,
-      ).length ?? 0) + (hasChapterLevel ? 1 : 0),
+      ).length ?? 0) + (chapterLevelCount > 0 ? 1 : 0),
   });
-
-  function totalFeedCommentCount(): number {
-    if (!scriptureSlug) return 0;
-    let n = 0;
-    for (const a of chapterContext?.verse_anchors ?? []) {
-      n += verseCounts[`verse:${scriptureSlug}:${a}`] ?? 0;
-    }
-    return n;
-  }
 
   // sibling links — 자료 탭 detail에서 같은 chapter의 다른 카드들
   const archiveSiblings = $derived<CardRef[]>(
@@ -627,6 +667,36 @@
         <span class="count-text">{currentIdx[tab] + 1} / {len}</span>
       {/if}
     </footer>
+  {/if}
+{/snippet}
+
+{#snippet chevrons(tab: TabKey, len: number)}
+  {#if len >= 2}
+    {@const idx = currentIdx[tab]}
+    {#if idx > 0}
+      <button
+        type="button"
+        class="nav-chevron prev"
+        style:--tab-color={tabMeta[tab].color}
+        aria-label="이전 항목"
+        title="이전 항목"
+        onclick={() => setIdx(tab, idx - 1)}
+      >
+        <Icon icon="chevron-left" size={20} />
+      </button>
+    {/if}
+    {#if idx < len - 1}
+      <button
+        type="button"
+        class="nav-chevron next"
+        style:--tab-color={tabMeta[tab].color}
+        aria-label="다음 항목"
+        title="다음 항목"
+        onclick={() => setIdx(tab, idx + 1)}
+      >
+        <Icon icon="chevron-right" size={20} />
+      </button>
+    {/if}
   {/if}
 {/snippet}
 
@@ -710,7 +780,9 @@
               {/if}
             </span>
           {/snippet}
+          <div class="detail-wrap">
           {@render detailHeader("library", libTitle, item.key)}
+          {@render chevrons("library", stacks.library.length)}
           <div class="detail-body" bind:this={detailEls.library}>
             {#if item.loading}
               <p class="muted">불러오는 중…</p>
@@ -752,6 +824,7 @@
             {/if}
           </div>
           {@render dots("library", stacks.library.length)}
+          </div>
         {/if}
       {/if}
     {:else if activeTab === "archive"}
@@ -792,7 +865,9 @@
               {/if}
             </span>
           {/snippet}
+          <div class="detail-wrap">
           {@render detailHeader("archive", arcTitle, item.key)}
+          {@render chevrons("archive", stacks.archive.length)}
           <div class="detail-body" bind:this={detailEls.archive}>
             {#if item.loading}
               <p class="muted">불러오는 중…</p>
@@ -850,6 +925,7 @@
             {/if}
           </div>
           {@render dots("archive", stacks.archive.length)}
+          </div>
         {/if}
       {/if}
     {:else}
@@ -857,41 +933,54 @@
         <div class="list-view">
           {#if !scriptureMode}
             <p class="muted center">이 탭은 경전 페이지에서 사용할 수 있습니다.</p>
-          {:else if chapterContextLoading}
+          {:else if chapterContextLoading || verseFeedData === null}
             <p class="muted center">불러오는 중…</p>
           {:else}
+            {@const feedEntries = verseFeedData ?? []}
+            {@const openedVerses = new Set(stacks.feed.filter((s) => s.kind === "verse").map((s) => s.anchor))}
+            {@const chapterOpened = stacks.feed.some((s) => s.kind === "chapter")}
             <ul class="list">
-              {#if hasChapterLevel}
+              {#if hasChapterLevel && chapterLevelCount > 0}
                 <li>
                   <button
                     type="button"
                     class="list-item fd"
+                    class:opened={chapterOpened}
                     onclick={() => pushFeed("chapter", chapterAnchor!, "이 장 전체 댓글")}
                   >
                     <span class="li-pill fd-pill">전체</span>
                     <span class="li-title">이 장 댓글</span>
-                    <span class="li-count">{totalFeedCommentCount()}</span>
+                    <span class="li-count">{chapterLevelCount}</span>
                   </button>
                 </li>
               {/if}
-              {#each chapterContext?.verse_anchors ?? [] as a (a)}
-                {@const n = verseCounts[`verse:${scriptureSlug}:${a}`] ?? 0}
-                {#if n > 0}
-                  <li>
-                    <button
-                      type="button"
-                      class="list-item fd"
-                      onclick={() => pushFeed("verse", a, feedLabelForVerse(a))}
-                    >
+              {#each feedEntries as e (e.anchor)}
+                <li>
+                  <button
+                    type="button"
+                    class="list-item fd verse-row"
+                    class:opened={openedVerses.has(e.anchor)}
+                    onclick={() => pushFeed("verse", e.anchor, feedLabelForVerse(e.anchor))}
+                  >
+                    <div class="vr-head">
                       <span class="li-pill fd-pill">절</span>
-                      <span class="li-title">^{a}</span>
-                      <span class="li-count">{n}</span>
-                    </button>
-                  </li>
-                {/if}
+                      <span class="li-title">^{e.anchor}</span>
+                      <span class="li-count">{e.count}</span>
+                      <span class="li-time" title={absoluteTime(e.latest.created_at)}>
+                        {(nowTick, relativeTime(e.latest.created_at))}
+                      </span>
+                    </div>
+                    <div class="vr-preview">
+                      <span class="vr-body">{e.latest.body}</span>
+                      <span class="vr-author">
+                        {e.latest.user_nickname}{#if e.latest.is_admin}<span class="vr-admin" title="운영자">📌</span>{/if}
+                      </span>
+                    </div>
+                  </button>
+                </li>
               {/each}
-              {#if (chapterContext?.verse_anchors ?? []).every((a) => (verseCounts[`verse:${scriptureSlug}:${a}`] ?? 0) === 0)}
-                <li class="muted center small">아직 절 단위 댓글이 없습니다.</li>
+              {#if feedEntries.length === 0 && !(hasChapterLevel && chapterLevelCount > 0)}
+                <li class="muted center small">아직 댓글이 없습니다.</li>
               {/if}
             </ul>
           {/if}
@@ -900,16 +989,19 @@
         {@const item = stacks.feed[currentIdx.feed]}
         {#if item}
           {#snippet fdTitle()}
-            <span class="kind-pill fd-pill">{item.kind === "chapter" ? "장 댓글" : "절 댓글"}</span>
+            <span class="kind-pill fd-pill">댓글</span>
             <span class="title-text">{item.label}</span>
           {/snippet}
+          <div class="detail-wrap">
           {@render detailHeader("feed", fdTitle, item.key)}
+          {@render chevrons("feed", stacks.feed.length)}
           <div class="detail-body feed-body" bind:this={detailEls.feed}>
             {#key feedTarget(item)}
               <Comments target={feedTarget(item)} />
             {/key}
           </div>
           {@render dots("feed", stacks.feed.length)}
+          </div>
         {/if}
       {/if}
     {/if}
@@ -1097,6 +1189,87 @@
     min-width: 1.4em;
     text-align: center;
   }
+
+  /* 이미 열어본 리스트 항목 하이라이트 */
+  .list-item.opened {
+    background: var(--color-surface-2, #f6efe9);
+    border-left: 3px solid var(--color-secondary, #1e6e6e);
+    padding-left: calc(0.7rem - 3px);
+  }
+  .list-item.lib.opened { border-left-color: var(--color-primary, #a8352a); }
+  .list-item.arc.opened { border-left-color: var(--color-muted, #8a807a); }
+  .list-item.fd.opened { border-left-color: var(--color-secondary, #1e6e6e); }
+
+  /* 피드 verse-row: 2단 (header + preview) */
+  .list-item.verse-row { flex-direction: column; align-items: stretch; gap: 0.3rem; padding: 0.55rem 0.7rem; }
+  .vr-head {
+    display: flex; align-items: center; gap: 0.5rem;
+    width: 100%;
+  }
+  .vr-head .li-title { flex: 0 0 auto; }
+  .vr-head .li-count { margin-left: auto; }
+  .li-time {
+    font-size: 0.74rem;
+    color: var(--color-muted, #8a807a);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .vr-preview {
+    display: flex; align-items: baseline; gap: 0.5rem;
+    font-size: 0.82rem; line-height: 1.4;
+    color: var(--color-fg, #1f1c1a);
+    width: 100%;
+    overflow: hidden;
+  }
+  .vr-body {
+    flex: 1;
+    color: var(--color-fg, #1f1c1a);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+  }
+  .vr-author {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: var(--color-muted, #8a807a);
+    display: inline-flex; align-items: center; gap: 0.2rem;
+  }
+  .vr-admin {
+    font-size: 0.7rem;
+    color: var(--color-primary, #a8352a);
+  }
+
+  /* Detail wrapper — holds header + body + chevrons + dots */
+  .detail-wrap {
+    position: relative;
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+  }
+  .nav-chevron {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px; height: 36px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--color-bg, #fbf8f4);
+    border: 1px solid var(--color-rule, #e8dfd9);
+    border-radius: 50%;
+    color: var(--tab-color, var(--color-primary, #a8352a));
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    z-index: 5;
+    opacity: 0.75;
+    transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    --tab-color: var(--color-primary, #a8352a);
+  }
+  .nav-chevron:hover, .nav-chevron:focus-visible {
+    opacity: 1;
+    background: var(--tab-color);
+    color: var(--color-bg, #fbf8f4);
+  }
+  .nav-chevron.prev { left: 0.4rem; }
+  .nav-chevron.next { right: 0.4rem; }
 
   /* Detail */
   .detail-head {

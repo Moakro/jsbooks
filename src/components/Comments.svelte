@@ -305,7 +305,11 @@
       aria-expanded={expanded}
       disabled={loading}
     >
-      💬 주해 {loading ? "…" : comments.length}{expanded ? " 접기" : "개 보기"}
+      {#if !loading && comments.length === 0}
+        💬 첫 댓글을 남겨주세요
+      {:else}
+        💬 댓글 {loading ? "…" : comments.length}{expanded ? " 접기" : "개 보기"}
+      {/if}
     </button>
   </div>
 
@@ -315,7 +319,7 @@
     {/if}
 
     {#if comments.length === 0}
-      <p class="muted">아직 주해가 없습니다. 첫 메모를 남겨보세요.</p>
+      <p class="muted">아직 댓글이 없습니다. 첫 댓글을 남겨주세요.</p>
     {:else}
       <ol class="list" bind:this={listEl}>
         {#each comments as c (c.id)}
@@ -459,7 +463,7 @@
     <form class="composer" onsubmit={(e) => { e.preventDefault(); submit(); }}>
       {#if user === null}
         <p class="login-cta">
-          <button type="button" class="cta" onclick={login}>로그인하고 주해 남기기</button>
+          <button type="button" class="cta" onclick={login}>로그인하고 댓글 남기기</button>
         </p>
       {:else if user.needs_nickname}
         <p class="login-cta">
@@ -486,7 +490,7 @@
         <textarea
           bind:this={textareaEl}
           bind:value={draft}
-          placeholder="이 절·카드에 대한 주해를 남기세요. (마크다운 일부 지원)"
+          placeholder="이 절·카드에 대한 댓글을 남기세요. (마크다운 일부 지원)"
           rows="3"
           maxlength="4000"
           disabled={posting}
