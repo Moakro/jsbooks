@@ -8,6 +8,7 @@
  * admin tooling and any future feed can share the same view.
  */
 import { aggregateChangelog } from "../lib/history";
+import { relativeTime, absoluteTime } from "../lib/relative-time";
 import Icon from "./Icon.svelte";
 
 interface Props {
@@ -18,8 +19,16 @@ const { limit = 30 } = Astro.props;
 
 const recent = aggregateChangelog().slice(0, limit);
 
-function shortDate(iso: string): string {
-  return iso.slice(0, 10);
+function changelogDate(iso: string): { label: string; abs: string } {
+  const now = new Date();
+  const t = new Date(iso);
+  const days = (now.getTime() - t.getTime()) / 86_400_000;
+  const abs = absoluteTime(iso);
+  if (days <= 7) return { label: relativeTime(iso, now), abs };
+  const yy = String(t.getFullYear() % 100).padStart(2, "0");
+  const mm = String(t.getMonth() + 1).padStart(2, "0");
+  const dd = String(t.getDate()).padStart(2, "0");
+  return { label: `${yy}.${mm}.${dd}`, abs };
 }
 ---
 
@@ -33,23 +42,26 @@ function shortDate(iso: string): string {
     <p class="muted">표시할 변경 사항이 아직 없습니다.</p>
   ) : (
     <ol>
-      {recent.map((r) => (
-        <li>
-          <span class="date">{shortDate(r.entry.date)}</span>
-          <span class="body">
-            <span class="badges">
-              {r.categories.map((c) => (
-                <a class={`badge badge-${c.group}`} href={c.href}>
-                  <span class="badge-group">{c.group === "scripture" ? "경전" : "자료"}</span>
-                  <span class="badge-sep">·</span>
-                  <span class="badge-label">{c.label}</span>
-                </a>
-              ))}
+      {recent.map((r) => {
+        const d = changelogDate(r.entry.date);
+        return (
+          <li>
+            <time class="date" datetime={r.entry.date} title={d.abs}>{d.label}</time>
+            <span class="body">
+              <span class="badges">
+                {r.categories.map((c) => (
+                  <a class={`badge badge-${c.group}`} href={c.href}>
+                    <span class="badge-group">{c.group === "scripture" ? "경전" : "자료"}</span>
+                    <span class="badge-sep">·</span>
+                    <span class="badge-label">{c.label}</span>
+                  </a>
+                ))}
+              </span>
+              <span class="subject">{r.message}</span>
             </span>
-            <span class="subject">{r.message}</span>
-          </span>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ol>
   )}
 </section>

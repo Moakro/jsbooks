@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { uploadResizedImage } from "../lib/resize-image";
+  import FeedItem from "./feed/FeedItem.svelte";
+  import PhotoGrid from "./feed/PhotoGrid.svelte";
 
   type CommentType = "memo" | "question" | "cross" | "cite";
   type CommentStatus = "published" | "deleted";
@@ -102,7 +104,6 @@
     }
     expanded = true;
     await tick();
-    // 댓글 영역 상단으로 스무스 스크롤. 댓글이 0개여도 composer가 보이도록.
     listEl?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -229,7 +230,6 @@
     if (c.status === "deleted") return;
     editingId = c.id;
     editingType = c.type;
-    // Use a stripped body. We don't have raw markdown so fall back to text from HTML.
     const tmp = document.createElement("div");
     tmp.innerHTML = c.body_html;
     editingDraft = (tmp.textContent ?? "").trim();
@@ -281,16 +281,33 @@
     }, 1500);
   }
 
-  function shortDate(iso: string): string {
-    return iso.replace("T", " ").slice(0, 16);
-  }
-
   function parentMentionLabel(c: Comment): string | null {
     if (!c.parent_id) return null;
     const p = commentById(c.parent_id);
     if (!p) return null;
     if (p.status === "deleted") return "(삭제된 댓글에 답글)";
     return `@${p.author.display_name}`;
+  }
+
+  function imageAtts(c: Comment) {
+    return (c.attachments ?? []).filter(
+      (a): a is Extract<Attachment, { type: "image" }> => a.type === "image",
+    );
+  }
+  function mapAtts(c: Comment) {
+    return (c.attachments ?? []).filter(
+      (a): a is Extract<Attachment, { type: "map" }> => a.type === "map",
+    );
+  }
+
+  function toUser(c: Comment) {
+    return {
+      id: c.author_id ?? undefined,
+      nickname: c.author.display_name,
+      avatar_url: c.author.avatar_url,
+      affiliation: c.author.affiliation,
+      level: c.author.level,
+    };
   }
 
   onMount(load);
@@ -319,95 +336,88 @@
     {/if}
 
     {#if comments.length === 0}
-      <p class="muted">아직 댓글이 없습니다. 첫 댓글을 남겨주세요.</p>
+      <p class="empty">아직 댓글이 없습니다. 첫 댓글을 남겨주세요.</p>
     {:else}
       <ol class="list" bind:this={listEl}>
         {#each comments as c (c.id)}
-          <li
-            id={`comment-${c.id}`}
-            class="comment c-{c.type}"
-            class:pinned={c.is_pinned}
-            class:promoted={!!c.promoted_to_note_id}
-            class:deleted={c.status === "deleted"}
-            class:highlight={highlightId === c.id}
-          >
-            {#if c.status === "deleted"}
-              <div class="placeholder">(작성자가 삭제한 댓글입니다)</div>
-            {:else}
-              <header>
-                <span class="who">
-                  {#if c.author.avatar_url}
-                    <img class="avatar" src={c.author.avatar_url} alt="" />
+          {@const isReply = !!c.parent_id}
+          <li class="comment-wrap" class:is-reply={isReply}>
+            {#if isReply}
+              <span class="reply-rail" aria-hidden="true"></span>
+            {/if}
+            <FeedItem
+              id={`comment-${c.id}`}
+              user={toUser(c)}
+              createdAt={c.created_at}
+              updatedAt={c.updated_at}
+              isPinned={c.is_pinned}
+              isDeleted={c.status === "deleted"}
+              highlighted={highlightId === c.id}
+              promoted={!!c.promoted_to_note_id}
+              variant={c.type}
+            >
+              {#snippet meta()}
+                <div class="meta-line">
+                  <span class="ctype c-{c.type}">{TYPE_LABEL[c.type]}</span>
+                  {#if parentMentionLabel(c)}
+                    <button
+                      type="button"
+                      class="parent-link"
+                      onclick={() => jumpToParent(c)}
+                      title="원 댓글로 이동"
+                    >
+                      ↳ {parentMentionLabel(c)}에게 답글
+                    </button>
                   {/if}
-                  <span class="name">{c.author.display_name}</span>
-                  {#if c.author.affiliation}
-                    <span class="affil">{c.author.affiliation}</span>
+                  {#if c.promoted_to_note_id}
+                    <a
+                      class="promoted-badge"
+                      href={`#fn-${c.promoted_to_note_id}`}
+                      title="이 댓글이 자료 주석으로 반영되었습니다"
+                    >
+                      <span aria-hidden="true">📝</span>
+                      자료에 반영됨
+                      <span class="promoted-id">{c.promoted_to_note_id}</span>
+                    </a>
                   {/if}
-                  {#if c.author.level >= 3}
-                    <span class="badge curator">큐레이터</span>
-                  {:else if c.author.level === 2}
-                    <span class="badge verified">검증</span>
-                  {/if}
-                  {#if c.is_pinned}
-                    <span class="badge pin" title="운영자 고정">📌</span>
-                  {/if}
-                </span>
-                <span class="meta">
-                  <span class="ctype">{TYPE_LABEL[c.type]}</span>
-                  <time>{shortDate(c.created_at)}</time>
-                  {#if c.created_at !== c.updated_at}
-                    <span class="edited" title={shortDate(c.updated_at)}>(수정됨)</span>
-                  {/if}
-                </span>
-              </header>
-
-              {#if c.promoted_to_note_id}
-                <a class="promoted-badge" href={`#fn-${c.promoted_to_note_id}`} title="이 댓글이 자료 주석으로 반영되었습니다">
-                  <span class="promoted-icon" aria-hidden="true">📝</span>
-                  자료에 반영됨
-                  <span class="promoted-id">{c.promoted_to_note_id}</span>
-                </a>
-              {/if}
-
-              {#if parentMentionLabel(c)}
-                <button
-                  type="button"
-                  class="parent-link"
-                  onclick={() => jumpToParent(c)}
-                  title="원 댓글로 이동"
-                >
-                  ↳ {parentMentionLabel(c)}에게 답글
-                </button>
-              {/if}
-
-              {#if editingId === c.id}
-                <div class="edit-area">
-                  <select bind:value={editingType}>
-                    <option value="memo">메모</option>
-                    <option value="question">질문</option>
-                    <option value="cross">교차참조</option>
-                    <option value="cite">학술인용</option>
-                  </select>
-                  <textarea
-                    bind:value={editingDraft}
-                    rows="3"
-                    maxlength="4000"
-                  ></textarea>
-                  <div class="edit-actions">
-                    <button type="button" class="cta" onclick={() => saveEdit(c)} disabled={!editingDraft.trim()}>저장</button>
-                    <button type="button" class="ghost" onclick={cancelEdit}>취소</button>
-                  </div>
                 </div>
-              {:else}
-                <div class="body">{@html c.body_html}</div>
-                {#if c.attachments && c.attachments.length > 0}
-                  <div class="attachments">
-                    {#each c.attachments as att (att.type === "image" ? att.url : `${att.lat},${att.lng}`)}
-                      {#if att.type === "image"}
-                        <a class="att-img" href={att.url} target="_blank" rel="noopener">
-                          <img src={att.url} alt="" loading="lazy" />
-                        </a>
-                      {:else if att.type === "map"}
+              {/snippet}
+
+              {#snippet body()}
+                {#if editingId === c.id}
+                  <div class="edit-area">
+                    <select bind:value={editingType}>
+                      <option value="memo">메모</option>
+                      <option value="question">질문</option>
+                      <option value="cross">교차참조</option>
+                      <option value="cite">학술인용</option>
+                    </select>
+                    <textarea bind:value={editingDraft} rows="3" maxlength="4000"></textarea>
+                    <div class="edit-actions">
+                      <button
+                        type="button"
+                        class="cta"
+                        onclick={() => saveEdit(c)}
+                        disabled={!editingDraft.trim()}
+                      >저장</button>
+                      <button type="button" class="ghost" onclick={cancelEdit}>취소</button>
+                    </div>
+                  </div>
+                {:else}
+                  {@html c.body_html}
+                {/if}
+              {/snippet}
+
+              {#snippet photos()}
+                {#if editingId !== c.id}
+                  {@const imgs = imageAtts(c)}
+                  {@const maps = mapAtts(c)}
+                  {#if imgs.length > 0}
+                    <PhotoGrid photos={imgs.map((i) => ({ url: i.url, width: i.width, height: i.height }))} />
+                  {/if}
+                  {#if maps.length > 0}
+                    <div class="map-list">
+                      {#each maps as att (`${att.lat},${att.lng}`)}
                         <a
                           class="att-map"
                           href={`https://map.kakao.com/link/map/${encodeURIComponent(att.label ?? "위치")},${att.lat},${att.lng}`}
@@ -417,34 +427,36 @@
                         >
                           📍 {att.label ?? `${att.lat.toFixed(4)}, ${att.lng.toFixed(4)}`}
                         </a>
-                      {/if}
-                    {/each}
-                  </div>
+                      {/each}
+                    </div>
+                  {/if}
                 {/if}
+              {/snippet}
 
-                <footer>
+              {#snippet actions()}
+                {#if editingId !== c.id}
                   <button
                     type="button"
-                    class="helpful"
+                    class="act helpful"
                     class:on={c.you_helpful}
                     onclick={() => toggleHelpful(c)}
                     title={user ? "도움됨 표시 토글" : "로그인 필요"}
                   >
-                    도움됨 {c.helpful_count > 0 ? c.helpful_count : ""}
+                    👍 도움됨 {c.helpful_count > 0 ? c.helpful_count : ""}
                   </button>
                   {#if user}
-                    <button type="button" class="ghost" onclick={() => startReply(c)}>답글</button>
+                    <button type="button" class="act" onclick={() => startReply(c)}>↩ 답글</button>
                   {/if}
                   {#if user && user.id === c.author_id && c.reply_count === 0}
-                    <button type="button" class="ghost" onclick={() => startEdit(c)}>수정</button>
+                    <button type="button" class="act" onclick={() => startEdit(c)}>수정</button>
                   {/if}
                   {#if user && user.id === c.author_id}
-                    <button class="del ghost" type="button" onclick={() => remove(c)}>삭제</button>
+                    <button class="act del" type="button" onclick={() => remove(c)}>삭제</button>
                   {/if}
                   {#if user && user.level >= 4}
                     <button
                       type="button"
-                      class="pin-btn ghost"
+                      class="act pin-btn"
                       class:on={c.is_pinned}
                       onclick={() => togglePin(c)}
                       title="운영자 고정 토글"
@@ -452,9 +464,9 @@
                       {c.is_pinned ? "📌 해제" : "📌 고정"}
                     </button>
                   {/if}
-                </footer>
-              {/if}
-            {/if}
+                {/if}
+              {/snippet}
+            </FeedItem>
           </li>
         {/each}
       </ol>
@@ -485,7 +497,7 @@
               <option value="cite">학술인용</option>
             </select>
           </label>
-          <span class="muted asuser">{user.display_name}</span>
+          <span class="asuser">{user.display_name}</span>
         </div>
         <textarea
           bind:this={textareaEl}
@@ -572,7 +584,7 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
-  .muted {
+  .empty {
     color: var(--color-muted);
     font-size: 0.92rem;
   }
@@ -586,159 +598,83 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
-  }
-  .comment {
-    border: 1px solid var(--color-rule);
-    border-radius: 7px;
-    padding: 0.7rem 0.85rem;
-    background: var(--color-bg);
-    transition: background 0.4s ease, border-color 0.4s ease;
-  }
-  .comment.pinned {
-    background: var(--color-primary-bg);
-    border-color: var(--color-primary);
-  }
-  .comment.deleted {
-    background: transparent;
-    border-style: dashed;
-  }
-  .comment.highlight {
-    background: var(--color-secondary-bg);
-    border-color: var(--color-secondary);
-  }
-  .placeholder {
-    color: var(--color-muted);
-    font-size: 0.9rem;
-    font-style: italic;
-    padding: 0.2rem 0;
-  }
-  .c-question {
-    border-left: 3px solid var(--color-secondary);
-  }
-  .c-cross {
-    border-left: 3px solid var(--color-secondary-soft);
-  }
-  .c-cite {
-    border-left: 3px solid var(--color-primary);
-  }
-  .c-memo {
-    border-left: 3px solid var(--color-rule);
-  }
-  .comment.promoted {
-    background: var(--color-secondary-bg, #fff7e6);
-  }
-  .promoted-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    margin: 0 0 0.5rem;
-    padding: 0.18rem 0.55rem;
-    border: 1px solid var(--color-secondary);
-    color: var(--color-secondary);
-    background: var(--color-bg);
-    border-radius: 999px;
-    font-size: 0.78rem;
-    text-decoration: none;
-    line-height: 1.2;
-  }
-  .promoted-badge:hover {
-    background: var(--color-secondary-bg);
-  }
-  .promoted-icon { font-size: 0.85em; }
-  .promoted-id {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.72rem;
-    color: var(--color-muted);
-  }
-  .comment header {
-    display: flex;
-    justify-content: space-between;
     gap: 0.5rem;
+  }
+  .comment-wrap {
+    position: relative;
+  }
+  .comment-wrap.is-reply {
+    margin-left: 1.6rem;
+    padding-left: 0.9rem;
+  }
+  .reply-rail {
+    position: absolute;
+    left: 0;
+    top: 0.2rem;
+    bottom: 0.2rem;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--color-rule);
+  }
+  .comment-wrap.is-reply:hover .reply-rail {
+    background: var(--color-secondary);
+  }
+
+  .meta-line {
+    display: flex;
     align-items: center;
     flex-wrap: wrap;
-    font-size: 0.85rem;
-    color: var(--color-muted);
-    margin-bottom: 0.4rem;
-  }
-  .who {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-  .avatar {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-  .name {
-    font-weight: 600;
-    color: var(--color-fg);
-  }
-  .affil {
-    font-size: 0.78rem;
-    color: var(--color-secondary);
-    border: 1px solid var(--color-secondary);
-    border-radius: 999px;
-    padding: 0 6px;
-  }
-  .badge {
-    font-size: 0.72rem;
-    border-radius: 999px;
-    padding: 1px 6px;
-  }
-  .badge.curator {
-    color: var(--color-bg);
-    background: var(--color-primary);
-  }
-  .badge.verified {
-    color: var(--color-secondary);
-    border: 1px solid var(--color-secondary);
-  }
-  .badge.pin {
-    background: transparent;
-    padding: 0;
-    font-size: 0.95rem;
-  }
-  .meta {
-    display: inline-flex;
-    align-items: center;
     gap: 0.5rem;
+    font-size: 0.82rem;
   }
   .ctype {
-    color: var(--color-secondary);
     font-weight: 500;
   }
-  .edited {
-    color: var(--color-muted);
-    font-size: 0.78rem;
-  }
+  .ctype.c-memo { color: var(--color-muted); }
+  .ctype.c-question { color: var(--color-secondary); }
+  .ctype.c-cross { color: var(--color-secondary-soft); }
+  .ctype.c-cite { color: var(--color-primary); }
+
   .parent-link {
     background: transparent;
     border: none;
     color: var(--color-secondary);
     font: inherit;
     font-size: 0.82rem;
-    padding: 0 0 0.3rem;
+    padding: 0;
     cursor: pointer;
     text-align: left;
   }
   .parent-link:hover {
     text-decoration: underline;
   }
-  .body {
-    line-height: 1.6;
-    color: var(--color-fg);
+  .promoted-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--color-secondary);
+    color: var(--color-secondary);
+    background: var(--color-bg);
+    border-radius: 999px;
+    font-size: 0.76rem;
+    text-decoration: none;
+    line-height: 1.3;
   }
-  .body :global(p) {
-    margin: 0.3rem 0;
+  .promoted-badge:hover {
+    background: var(--color-secondary-bg);
   }
+  .promoted-id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    color: var(--color-muted);
+  }
+
   .edit-area {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    margin: 0.3rem 0;
+    margin: 0.1rem 0;
   }
   .edit-area select {
     align-self: flex-start;
@@ -767,35 +703,57 @@
     gap: 0.5rem;
     justify-content: flex-end;
   }
-  .comment footer {
-    margin-top: 0.5rem;
+
+  .map-list {
     display: flex;
-    gap: 0.5rem;
     flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
   }
-  .helpful, .ghost {
+  .att-map {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.55rem;
+    border: 1px solid var(--color-secondary);
+    color: var(--color-secondary);
+    background: var(--color-secondary-bg);
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 0.85rem;
+  }
+  .att-map:hover {
+    background: var(--color-secondary);
+    color: var(--color-bg);
+  }
+
+  .act, .ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     background: transparent;
-    border: 1px solid var(--color-rule);
-    color: var(--color-muted);
-    padding: 0.2rem 0.55rem;
+    border: 1px solid transparent;
+    color: var(--feed-action-color, var(--color-muted));
+    padding: 0.18rem 0.45rem;
     border-radius: 5px;
     cursor: pointer;
     font: inherit;
     font-size: 0.82rem;
   }
-  .helpful:hover, .ghost:hover {
-    border-color: var(--color-secondary);
-    color: var(--color-secondary);
-  }
-  .helpful.on, .pin-btn.on {
+  .act:hover, .ghost:hover {
+    color: var(--feed-action-hover, var(--color-secondary));
     background: var(--color-secondary-bg);
-    border-color: var(--color-secondary);
-    color: var(--color-secondary);
   }
-  .del:hover {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
+  .act.on, .pin-btn.on {
+    background: var(--color-secondary-bg);
+    border-color: var(--feed-action-hover, var(--color-secondary));
+    color: var(--feed-action-hover, var(--color-secondary));
   }
+  .act.del:hover {
+    color: var(--feed-action-danger, var(--color-primary));
+    background: var(--color-primary-bg);
+  }
+
   .reply-bar {
     display: flex;
     align-items: center;
@@ -810,7 +768,7 @@
   }
   .composer {
     border: 1px solid var(--color-rule);
-    border-radius: 8px;
+    border-radius: var(--feed-card-radius, 8px);
     padding: 0.8rem;
     background: var(--color-primary-bg);
   }
@@ -849,6 +807,7 @@
   }
   .asuser {
     font-size: 0.85rem;
+    color: var(--color-muted);
   }
   .counter {
     color: var(--color-muted);
@@ -878,41 +837,6 @@
     text-align: center;
   }
 
-  /* ── attachments ── */
-  .attachments {
-    margin-top: 0.5rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  .att-img {
-    display: inline-block;
-    line-height: 0;
-    border-radius: 5px;
-    overflow: hidden;
-    border: 1px solid var(--color-rule);
-  }
-  .att-img img {
-    max-width: 100%;
-    max-height: 320px;
-    display: block;
-  }
-  .att-map {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.6rem;
-    border: 1px solid var(--color-secondary);
-    color: var(--color-secondary);
-    background: var(--color-secondary-bg);
-    border-radius: 5px;
-    text-decoration: none;
-    font-size: 0.88rem;
-  }
-  .att-map:hover {
-    background: var(--color-secondary);
-    color: var(--color-bg);
-  }
   .draft-atts {
     margin-top: 0.5rem;
     display: flex;
