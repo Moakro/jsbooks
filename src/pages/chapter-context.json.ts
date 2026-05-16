@@ -9,7 +9,7 @@ import { getMapping } from "../lib/canonical-mapping";
 export const prerender = true;
 
 type ScriptureRef = { slug: string; anchor: string; title: string };
-type CardRef = { kind: string; slug: string; name: string };
+type CardRef = { kind: string; slug: string; name: string; anchors: string[] };
 
 type ChapterContext = {
   scripture_refs: ScriptureRef[];
@@ -28,7 +28,7 @@ function extractWikilinkTargets(text: string): string[] {
   return out;
 }
 
-function resolveCardRef(target: string, manifest: CardManifest): CardRef | null {
+function resolveCardRef(target: string, manifest: CardManifest): Omit<CardRef, "anchors"> | null {
   const trimmed = target.trim();
   if (!trimmed) return null;
   if (trimmed === "00_서" || trimmed === "서") return null;
@@ -118,7 +118,7 @@ export const GET: APIRoute = async () => {
     });
 
     const scriptureRefSeen = new Set<string>();
-    const cardRefSeen = new Set<string>();
+    const cardRefByKey = new Map<string, CardRef>();
     const verseSeen = new Set<string>(ctx.verse_anchors);
 
     const sentenceVerses = parseSentencesFlat(body);
@@ -150,14 +150,21 @@ export const GET: APIRoute = async () => {
         const mp = getMapping(v.id);
         if (mp?.hangeul) sources.push(mp.hangeul);
       }
+      const seenInVerse = new Set<string>();
       for (const src of sources) {
         for (const target of extractWikilinkTargets(src)) {
           const ref = resolveCardRef(target, manifest);
           if (!ref) continue;
           const key = `${ref.kind}:${ref.slug}`;
-          if (cardRefSeen.has(key)) continue;
-          cardRefSeen.add(key);
-          ctx.card_refs.push(ref);
+          if (seenInVerse.has(key)) continue;
+          seenInVerse.add(key);
+          let existing = cardRefByKey.get(key);
+          if (!existing) {
+            existing = { ...ref, anchors: [] };
+            cardRefByKey.set(key, existing);
+            ctx.card_refs.push(existing);
+          }
+          existing.anchors.push(v.id);
         }
       }
     }

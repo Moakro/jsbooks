@@ -41,7 +41,7 @@
   };
 
   type ScriptureRef = { slug: string; anchor: string; title: string };
-  type CardRef = { kind: string; slug: string; name: string };
+  type CardRef = { kind: string; slug: string; name: string; anchors: string[] };
   type ChapterContext = {
     scripture_refs: ScriptureRef[];
     card_refs: CardRef[];
@@ -107,8 +107,18 @@
   let scriptureMode = $derived(!!(scriptureSlug && chapterAnchor));
 
   // ──────────────────────────── State ─────────────────────────────
+  const TAB_STORAGE_KEY = "sidecard-last-tab";
+  function readStoredTab(): TabKey {
+    if (typeof window === "undefined") return "archive";
+    try {
+      const v = sessionStorage.getItem(TAB_STORAGE_KEY);
+      if (v === "library" || v === "archive" || v === "feed") return v;
+    } catch {}
+    return "archive";
+  }
+
   let sheetOpen = $state(false);
-  let activeTab = $state<TabKey>("feed");
+  let activeTab = $state<TabKey>(readStoredTab());
   let viewMode = $state<Record<TabKey, "list" | "detail">>({
     library: "list",
     archive: "list",
@@ -159,12 +169,30 @@
       ? (chapterBadges[chapterAnchor]?.total ?? 0)
       : 0,
   );
+  const handleCountText = $derived(
+    scriptureMode
+      ? handleNewCount > 0
+        ? `+${handleNewCount}`
+        : handleTotalCount > 0
+          ? String(handleTotalCount)
+          : ""
+      : stackTotal > 0
+        ? String(stackTotal)
+        : "",
+  );
 
   $effect(() => {
     if (typeof document === "undefined") return;
     if (sheetVisible) document.body.setAttribute("data-sidecard", "open");
     else if (handleVisible) document.body.setAttribute("data-sidecard", "minimized");
     else document.body.removeAttribute("data-sidecard");
+  });
+
+  $effect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.setItem(TAB_STORAGE_KEY, activeTab);
+    } catch {}
   });
 
   // ─────────────────────────── Mount ──────────────────────────────
@@ -612,6 +640,21 @@
         )
       : [],
   );
+  const currentCardAnchors = $derived<string[]>(
+    chapterContext && stacks.archive[currentIdx.archive]
+      ? chapterContext.card_refs.find(
+          (r) =>
+            r.kind === stacks.archive[currentIdx.archive].kind &&
+            r.slug === stacks.archive[currentIdx.archive].slug,
+        )?.anchors ?? []
+      : [],
+  );
+
+  function onAppearanceClick() {
+    // Base.astro의 document-level click 핸들러가 href="#anchor" 클릭을 가로채
+    // pushState + jumpAndFlash를 수행. 우리는 그 직후 sidecard를 minimize.
+    setTimeout(minimizeSheet, 0);
+  }
   const librarySiblings = $derived<ScriptureRef[]>(
     chapterContext && stacks.library[currentIdx.library]
       ? chapterContext.scripture_refs.filter(
@@ -870,6 +913,22 @@
               {#if item.data.status === "stub"}
                 <p class="stub">※ 스텁(stub) — 보강 예정</p>
               {/if}
+              {#if currentCardAnchors.length > 0}
+                <section class="appearances">
+                  <h4>이 페이지에서 등장 ({currentCardAnchors.length})</h4>
+                  <ul>
+                    {#each currentCardAnchors as a (a)}
+                      <li>
+                        <a
+                          class="appearance-link"
+                          href={`#${a}`}
+                          onclick={onAppearanceClick}
+                        >^{a}</a>
+                      </li>
+                    {/each}
+                  </ul>
+                </section>
+              {/if}
               {#if item.data.meta.length > 0}
                 <dl class="meta-list">
                   {#each item.data.meta as m}
@@ -1018,16 +1077,14 @@
         ? `댓글 ${handleTotalCount}개`
         : `관련 카드 ${stackTotal}개`}
   >
-    {#if scriptureMode}
-      {#if handleNewCount > 0}
-        +{handleNewCount}
-      {:else if handleTotalCount > 0}
-        {handleTotalCount}
-      {:else}
-        <Icon icon="chevron-up" size={16} />
-      {/if}
-    {:else}
-      {stackTotal}
+    <span class="handle-icon handle-icon--desktop" aria-hidden="true">
+      <Icon icon="panel-right-open" size={22} strokeWidth={1.8} />
+    </span>
+    <span class="handle-icon handle-icon--mobile" aria-hidden="true">
+      <Icon icon="chevron-up" size={20} strokeWidth={2} />
+    </span>
+    {#if handleCountText}
+      <span class="handle-count">{handleCountText}</span>
     {/if}
   </button>
 {/if}
@@ -1039,7 +1096,7 @@
     border-left: 1px solid var(--color-rule, #e8dfd9);
     box-shadow: -16px 0 40px rgba(0, 0, 0, 0.18);
     transform: translateX(100%);
-    transition: transform 0.22s ease;
+    transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -1120,14 +1177,18 @@
     padding: 0 0.35em;
     font-size: 0.74rem;
     border-radius: 999px;
-    background: var(--color-rule, #e8dfd9);
-    color: var(--color-muted, #8a807a);
+    background: transparent;
+    color: var(--tab-color);
+    border: 1px solid var(--tab-color);
     font-variant-numeric: tabular-nums;
     line-height: 1.5;
+    opacity: 0.85;
   }
   .tab.active .tab-count {
     background: var(--tab-color);
     color: var(--color-bg, #fbf8f4);
+    border-color: var(--tab-color);
+    opacity: 1;
   }
 
   .tab-body {
@@ -1334,6 +1395,43 @@
   }
   .sib-btn:hover { border-color: var(--color-primary, #a8352a); background: var(--color-primary-bg, #fbf3f1); }
 
+  /* Appearances — 이 페이지에서 등장 */
+  .appearances {
+    margin: 0 0 0.9rem;
+    padding: 0.5rem 0.7rem;
+    background: var(--color-secondary-bg, #f0f7f6);
+    border: 1px solid var(--color-secondary, #1e6e6e);
+    border-radius: 6px;
+  }
+  .appearances h4 {
+    font-size: 0.82rem;
+    margin: 0 0 0.4rem;
+    color: var(--color-secondary, #1e6e6e);
+    font-weight: 600;
+  }
+  .appearances ul {
+    list-style: none;
+    padding: 0; margin: 0;
+    display: flex; flex-wrap: wrap; gap: 0.3rem;
+  }
+  .appearance-link {
+    display: inline-flex; align-items: center;
+    padding: 0.18rem 0.55rem;
+    background: var(--color-bg, #fbf8f4);
+    border: 1px solid var(--color-secondary, #1e6e6e);
+    border-radius: 999px;
+    color: var(--color-secondary, #1e6e6e);
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .appearance-link:hover,
+  .appearance-link:focus-visible {
+    background: var(--color-secondary, #1e6e6e);
+    color: var(--color-bg, #fbf8f4);
+  }
+
   /* Dots */
   .indicator {
     flex-shrink: 0;
@@ -1364,12 +1462,39 @@
     color: #fff; border: none; cursor: pointer;
     font: inherit; font-weight: 700; font-size: 0.95rem;
     line-height: 1; font-variant-numeric: tabular-nums;
-    transition: transform 0.18s ease, opacity 0.2s ease;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: transform 0.18s ease, opacity 0.2s ease, box-shadow 0.18s ease;
     animation: handle-in 0.25s ease both;
   }
   .reopen-handle.has-new {
     background: #c43025;
     box-shadow: 0 0 0 3px rgba(196, 48, 37, 0.18);
+  }
+  .handle-icon {
+    display: none;
+    align-items: center; justify-content: center;
+    transition: transform 0.18s ease;
+    color: #fff;
+  }
+  .handle-icon--mobile { display: inline-flex; }
+  .handle-count {
+    position: absolute;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #fff;
+    color: var(--color-primary, #a8352a);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 18px;
+    box-shadow: 0 0 0 1.5px var(--color-primary, #a8352a);
+    text-align: center;
+    box-sizing: border-box;
+  }
+  .reopen-handle.has-new .handle-count {
+    color: #c43025;
+    box-shadow: 0 0 0 1.5px #c43025;
   }
   @keyframes handle-in {
     from { opacity: 0; transform: scale(0.6); }
@@ -1379,10 +1504,18 @@
   @media (max-width: 1023px) {
     .reopen-handle {
       bottom: 0; left: 50%; transform: translateX(-50%);
-      width: 64px; height: 32px;
+      min-width: 56px; height: 44px;
       border-radius: 64px 64px 0 0;
       box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.18);
-      padding-bottom: 4px; font-size: 1rem;
+      padding: 0 14px 6px;
+    }
+    .reopen-handle:hover .handle-icon--mobile,
+    .reopen-handle:focus-visible .handle-icon--mobile {
+      transform: translateY(-2px);
+    }
+    .handle-count {
+      top: 2px;
+      right: 6px;
     }
     @keyframes handle-in {
       from { opacity: 0; transform: translateX(-50%) scale(0.6); }
@@ -1392,12 +1525,25 @@
   @media (min-width: 1024px) {
     .reopen-handle {
       right: 0; top: 50%; transform: translateY(-50%);
-      width: 38px; height: 76px;
-      border-radius: 76px 0 0 76px;
+      width: 40px; height: 84px;
+      border-radius: 84px 0 0 84px;
       box-shadow: -4px 0 14px rgba(0, 0, 0, 0.22);
-      padding-right: 6px; font-size: 1.05rem;
+      padding-right: 6px;
     }
-    .reopen-handle:hover { transform: translate(-4px, -50%); }
+    .handle-icon--mobile { display: none; }
+    .handle-icon--desktop { display: inline-flex; }
+    .reopen-handle:hover, .reopen-handle:focus-visible {
+      transform: translate(-3px, -50%);
+      box-shadow: -6px 0 18px rgba(0, 0, 0, 0.28);
+    }
+    .reopen-handle:hover .handle-icon--desktop,
+    .reopen-handle:focus-visible .handle-icon--desktop {
+      transform: translateX(-4px);
+    }
+    .handle-count {
+      top: 6px;
+      right: 6px;
+    }
     @keyframes handle-in {
       from { opacity: 0; transform: translateY(-50%) scale(0.6); }
       to { opacity: 1; transform: translateY(-50%) scale(1); }

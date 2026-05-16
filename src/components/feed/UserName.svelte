@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
+
   type User = {
     id?: string | null;
     nickname: string;
@@ -28,7 +30,10 @@
     <span class="name">{user.nickname}</span>
   {/if}
   {#if isAdmin}
-    <span class="badge admin" title="운영자">📌 운영자</span>
+    <span class="badge admin" title="운영자">
+      <Icon icon="pin" size={11} strokeWidth={1.8} />
+      운영자
+    </span>
   {:else if isCurator}
     <span class="badge curator" title="큐레이터">큐레이터</span>
   {:else if isVerified}
@@ -68,6 +73,9 @@
     flex-shrink: 0;
   }
   .badge.admin {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
     color: var(--color-bg, #fbf8f4);
     background: var(--color-primary, #a8352a);
   }

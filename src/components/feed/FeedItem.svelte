@@ -3,6 +3,7 @@
   import UserAvatar from "./UserAvatar.svelte";
   import UserName from "./UserName.svelte";
   import RelativeTime from "./RelativeTime.svelte";
+  import Icon from "../Icon.svelte";
 
   type User = {
     id?: string | null;
@@ -74,7 +75,9 @@
             <span class="edited" title={updatedAt ?? undefined}>(수정됨)</span>
           {/if}
           {#if isPinned}
-            <span class="pin-badge" title="운영자 고정">📌</span>
+            <span class="pin-badge" title="운영자 고정" aria-label="운영자 고정">
+              <Icon icon="pin" size={12} strokeWidth={1.8} />
+            </span>
           {/if}
         </header>
 
@@ -164,8 +167,11 @@
     color: var(--color-muted, #8a807a);
   }
   .pin-badge {
-    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     margin-left: 0.1rem;
+    color: var(--color-primary, #a8352a);
   }
   .meta {
     margin: 0 0 0.3rem;

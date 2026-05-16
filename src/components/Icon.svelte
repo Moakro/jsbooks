@@ -21,8 +21,17 @@
     | "log-out"
     | "shield"
     | "chevron-down"
+    | "chevron-up"
     | "chevron-left"
-    | "chevron-right";
+    | "chevron-right"
+    | "panel-right-open"
+    | "pin"
+    | "paperclip"
+    | "message-square"
+    | "corner-down-right"
+    | "more-vertical"
+    | "map-pin"
+    | "pencil";
 
   let {
     icon,
@@ -140,9 +149,35 @@
     <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
   {:else if icon === "chevron-down"}
     <path d="m6 9 6 6 6-6" />
+  {:else if icon === "chevron-up"}
+    <path d="m18 15-6-6-6 6" />
   {:else if icon === "chevron-left"}
     <path d="m15 18-6-6 6-6" />
   {:else if icon === "chevron-right"}
     <path d="m9 18 6-6-6-6" />
+  {:else if icon === "panel-right-open"}
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M15 3v18" />
+    <path d="m10 15-3-3 3-3" />
+  {:else if icon === "pin"}
+    <path d="M12 17v5" />
+    <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+  {:else if icon === "paperclip"}
+    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.99 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.49" />
+  {:else if icon === "message-square"}
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  {:else if icon === "corner-down-right"}
+    <polyline points="15 10 20 15 15 20" />
+    <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+  {:else if icon === "more-vertical"}
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="12" cy="5" r="1" />
+    <circle cx="12" cy="19" r="1" />
+  {:else if icon === "map-pin"}
+    <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+    <circle cx="12" cy="10" r="3" />
+  {:else if icon === "pencil"}
+    <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+    <path d="m15 5 4 4" />
   {/if}
 </svg>
