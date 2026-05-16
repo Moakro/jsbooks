@@ -18,6 +18,7 @@
  *   POST /api/upload/check         — body { hash } → check user's prior upload
  *   POST /api/visits/touch         — body { scripture, chapter } → upsert last_visited
  *   GET  /api/visits/badges        — ?scripture=<slug> 또는 (없으면) 전 경전 합계
+ *   GET  /api/comments/verse-feed  — ?scripture=<slug>&chapter=<anchor> 절별 댓글+최신 미리보기
  *
  * Session: signed JWT in HttpOnly cookie (`jb_session`).
  * SameSite=Lax, Secure, ~30 day expiry. JWT signing uses HS256 with AUTH_SECRET.
@@ -73,6 +74,7 @@ export default {
       if (path === "/api/comments" && req.method === "GET") return listComments(req, env);
       if (path === "/api/comments" && req.method === "POST") return createComment(req, env);
       if (path === "/api/comments/counts" && req.method === "GET") return countComments(req, env);
+      if (path === "/api/comments/verse-feed" && req.method === "GET") return verseFeed(req, env);
 
       const m = path.match(/^\/api\/comments\/([^/]+)(?:\/(react|flag|pin))?$/);
       if (m) {
@@ -616,6 +618,92 @@ async function countComments(req: Request, env: Env): Promise<Response> {
     }
   }
   return json({ counts });
+}
+
+// GET /api/comments/verse-feed?scripture=<slug>&chapter=<anchor>
+// 응답: { verses: [{ anchor, count, latest: {body, user_nickname, is_admin, created_at, has_photos} }] }
+// 댓글 0건 절은 제외. 정렬: latest.created_at desc.
+// latest 본문은 status='published' 중 최신 1건 (deleted 제외). body는 plain text 30자.
+async function verseFeed(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const scripture = url.searchParams.get("scripture")?.trim();
+  const chapter = url.searchParams.get("chapter")?.trim();
+  if (!scripture || !chapter) return json({ verses: [] });
+
+  const versePrefix = `${scripture}:`;
+  // chapter 안 verse anchor 패턴 — chapterKeyPattern 재사용
+  const anchorPattern = chapterKeyPattern(scripture, chapter);
+  const likePattern = `${versePrefix.replace(/[%_]/g, "\\$&")}${anchorPattern}`;
+
+  // 절별 카운트 + 최신 댓글 행
+  const rows = await env.DB.prepare(
+    `WITH cnt AS (
+       SELECT target_id, COUNT(*) AS n, MAX(created_at) AS latest_at
+         FROM comments
+        WHERE target_type='verse' AND status='published'
+          AND target_id LIKE ? ESCAPE '\\'
+        GROUP BY target_id
+     )
+     SELECT cnt.target_id, cnt.n, cnt.latest_at,
+            c.body_html, c.attachments,
+            u.display_name AS user_nickname, u.level AS user_level
+       FROM cnt
+       JOIN comments c ON c.target_type='verse'
+                     AND c.target_id=cnt.target_id
+                     AND c.status='published'
+                     AND c.created_at=cnt.latest_at
+       JOIN users u ON u.id=c.user_id
+      ORDER BY cnt.latest_at DESC`,
+  ).bind(likePattern).all<{
+    target_id: string;
+    n: number;
+    latest_at: string;
+    body_html: string | null;
+    attachments: string | null;
+    user_nickname: string | null;
+    user_level: number;
+  }>();
+
+  const verses = (rows.results ?? []).map((r) => {
+    const anchor = r.target_id.slice(versePrefix.length);
+    let photos = 0;
+    if (r.attachments) {
+      try {
+        const arr = JSON.parse(r.attachments);
+        if (Array.isArray(arr)) photos = arr.filter((a: any) => a?.type === "image").length;
+      } catch {}
+    }
+    const plain = stripHtmlToPlain(r.body_html ?? "");
+    let preview = plain;
+    if (!preview && photos > 0) preview = `📷 사진 ${photos}장`;
+    return {
+      anchor,
+      count: r.n,
+      latest: {
+        body: preview,
+        user_nickname: r.user_nickname ?? "",
+        is_admin: (r.user_level ?? 0) >= 4,
+        created_at: r.latest_at,
+        has_photos: photos > 0,
+      },
+    };
+  });
+
+  return json({ verses }, 200, { "Cache-Control": "private, max-age=15" });
+}
+
+function stripHtmlToPlain(html: string): string {
+  // worker 환경(no DOM) — 정규식 기반. 태그 제거 후 엔티티 디코드.
+  const noTags = html.replace(/<[^>]*>/g, "");
+  return noTags
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function listComments(req: Request, env: Env): Promise<Response> {
