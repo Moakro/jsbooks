@@ -398,6 +398,17 @@
     sheetOpen = true;
   }
 
+  // 탭 클릭: 비활성 탭 → 전환, 활성 탭 재클릭 → 목록으로 복귀(스택 보존)
+  function onTabClick(tab: TabKey) {
+    if (activeTab === tab) {
+      if (viewMode[tab] === "detail") {
+        viewMode = { ...viewMode, [tab]: "list" };
+      }
+      return;
+    }
+    activeTab = tab;
+  }
+
   function setIdx(tab: TabKey, idx: number) {
     currentIdx = { ...currentIdx, [tab]: idx };
   }
@@ -650,10 +661,32 @@
       : [],
   );
 
-  function onAppearanceClick() {
+  function onAppearanceClick(anchor: string, kind: string, slug: string) {
     // Base.astro의 document-level click 핸들러가 href="#anchor" 클릭을 가로채
-    // pushState + jumpAndFlash를 수행. 우리는 그 직후 sidecard를 minimize.
-    setTimeout(minimizeSheet, 0);
+    // pushState + jumpAndFlash(절 box-shadow flash)를 먼저 수행. 그 다음 우리는
+    // 절 안의 해당 카드 wikilink를 강조하고 sidecard를 minimize.
+    setTimeout(() => {
+      flashWikilinksInVerse(anchor, kind, slug);
+      minimizeSheet();
+    }, 0);
+  }
+
+  function flashWikilinksInVerse(anchor: string, kind: string, slug: string) {
+    const verseEl = document.getElementById(anchor);
+    if (!verseEl) return;
+    const sel = `a.wikilink[data-card-kind="${cssAttr(kind)}"][data-card-slug="${cssAttr(slug)}"]`;
+    const wls = verseEl.querySelectorAll<HTMLElement>(sel);
+    wls.forEach((wl) => {
+      wl.classList.remove("target-flash");
+      void wl.offsetWidth;
+      wl.classList.add("target-flash");
+      window.setTimeout(() => wl.classList.remove("target-flash"), 1500);
+    });
+  }
+
+  // attribute selector 값으로 쓰기 위해 따옴표/백슬래시를 이스케이프.
+  function cssAttr(v: string): string {
+    return v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   }
   const librarySiblings = $derived<ScriptureRef[]>(
     chapterContext && stacks.library[currentIdx.library]
@@ -675,7 +708,7 @@
         class:active={activeTab === tk}
         style:--tab-color={tabMeta[tk].color}
         aria-selected={activeTab === tk}
-        onclick={() => (activeTab = tk)}
+        onclick={() => onTabClick(tk)}
       >
         <span class="tab-label">{tabMeta[tk].label}</span>
         {#if tabCount[tk] > 0}
@@ -922,7 +955,7 @@
                         <a
                           class="appearance-link"
                           href={`#${a}`}
-                          onclick={onAppearanceClick}
+                          onclick={() => onAppearanceClick(a, item.kind, item.slug)}
                         >^{a}</a>
                       </li>
                     {/each}
