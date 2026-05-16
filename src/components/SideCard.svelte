@@ -2,7 +2,8 @@
   import { onMount, tick } from "svelte";
   import Icon from "./Icon.svelte";
   import Comments from "./Comments.svelte";
-  import { relativeTime, absoluteTime } from "../lib/relative-time";
+  import RelativeTime from "./feed/RelativeTime.svelte";
+  import UserName from "./feed/UserName.svelte";
 
   // ──────────────────────────── Types ─────────────────────────────
   type BacklinkData = {
@@ -144,9 +145,6 @@
   };
   let verseFeedData = $state<VerseFeedEntry[] | null>(null);
 
-  // 현재 시각 — 상대시간 갱신용 (1분마다 tick)
-  let nowTick = $state(Date.now());
-
   let detailEls = $state<Record<TabKey, HTMLElement | undefined>>({
     library: undefined,
     archive: undefined,
@@ -214,15 +212,10 @@
       tick().then(() => injectVerseCommentBadges());
     }
 
-    const nowInterval = window.setInterval(() => {
-      nowTick = Date.now();
-    }, 60_000);
-
     return () => {
       document.removeEventListener("click", handleClick);
       document.removeEventListener("keydown", handleKey);
       window.removeEventListener("jsbooks:minimize-sidecard", onMinimizeRequest);
-      window.clearInterval(nowInterval);
     };
   });
 
@@ -1025,14 +1018,14 @@
                       <span class="li-pill fd-pill">절</span>
                       <span class="li-title">^{e.anchor}</span>
                       <span class="li-count">{e.count}</span>
-                      <span class="li-time" title={absoluteTime(e.latest.created_at)}>
-                        {(nowTick, relativeTime(e.latest.created_at))}
+                      <span class="vr-time">
+                        <RelativeTime iso={e.latest.created_at} interval={60_000} />
                       </span>
                     </div>
                     <div class="vr-preview">
                       <span class="vr-body">{e.latest.body}</span>
                       <span class="vr-author">
-                        {e.latest.user_nickname}{#if e.latest.is_admin}<span class="vr-admin" title="운영자" aria-label="운영자"><Icon icon="pin" size={11} strokeWidth={1.8} /></span>{/if}
+                        <UserName user={{ nickname: e.latest.user_nickname, is_admin: e.latest.is_admin }} />
                       </span>
                     </div>
                   </button>
@@ -1269,12 +1262,11 @@
   }
   .vr-head .li-title { flex: 0 0 auto; }
   .vr-head .li-count { margin-left: auto; }
-  .li-time {
+  .vr-time {
+    display: inline-flex;
     font-size: 0.74rem;
-    color: var(--color-muted, #8a807a);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
   }
+  .vr-time :global(time) { font-size: 0.74rem; }
   .vr-preview {
     display: flex; align-items: baseline; gap: 0.5rem;
     font-size: 0.82rem; line-height: 1.4;
@@ -1296,11 +1288,9 @@
     color: var(--color-muted, #8a807a);
     display: inline-flex; align-items: center; gap: 0.2rem;
   }
-  .vr-admin {
-    display: inline-flex;
-    align-items: center;
-    color: var(--color-primary, #a8352a);
-  }
+  .vr-author :global(.user-name) { font-size: 0.78rem; gap: 0.25rem; }
+  .vr-author :global(.user-name .name) { font-weight: 600; max-width: 8em; }
+  .vr-author :global(.user-name .badge) { font-size: 0.66rem; padding: 0 5px; }
 
   /* Detail wrapper — holds header + body + chevrons + dots */
   .detail-wrap {
