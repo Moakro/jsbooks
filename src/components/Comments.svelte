@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import Icon from "./Icon.svelte";
   import { uploadResizedImage } from "../lib/resize-image";
 
   type CommentType = "memo" | "question" | "cross" | "cite";
@@ -305,10 +306,11 @@
       aria-expanded={expanded}
       disabled={loading}
     >
+      <Icon icon="message-square" size={14} strokeWidth={1.8} />
       {#if !loading && comments.length === 0}
-        💬 첫 댓글을 남겨주세요
+        첫 댓글을 남겨주세요
       {:else}
-        💬 댓글 {loading ? "…" : comments.length}{expanded ? " 접기" : "개 보기"}
+        댓글 {loading ? "…" : comments.length}{expanded ? " 접기" : "개 보기"}
       {/if}
     </button>
   </div>
@@ -349,7 +351,9 @@
                     <span class="badge verified">검증</span>
                   {/if}
                   {#if c.is_pinned}
-                    <span class="badge pin" title="운영자 고정">📌</span>
+                    <span class="badge pin" title="운영자 고정" aria-label="운영자 고정">
+                      <Icon icon="pin" size={12} strokeWidth={1.8} />
+                    </span>
                   {/if}
                 </span>
                 <span class="meta">
@@ -363,7 +367,9 @@
 
               {#if c.promoted_to_note_id}
                 <a class="promoted-badge" href={`#fn-${c.promoted_to_note_id}`} title="이 댓글이 자료 주석으로 반영되었습니다">
-                  <span class="promoted-icon" aria-hidden="true">📝</span>
+                  <span class="promoted-icon" aria-hidden="true">
+                    <Icon icon="pencil" size={12} strokeWidth={1.8} />
+                  </span>
                   자료에 반영됨
                   <span class="promoted-id">{c.promoted_to_note_id}</span>
                 </a>
@@ -376,7 +382,8 @@
                   onclick={() => jumpToParent(c)}
                   title="원 댓글로 이동"
                 >
-                  ↳ {parentMentionLabel(c)}에게 답글
+                  <Icon icon="corner-down-right" size={13} strokeWidth={1.8} />
+                  {parentMentionLabel(c)}에게 답글
                 </button>
               {/if}
 
@@ -415,7 +422,8 @@
                           rel="noopener"
                           title="카카오맵에서 열기"
                         >
-                          📍 {att.label ?? `${att.lat.toFixed(4)}, ${att.lng.toFixed(4)}`}
+                          <Icon icon="map-pin" size={14} strokeWidth={1.8} />
+                          {att.label ?? `${att.lat.toFixed(4)}, ${att.lng.toFixed(4)}`}
                         </a>
                       {/if}
                     {/each}
@@ -449,7 +457,8 @@
                       onclick={() => togglePin(c)}
                       title="운영자 고정 토글"
                     >
-                      {c.is_pinned ? "📌 해제" : "📌 고정"}
+                      <Icon icon="pin" size={13} strokeWidth={1.8} />
+                      {c.is_pinned ? "해제" : "고정"}
                     </button>
                   {/if}
                 </footer>
@@ -528,7 +537,12 @@
             disabled={uploading || posting || draftAttachments.length >= MAX_ATTACHMENTS}
             title={`사진 첨부 (최대 ${MAX_ATTACHMENTS}장, 자동 1600px 리사이즈)`}
           >
-            {uploading ? "업로드 중…" : `📷 사진 (${draftAttachments.length}/${MAX_ATTACHMENTS})`}
+            {#if uploading}
+              업로드 중…
+            {:else}
+              <Icon icon="paperclip" size={14} strokeWidth={1.8} />
+              사진 ({draftAttachments.length}/{MAX_ATTACHMENTS})
+            {/if}
           </button>
           <span class="counter">{draft.length} / 4000</span>
           <button
@@ -556,6 +570,9 @@
     margin-bottom: 0.8rem;
   }
   .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     background: transparent;
     border: 1px solid var(--color-rule);
     border-radius: 999px;
@@ -697,9 +714,12 @@
     border: 1px solid var(--color-secondary);
   }
   .badge.pin {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     padding: 0;
-    font-size: 0.95rem;
+    color: var(--color-primary);
   }
   .meta {
     display: inline-flex;
@@ -715,6 +735,9 @@
     font-size: 0.78rem;
   }
   .parent-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     background: transparent;
     border: none;
     color: var(--color-secondary);
@@ -774,6 +797,9 @@
     flex-wrap: wrap;
   }
   .helpful, .ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     background: transparent;
     border: 1px solid var(--color-rule);
     color: var(--color-muted);
@@ -954,6 +980,9 @@
     background: rgba(0, 0, 0, 0.85);
   }
   .att-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     background: transparent;
     border: 1px solid var(--color-rule);
     border-radius: 5px;
