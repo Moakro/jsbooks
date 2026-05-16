@@ -348,6 +348,26 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         animation: jsb-flash 1.5s ease-out;
         border-radius: 4px;
       }
+      /* Wikilink target highlight — SideCard "이 페이지에서 등장" 클릭 시
+       * 절 안의 해당 카드 wikilink만 더 강하게 강조. 절 box-shadow 깜빡임과
+       * 함께 한 번 등장한 뒤 사라진다. */
+      @keyframes jsb-wikilink-flash {
+        0% {
+          background: var(--color-primary-bg);
+          outline-color: var(--color-primary);
+        }
+        100% {
+          background: transparent;
+          outline-color: transparent;
+        }
+      }
+      a.wikilink.target-flash {
+        background: var(--color-primary-bg);
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+        border-radius: 3px;
+        animation: jsb-wikilink-flash 1.5s ease-out forwards;
+      }
       /* Pagefind highlight — applied via ?q=검색어 URL param */
       mark.pagefind-highlight,
       .pagefind-highlight {

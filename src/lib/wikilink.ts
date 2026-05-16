@@ -87,9 +87,28 @@ export function renderWikilinks(text: string, manifest: CardManifest): string {
     if (!resolved) {
       return `<span class="wikilink-missing" title="아직 보강되지 않은 카드입니다: ${escapeAttr(target)}">${escapeText(label)}</span>`;
     }
-    const cls = resolved.mode === "page" ? "wikilink page" : "wikilink";
-    return `<a class="${cls}" href="${resolved.href}">${escapeText(label)}</a>`;
+    return wikilinkAnchor(resolved, target, label, manifest);
   });
+}
+
+// data-card-kind/slug는 SideCard 등에서 절 내 특정 카드 wikilink 식별에 쓰임.
+function wikilinkAnchor(
+  resolved: Resolved,
+  target: string,
+  label: string,
+  manifest: CardManifest,
+): string {
+  const cls = resolved.mode === "page" ? "wikilink page" : "wikilink";
+  let dataAttrs = "";
+  if (resolved.mode === "card") {
+    const entry = manifest.byName.get(target.trim());
+    if (entry) {
+      dataAttrs =
+        ` data-card-kind="${escapeAttr(entry.kind)}"` +
+        ` data-card-slug="${escapeAttr(entry.canonical)}"`;
+    }
+  }
+  return `<a class="${cls}" href="${resolved.href}"${dataAttrs}>${escapeText(label)}</a>`;
 }
 
 import { marked } from "marked";
@@ -173,8 +192,7 @@ export function renderMarkdownBody(text: string, manifest: CardManifest): string
     if (!resolved) {
       html = `<span class="wikilink-missing" title="아직 보강되지 않은 카드입니다: ${escapeAttr(target)}">${escapeText(label)}</span>`;
     } else {
-      const cls = resolved.mode === "page" ? "wikilink page" : "wikilink";
-      html = `<a class="${cls}" href="${resolved.href}">${escapeText(label)}</a>`;
+      html = wikilinkAnchor(resolved, target, label, manifest);
     }
     const idx = placeholders.length;
     placeholders.push(html);
@@ -197,8 +215,7 @@ export function renderMarkdownBody(text: string, manifest: CardManifest): string
         if (!resolved) {
           return `<span class="wikilink-missing">${escapeText(label)}</span>`;
         }
-        const cls = resolved.mode === "page" ? "wikilink page" : "wikilink";
-        return `<a class="${cls}" href="${resolved.href}">${escapeText(label)}</a>`;
+        return wikilinkAnchor(resolved, target, label, manifest);
       });
       const inlineHtml = marked.parseInline(rawWithWiki, { async: false }) as string;
       return { id: fn.id, raw: inlineHtml };
