@@ -672,7 +672,10 @@
   }
 
   function flashWikilinksInVerse(anchor: string, kind: string, slug: string) {
-    const verseEl = document.getElementById(anchor);
+    // anchor id는 <h4 class="verse-anchor-heading">에 있고 wikilink는 형제 div
+    // (original-box / verse-body)에 있다. 따라서 검색 루트는 부모 section.verse.
+    const headingEl = document.getElementById(anchor);
+    const verseEl = headingEl?.closest("section.verse");
     if (!verseEl) return;
     const sel = `a.wikilink[data-card-kind="${cssAttr(kind)}"][data-card-slug="${cssAttr(slug)}"]`;
     const wls = verseEl.querySelectorAll<HTMLElement>(sel);

@@ -204,10 +204,14 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         const targetY =
           el.getBoundingClientRect().top + window.scrollY - headerOffset;
         smoothScrollTo(Math.max(0, targetY));
-        el.classList.remove("flash");
-        void (el as HTMLElement).offsetWidth;
-        el.classList.add("flash");
-        window.setTimeout(() => el.classList.remove("flash"), 1500);
+        // anchor id는 <h4 class="verse-anchor-heading">에 있지만 .flash CSS는
+        // .verse.flash로 정의돼있으므로 깜빡임 대상은 부모 section.verse.
+        // section.verse가 없는 페이지(서문 등)는 fallback으로 헤딩 자체에 적용.
+        const flashEl = (el.closest("section.verse") as HTMLElement | null) ?? (el as HTMLElement);
+        flashEl.classList.remove("flash");
+        void flashEl.offsetWidth;
+        flashEl.classList.add("flash");
+        window.setTimeout(() => flashEl.classList.remove("flash"), 1500);
       }
       function flashHashTarget() {
         const id = decodeURIComponent(location.hash.slice(1));
