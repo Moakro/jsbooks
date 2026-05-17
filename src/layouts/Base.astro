@@ -204,10 +204,14 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         const targetY =
           el.getBoundingClientRect().top + window.scrollY - headerOffset;
         smoothScrollTo(Math.max(0, targetY));
-        el.classList.remove("flash");
-        void (el as HTMLElement).offsetWidth;
-        el.classList.add("flash");
-        window.setTimeout(() => el.classList.remove("flash"), 1500);
+        // anchor id는 <h4 class="verse-anchor-heading">에 있지만 .flash CSS는
+        // .verse.flash로 정의돼있으므로 깜빡임 대상은 부모 section.verse.
+        // section.verse가 없는 페이지(서문 등)는 fallback으로 헤딩 자체에 적용.
+        const flashEl = (el.closest("section.verse") as HTMLElement | null) ?? (el as HTMLElement);
+        flashEl.classList.remove("flash");
+        void flashEl.offsetWidth;
+        flashEl.classList.add("flash");
+        window.setTimeout(() => flashEl.classList.remove("flash"), 2500);
       }
       function flashHashTarget() {
         const id = decodeURIComponent(location.hash.slice(1));
@@ -345,7 +349,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         }
       }
       .verse.flash {
-        animation: jsb-flash 1.5s ease-out;
+        animation: jsb-flash 2.5s ease-out;
         border-radius: 4px;
       }
       /* Wikilink target highlight — SideCard "이 페이지에서 등장" 클릭 시
@@ -366,7 +370,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         outline: 2px solid var(--color-primary);
         outline-offset: 2px;
         border-radius: 3px;
-        animation: jsb-wikilink-flash 1.5s ease-out forwards;
+        animation: jsb-wikilink-flash 2.5s ease-out forwards;
       }
       /* Pagefind highlight — applied via ?q=검색어 URL param */
       mark.pagefind-highlight,
