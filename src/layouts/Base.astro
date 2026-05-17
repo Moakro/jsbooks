@@ -211,7 +211,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         flashEl.classList.remove("flash");
         void flashEl.offsetWidth;
         flashEl.classList.add("flash");
-        window.setTimeout(() => flashEl.classList.remove("flash"), 1500);
+        window.setTimeout(() => flashEl.classList.remove("flash"), 2500);
       }
       function flashHashTarget() {
         const id = decodeURIComponent(location.hash.slice(1));
@@ -349,7 +349,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         }
       }
       .verse.flash {
-        animation: jsb-flash 1.5s ease-out;
+        animation: jsb-flash 2.5s ease-out;
         border-radius: 4px;
       }
       /* Wikilink target highlight — SideCard "이 페이지에서 등장" 클릭 시
@@ -370,7 +370,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         outline: 2px solid var(--color-primary);
         outline-offset: 2px;
         border-radius: 3px;
-        animation: jsb-wikilink-flash 1.5s ease-out forwards;
+        animation: jsb-wikilink-flash 2.5s ease-out forwards;
       }
       /* Pagefind highlight — applied via ?q=검색어 URL param */
       mark.pagefind-highlight,

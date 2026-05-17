@@ -683,7 +683,7 @@
       wl.classList.remove("target-flash");
       void wl.offsetWidth;
       wl.classList.add("target-flash");
-      window.setTimeout(() => wl.classList.remove("target-flash"), 1500);
+      window.setTimeout(() => wl.classList.remove("target-flash"), 2500);
     });
   }
 
