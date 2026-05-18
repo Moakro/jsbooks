@@ -127,13 +127,10 @@ export const GET: APIRoute = async () => {
     // DEBUG: hwaeundang/2 만
     if (slug === "hwaeundang-silgi" && chapterKey === "2") {
       console.log(`[DEBUG] ${outKey}: body length=${body.length}, verses=${verses.length}`);
+      console.log(`[DEBUG] body[0..400]=`, JSON.stringify(body.slice(0, 400)));
+      console.log(`[DEBUG] body[400..800]=`, JSON.stringify(body.slice(400, 800)));
       for (const v of verses) {
-        const targets = extractWikilinkTargets(v.text);
-        console.log(`  [DEBUG] verse ${v.id}: text len=${v.text.length}, wikilinks=${JSON.stringify(targets)}`);
-        for (const t of targets) {
-          const ref = resolveCardRef(t, manifest);
-          console.log(`    [DEBUG] target=${t} -> ref=${JSON.stringify(ref)}`);
-        }
+        console.log(`  [DEBUG] verse ${v.id}: text=${JSON.stringify(v.text)}`);
       }
     }
 
