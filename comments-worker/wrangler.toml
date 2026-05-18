@@ -61,7 +61,7 @@ name = "jsbooks-comments-stage"
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "jsbooks-db-stage"
-database_id = "REPLACE_WITH_STAGING_DB_ID"
+database_id = "8ed315a1-06be-489b-bf06-6a8ce418d460"
 
 # 사진 R2 는 프로덕션 공유 (이미지 단순 정적 자산이라 staging 따로 둘 이유 적음).
 # 분리 필요 시 jsbooks-uploads-stage 버킷 별도 생성 후 변경.
