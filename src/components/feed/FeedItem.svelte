@@ -69,15 +69,15 @@
         <header class="head">
           <UserAvatar nickname={user.nickname} avatarUrl={user.avatar_url ?? null} size={avatarSize} />
           <UserName {user} />
-          <span class="dot" aria-hidden="true">·</span>
-          <RelativeTime iso={createdAt} />
-          {#if edited}
-            <span class="edited" title={updatedAt ?? undefined}>(수정됨)</span>
-          {/if}
           {#if isPinned}
             <span class="pin-badge" title="운영자 고정" aria-label="운영자 고정">
               <Icon icon="pin" size={12} strokeWidth={1.8} />
             </span>
+          {/if}
+          <span class="head-spacer"></span>
+          <RelativeTime iso={createdAt} />
+          {#if edited}
+            <span class="edited" title={updatedAt ?? undefined}>(수정됨)</span>
           {/if}
         </header>
 
@@ -152,15 +152,15 @@
   .head {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
     font-size: 0.86rem;
     color: var(--color-muted, #8a807a);
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.35rem;
   }
-  .dot {
-    color: var(--color-muted, #8a807a);
-    opacity: 0.6;
+  .head-spacer {
+    flex: 1 1 auto;
+    min-width: 0.5rem;
   }
   .edited {
     font-size: 0.78rem;
