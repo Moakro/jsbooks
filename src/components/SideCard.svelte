@@ -566,20 +566,6 @@
       return;
     }
 
-    // verse anchor link (verse-label 내부 #anchor) → feed 탭 verse detail
-    if (scriptureMode) {
-      const verseSecLabel = target.closest(".verse-label a[href^='#']") as HTMLAnchorElement | null;
-      if (verseSecLabel) {
-        const href = verseSecLabel.getAttribute("href") ?? "";
-        const anchor = href.replace(/^#/, "");
-        if (anchor && chapterContext?.verse_anchors.includes(anchor)) {
-          e.preventDefault();
-          pushFeed("verse", anchor, feedLabelForVerse(anchor));
-          return;
-        }
-      }
-    }
-
     // wikilink → archive 탭
     const a = target.closest("a.wikilink:not(.page)") as HTMLAnchorElement | null;
     if (!a) return;
