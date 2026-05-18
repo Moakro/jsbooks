@@ -25,7 +25,10 @@ export interface CardManifest {
   byName: Map<string, CardEntry>;
 }
 
+// 천지개벽경 형식: 01-07_장 (편-장 hierarchical)
 const CHAPTER_RE = /^(\d{2})-(\d{2})_장$/;
+// 화은당실기 형식: 02_제2장 (장 only). 파일명 첫 2자리가 chap 번호.
+const HWAEUNDANG_CHAP_RE = /^(\d{2})_제(\d+)장$/;
 
 /**
  * Resolution result.
@@ -44,26 +47,43 @@ export function resolveWikilink(
   const trimmed = target.trim();
   if (!trimmed) return null;
 
+  // Obsidian-style anchor: [[target#anchor]] 또는 [[target#^block-id]]
+  // → 베이스 target 으로 라우팅하고 URL fragment 로 anchor 부여.
+  let baseTarget = trimmed;
+  let anchor: string | null = null;
+  const hashIdx = trimmed.indexOf("#");
+  if (hashIdx > 0) {
+    baseTarget = trimmed.slice(0, hashIdx);
+    const rawAnchor = trimmed.slice(hashIdx + 1);
+    // Obsidian block reference: `^X-Y-Z` → URL fragment `X-Y-Z`
+    anchor = rawAnchor.startsWith("^") ? rawAnchor.slice(1) : rawAnchor;
+  }
+  const frag = anchor ? `#${anchor}` : "";
+
   // Preface alias — full-page move (천지개벽경 only for now)
-  if (trimmed === "00_서" || trimmed === "서") {
-    return { href: "/library/cheonjigaebyeokgyeong/preface/", mode: "page" };
+  if (baseTarget === "00_서" || baseTarget === "서") {
+    return { href: `/library/cheonjigaebyeokgyeong/preface/${frag}`, mode: "page" };
   }
 
-  // Scripture chapter: 01-07_장 — currently 천지개벽경 only.
-  // When other scriptures arrive, callers must scope the link to its scripture
-  // (e.g. via the source file's collection slug).
-  const m = trimmed.match(CHAPTER_RE);
-  if (m) {
-    const vol = parseInt(m[1], 10);
-    const chap = parseInt(m[2], 10);
-    return { href: `/library/cheonjigaebyeokgyeong/${vol}/${chap}/`, mode: "page" };
+  // 천지개벽경 chapter: 01-07_장 → /library/cheonjigaebyeokgyeong/<vol>/<chap>/
+  const cjg = baseTarget.match(CHAPTER_RE);
+  if (cjg) {
+    const vol = parseInt(cjg[1], 10);
+    const chap = parseInt(cjg[2], 10);
+    return { href: `/library/cheonjigaebyeokgyeong/${vol}/${chap}/${frag}`, mode: "page" };
+  }
+  // 화은당실기 chapter: 02_제2장 → /library/hwaeundang-silgi/<chap>/
+  const hed = baseTarget.match(HWAEUNDANG_CHAP_RE);
+  if (hed) {
+    const chap = parseInt(hed[2], 10);
+    return { href: `/library/hwaeundang-silgi/${chap}/${frag}`, mode: "page" };
   }
 
   // Card lookup — opens side-card. 카드(인물·장소·도수·용어·시기)는 /archive/ 섹션.
-  const entry = manifest.byName.get(trimmed);
+  const entry = manifest.byName.get(baseTarget);
   if (entry) {
     return {
-      href: `/archive/${entry.kind}/${encodeURIComponent(entry.canonical)}/`,
+      href: `/archive/${entry.kind}/${encodeURIComponent(entry.canonical)}/${frag}`,
       mode: "card",
     };
   }
@@ -101,7 +121,11 @@ function wikilinkAnchor(
   const cls = resolved.mode === "page" ? "wikilink page" : "wikilink";
   let dataAttrs = "";
   if (resolved.mode === "card") {
-    const entry = manifest.byName.get(target.trim());
+    // anchor 포함된 target 도 베이스로만 카드 조회
+    const trimmed = target.trim();
+    const hashIdx = trimmed.indexOf("#");
+    const baseTarget = hashIdx > 0 ? trimmed.slice(0, hashIdx) : trimmed;
+    const entry = manifest.byName.get(baseTarget);
     if (entry) {
       dataAttrs =
         ` data-card-kind="${escapeAttr(entry.kind)}"` +
