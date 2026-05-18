@@ -59,6 +59,7 @@
   let modalParentId = $state<string | null>(null);
   let modalReplyName = $state<string | null>(null);
   let modalInitialBody = $state("");
+  let modalInitialFallbackHtml = $state("");
   let modalInitialAtts = $state<Attachment[]>([]);
   let pendingScrollToLatest = $state(false);
 
@@ -104,6 +105,7 @@
     modalParentId = null;
     modalReplyName = null;
     modalInitialBody = "";
+    modalInitialFallbackHtml = "";
     modalInitialAtts = [];
     modalOpen = true;
   }
@@ -116,6 +118,7 @@
     modalParentId = c.id;
     modalReplyName = c.author.display_name;
     modalInitialBody = "";
+    modalInitialFallbackHtml = "";
     modalInitialAtts = [];
     modalOpen = true;
   }
@@ -129,6 +132,7 @@
     modalParentId = null;
     modalReplyName = null;
     modalInitialBody = c.body ?? "";
+    modalInitialFallbackHtml = c.body_html ?? "";
     modalInitialAtts = c.attachments ?? [];
     modalOpen = true;
   }
@@ -391,6 +395,7 @@
   {target}
   replyToName={modalReplyName}
   initialBody={modalInitialBody}
+  initialFallbackHtml={modalInitialFallbackHtml}
   initialAttachments={modalInitialAtts}
   editId={modalEditId}
   parentId={modalParentId}
