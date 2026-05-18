@@ -1101,9 +1101,9 @@ function linkifyEscaped(esc: string): string {
     if (isInternal) {
       const pathFrag = raw.slice((hostMatch?.[0] ?? "").length) || "/";
       const display = `.${pathFrag}`;
-      return `<a href="${raw}">${display}</a>${trailing}`;
+      return `<a class="comment-link internal" href="${raw}">${display}</a>${trailing}`;
     }
-    return `<a href="${raw}" target="_blank" rel="noopener noreferrer nofollow ugc">${raw} <span aria-hidden="true">↗</span></a>${trailing}`;
+    return `<a class="comment-link external" href="${raw}" target="_blank" rel="noopener noreferrer nofollow ugc">${raw} <span aria-hidden="true">↗</span></a>${trailing}`;
   });
 }
 
