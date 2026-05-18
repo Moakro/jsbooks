@@ -685,7 +685,7 @@ async function verseFeed(req: Request, env: Env): Promise<Response> {
         body: preview,
         user_nickname: r.user_nickname ?? "",
         is_admin: (r.user_level ?? 0) >= 4,
-        created_at: r.latest_at,
+        created_at: toIsoUtc(r.latest_at),
         has_photos: photos > 0,
       },
     };
@@ -811,13 +811,22 @@ function buildFeedItem(r: {
     anchor,
     preview,
     photos,
-    created_at: r.created_at,
+    created_at: toIsoUtc(r.created_at),
     author: {
       display_name: r.author_name ?? "",
       avatar_url: r.author_avatar ?? null,
       is_admin: (r.author_level ?? 0) >= 4,
     },
   };
+}
+
+// SQLite datetime('now') 는 "YYYY-MM-DD HH:MM:SS" (UTC) 형식이지만 'Z' 접미사가
+// 없어 클라이언트 JS `new Date(s)` 가 local time 으로 잘못 해석한다(KST 9h 어긋남).
+// 응답에 담기 전 ISO 8601 + Z 로 정규화.
+function toIsoUtc(s: string | null | undefined): string {
+  if (!s) return "";
+  if (s.includes("T") || /[Zz]$|[+-]\d\d:?\d\d$/.test(s)) return s;
+  return s.replace(" ", "T") + "Z";
 }
 
 function stripHtmlToPlain(html: string): string {
@@ -886,8 +895,8 @@ async function listComments(req: Request, env: Env): Promise<Response> {
       status: r.status,
       is_pinned: r.is_pinned === 1,
       reply_count: r.reply_count ?? 0,
-      created_at: r.created_at,
-      updated_at: r.updated_at,
+      created_at: toIsoUtc(r.created_at),
+      updated_at: toIsoUtc(r.updated_at),
       attachments,
       promoted_to_note_id: r.promoted_to_note_id ?? null,
       author: isDeleted
