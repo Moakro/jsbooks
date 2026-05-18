@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import Icon from "./Icon.svelte";
-  import { uploadResizedImage } from "../lib/resize-image";
   import FeedItem from "./feed/FeedItem.svelte";
   import PhotoGrid from "./feed/PhotoGrid.svelte";
+  import CommentModal from "./feed/CommentModal.svelte";
 
   type CommentType = "memo" | "question" | "cross" | "cite";
   type CommentStatus = "published" | "deleted";
@@ -13,6 +13,7 @@
   type Comment = {
     id: string;
     parent_id: string | null;
+    body: string;
     body_html: string;
     type: CommentType;
     status: CommentStatus;
@@ -33,8 +34,6 @@
     you_helpful: boolean;
   };
 
-  const MAX_ATTACHMENTS = 6;
-
   type User = {
     id: string;
     display_name: string | null;
@@ -49,28 +48,19 @@
   let comments = $state<Comment[]>([]);
   let loading = $state(true);
   let user = $state<User>(null);
-  let expanded = $state(false);
-  let draft = $state("");
-  let draftType = $state<CommentType>("memo");
-  let draftAttachments = $state<Attachment[]>([]);
-  let replyTo = $state<Comment | null>(null);
-  let editingId = $state<string | null>(null);
-  let editingDraft = $state("");
-  let editingType = $state<CommentType>("memo");
   let highlightId = $state<string | null>(null);
-  let uploading = $state(false);
-  let fileInputEl: HTMLInputElement | undefined = $state();
-  let textareaEl: HTMLTextAreaElement | undefined = $state();
-  let listEl: HTMLOListElement | undefined = $state();
-  let posting = $state(false);
   let error = $state<string | null>(null);
+  let listEl: HTMLOListElement | undefined = $state();
 
-  const TYPE_LABEL: Record<CommentType, string> = {
-    memo: "메모",
-    question: "질문",
-    cross: "교차참조",
-    cite: "학술인용",
-  };
+  // Modal state
+  let modalOpen = $state(false);
+  let modalMode = $state<"new" | "reply" | "edit">("new");
+  let modalEditId = $state<string | null>(null);
+  let modalParentId = $state<string | null>(null);
+  let modalReplyName = $state<string | null>(null);
+  let modalInitialBody = $state("");
+  let modalInitialAtts = $state<Attachment[]>([]);
+  let pendingScrollToLatest = $state(false);
 
   function commentById(id: string): Comment | undefined {
     return comments.find((c) => c.id === id);
@@ -86,10 +76,15 @@
       user = (await meRes.json()).user;
       const data = await listRes.json();
       comments = data.comments ?? [];
-    } catch (e: any) {
-      error = e?.message ?? "불러오기 실패";
+    } catch (e) {
+      error = e instanceof Error ? e.message : "불러오기 실패";
     } finally {
       loading = false;
+      if (pendingScrollToLatest) {
+        pendingScrollToLatest = false;
+        await tick();
+        scrollToLatest();
+      }
     }
   }
 
@@ -98,79 +93,65 @@
     window.location.href = `/api/auth/login?next=${next}`;
   }
 
-  async function toggleExpand() {
-    if (expanded) {
-      expanded = false;
+  function openNew() {
+    if (!user) return login();
+    if (user.needs_nickname) {
+      window.location.href = "/account/nickname";
       return;
     }
-    expanded = true;
-    await tick();
-    listEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+    modalMode = "new";
+    modalEditId = null;
+    modalParentId = null;
+    modalReplyName = null;
+    modalInitialBody = "";
+    modalInitialAtts = [];
+    modalOpen = true;
   }
 
-  async function submit() {
+  function openReply(c: Comment) {
     if (!user) return login();
-    const text = draft.trim();
-    if (!text && draftAttachments.length === 0) return;
-    posting = true;
-    error = null;
-    try {
-      const res = await fetch("/api/comments", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target,
-          parent_id: replyTo?.id ?? null,
-          body: text,
-          type: draftType,
-          attachments: draftAttachments,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        error = data.error ?? `등록 실패 (${res.status})`;
-        return;
-      }
-      draft = "";
-      draftAttachments = [];
-      replyTo = null;
-      await load();
-    } finally {
-      posting = false;
-    }
+    if (c.status === "deleted") return;
+    modalMode = "reply";
+    modalEditId = null;
+    modalParentId = c.id;
+    modalReplyName = c.author.display_name;
+    modalInitialBody = "";
+    modalInitialAtts = [];
+    modalOpen = true;
   }
 
-  async function onPickFiles(e: Event) {
-    const input = e.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
-    if (files.length === 0) return;
-    error = null;
-    uploading = true;
-    try {
-      for (const f of files) {
-        if (draftAttachments.length >= MAX_ATTACHMENTS) {
-          error = `첨부는 최대 ${MAX_ATTACHMENTS}장까지 가능합니다`;
-          break;
-        }
-        try {
-          const r = await uploadResizedImage(f);
-          draftAttachments = [
-            ...draftAttachments,
-            { type: "image", url: r.url, width: r.width, height: r.height },
-          ];
-        } catch (err: any) {
-          error = err?.message ?? "업로드 실패";
-        }
-      }
-    } finally {
-      uploading = false;
-      if (input) input.value = "";
-    }
+  function openEdit(c: Comment) {
+    if (!user || user.id !== c.author_id) return;
+    if (c.reply_count > 0) return;
+    if (c.status === "deleted") return;
+    modalMode = "edit";
+    modalEditId = c.id;
+    modalParentId = null;
+    modalReplyName = null;
+    modalInitialBody = c.body ?? "";
+    modalInitialAtts = c.attachments ?? [];
+    modalOpen = true;
   }
 
-  function removeAttachment(idx: number) {
-    draftAttachments = draftAttachments.filter((_, i) => i !== idx);
+  function closeModal() {
+    modalOpen = false;
+  }
+
+  async function onModalSubmitted(_data: { id: string; mode: "new" | "reply" | "edit" }) {
+    pendingScrollToLatest = _data.mode !== "edit";
+    await load();
+  }
+
+  async function scrollToLatest() {
+    const last = comments[comments.length - 1];
+    if (!last) return;
+    const el = document.getElementById(`comment-${last.id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    highlightId = last.id;
+    setTimeout(() => {
+      if (highlightId === last.id) highlightId = null;
+    }, 1500);
   }
 
   async function toggleHelpful(c: Comment) {
@@ -186,11 +167,7 @@
       const data = await res.json();
       comments = comments.map((x) =>
         x.id === c.id
-          ? {
-              ...x,
-              you_helpful: data.on,
-              helpful_count: x.helpful_count + (data.on ? 1 : -1),
-            }
+          ? { ...x, you_helpful: data.on, helpful_count: x.helpful_count + (data.on ? 1 : -1) }
           : x,
       );
     }
@@ -209,57 +186,6 @@
     if (res.ok) await load();
   }
 
-  function startReply(c: Comment) {
-    if (!user) return login();
-    if (c.status === "deleted") return;
-    replyTo = c;
-    const mention = `@${c.author.display_name} `;
-    if (!draft.startsWith(mention)) {
-      draft = mention + draft.replace(/^@\S+\s*/, "");
-    }
-    queueMicrotask(() => textareaEl?.focus());
-  }
-
-  function cancelReply() {
-    replyTo = null;
-    draft = draft.replace(/^@\S+\s*/, "");
-  }
-
-  function startEdit(c: Comment) {
-    if (!user || user.id !== c.author_id) return;
-    if (c.reply_count > 0) return;
-    if (c.status === "deleted") return;
-    editingId = c.id;
-    editingType = c.type;
-    const tmp = document.createElement("div");
-    tmp.innerHTML = c.body_html;
-    editingDraft = (tmp.textContent ?? "").trim();
-  }
-
-  function cancelEdit() {
-    editingId = null;
-    editingDraft = "";
-  }
-
-  async function saveEdit(c: Comment) {
-    const text = editingDraft.trim();
-    if (!text) return;
-    const res = await fetch(`/api/comments/${c.id}`, {
-      method: "PATCH",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: text, type: editingType }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      error = data?.error ?? `수정 실패 (${res.status})`;
-      return;
-    }
-    editingId = null;
-    editingDraft = "";
-    await load();
-  }
-
   async function togglePin(c: Comment) {
     if (!user || user.level < 4) return;
     const res = await fetch(`/api/comments/${c.id}/pin`, {
@@ -269,10 +195,8 @@
     if (res.ok) await load();
   }
 
-  async function jumpToParent(c: Comment) {
+  function jumpToParent(c: Comment) {
     if (!c.parent_id) return;
-    const parent = commentById(c.parent_id);
-    if (!parent) return;
     const el = document.getElementById(`comment-${c.parent_id}`);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -316,277 +240,203 @@
 
 <section class="comments">
   <div class="header-bar">
-    <button
-      type="button"
-      class="toggle"
-      onclick={toggleExpand}
-      aria-expanded={expanded}
-      disabled={loading}
-    >
+    <span class="head-count">
       <Icon icon="message-square" size={14} strokeWidth={1.8} />
-      {#if !loading && comments.length === 0}
-        첫 댓글을 남겨주세요
-      {:else}
-        댓글 {loading ? "…" : comments.length}{expanded ? " 접기" : "개 보기"}
-      {/if}
-    </button>
+      댓글 {loading ? "…" : comments.length}
+    </span>
+    {#if comments.length >= 5}
+      <button type="button" class="jump-latest" onclick={scrollToLatest} title="최근 댓글로 이동">
+        최근 ↓
+      </button>
+    {/if}
   </div>
 
-  {#if expanded}
-    {#if error}
-      <p class="error">{error}</p>
-    {/if}
+  {#if error}
+    <p class="error">{error}</p>
+  {/if}
 
-    {#if comments.length === 0}
-      <p class="empty">아직 댓글이 없습니다. 첫 댓글을 남겨주세요.</p>
-    {:else}
-      <ol class="list" bind:this={listEl}>
-        {#each comments as c (c.id)}
-          {@const isReply = !!c.parent_id}
-          <li class="comment-wrap" class:is-reply={isReply}>
-            {#if isReply}
-              <span class="reply-rail" aria-hidden="true"></span>
-            {/if}
-            <FeedItem
-              id={`comment-${c.id}`}
-              user={toUser(c)}
-              createdAt={c.created_at}
-              updatedAt={c.updated_at}
-              isPinned={c.is_pinned}
-              isDeleted={c.status === "deleted"}
-              highlighted={highlightId === c.id}
-              promoted={!!c.promoted_to_note_id}
-              variant={c.type}
-            >
-              {#snippet meta()}
-                <div class="meta-line">
-                  {#if parentMentionLabel(c)}
-                    <button
-                      type="button"
-                      class="parent-link"
-                      onclick={() => jumpToParent(c)}
-                      title="원 댓글로 이동"
-                    >
-                      <Icon icon="corner-down-right" size={13} strokeWidth={1.8} />
-                      {parentMentionLabel(c)}에게 답글
-                    </button>
-                  {/if}
-                  {#if c.promoted_to_note_id}
-                    <a
-                      class="promoted-badge"
-                      href={`#fn-${c.promoted_to_note_id}`}
-                      title="이 댓글이 자료 주석으로 반영되었습니다"
-                    >
-                      <span class="promoted-icon" aria-hidden="true">
-                        <Icon icon="pencil" size={12} strokeWidth={1.8} />
-                      </span>
-                      자료에 반영됨
-                      <span class="promoted-id">{c.promoted_to_note_id}</span>
-                    </a>
-                  {/if}
-                </div>
-              {/snippet}
-
-              {#snippet body()}
-                {#if editingId === c.id}
-                  <div class="edit-area">
-                    <textarea bind:value={editingDraft} rows="3" maxlength="4000"></textarea>
-                    <div class="edit-actions">
-                      <button
-                        type="button"
-                        class="cta"
-                        onclick={() => saveEdit(c)}
-                        disabled={!editingDraft.trim()}
-                      >저장</button>
-                      <button type="button" class="ghost" onclick={cancelEdit}>취소</button>
-                    </div>
-                  </div>
-                {:else}
-                  {@html c.body_html}
-                {/if}
-              {/snippet}
-
-              {#snippet photos()}
-                {#if editingId !== c.id}
-                  {@const imgs = imageAtts(c)}
-                  {@const maps = mapAtts(c)}
-                  {#if imgs.length > 0}
-                    <PhotoGrid photos={imgs.map((i) => ({ url: i.url, width: i.width, height: i.height }))} />
-                  {/if}
-                  {#if maps.length > 0}
-                    <div class="map-list">
-                      {#each maps as att (`${att.lat},${att.lng}`)}
-                        <a
-                          class="att-map"
-                          href={`https://map.kakao.com/link/map/${encodeURIComponent(att.label ?? "위치")},${att.lat},${att.lng}`}
-                          target="_blank"
-                          rel="noopener"
-                          title="카카오맵에서 열기"
-                        >
-                          <Icon icon="map-pin" size={14} strokeWidth={1.8} />
-                          {att.label ?? `${att.lat.toFixed(4)}, ${att.lng.toFixed(4)}`}
-                        </a>
-                      {/each}
-                    </div>
-                  {/if}
-                {/if}
-              {/snippet}
-
-              {#snippet actions()}
-                {#if editingId !== c.id}
+  {#if !loading && comments.length === 0}
+    <p class="empty">아직 댓글이 없습니다. 첫 댓글을 남겨주세요.</p>
+  {:else}
+    <ol class="list" bind:this={listEl}>
+      {#each comments as c (c.id)}
+        {@const isReply = !!c.parent_id}
+        <li class="comment-wrap" class:is-reply={isReply}>
+          {#if isReply}
+            <span class="reply-rail" aria-hidden="true"></span>
+          {/if}
+          <FeedItem
+            id={`comment-${c.id}`}
+            user={toUser(c)}
+            createdAt={c.created_at}
+            updatedAt={c.updated_at}
+            isPinned={c.is_pinned}
+            isDeleted={c.status === "deleted"}
+            highlighted={highlightId === c.id}
+            promoted={!!c.promoted_to_note_id}
+            variant={c.type}
+          >
+            {#snippet meta()}
+              <div class="meta-line">
+                {#if parentMentionLabel(c)}
                   <button
                     type="button"
-                    class="act helpful"
-                    class:on={c.you_helpful}
-                    onclick={() => toggleHelpful(c)}
-                    title={user ? "도움됨 표시 토글" : "로그인 필요"}
+                    class="parent-link"
+                    onclick={() => jumpToParent(c)}
+                    title="원 댓글로 이동"
                   >
-                    👍 도움됨 {c.helpful_count > 0 ? c.helpful_count : ""}
+                    <Icon icon="corner-down-right" size={13} strokeWidth={1.8} />
+                    {parentMentionLabel(c)}에게 답글
                   </button>
-                  {#if user}
-                    <button type="button" class="act" onclick={() => startReply(c)}>↩ 답글</button>
-                  {/if}
-                  {#if user && user.id === c.author_id && c.reply_count === 0}
-                    <button type="button" class="act" onclick={() => startEdit(c)}>수정</button>
-                  {/if}
-                  {#if user && user.id === c.author_id}
-                    <button class="act del" type="button" onclick={() => remove(c)}>삭제</button>
-                  {/if}
-                  {#if user && user.level >= 4}
-                    <button
-                      type="button"
-                      class="act pin-btn"
-                      class:on={c.is_pinned}
-                      onclick={() => togglePin(c)}
-                      title="운영자 고정 토글"
-                    >
-                      <Icon icon="pin" size={13} strokeWidth={1.8} />
-                      {c.is_pinned ? "해제" : "고정"}
-                    </button>
-                  {/if}
                 {/if}
-              {/snippet}
-            </FeedItem>
-          </li>
-        {/each}
-      </ol>
-    {/if}
+                {#if c.promoted_to_note_id}
+                  <a
+                    class="promoted-badge"
+                    href={`#fn-${c.promoted_to_note_id}`}
+                    title="이 댓글이 자료 주석으로 반영되었습니다"
+                  >
+                    <span class="promoted-icon" aria-hidden="true">
+                      <Icon icon="pencil" size={12} strokeWidth={1.8} />
+                    </span>
+                    자료에 반영됨
+                    <span class="promoted-id">{c.promoted_to_note_id}</span>
+                  </a>
+                {/if}
+              </div>
+            {/snippet}
 
-    <form class="composer" onsubmit={(e) => { e.preventDefault(); submit(); }}>
-      {#if user === null}
-        <p class="login-cta">
-          <button type="button" class="cta" onclick={login}>로그인하고 댓글 남기기</button>
-        </p>
-      {:else if user.needs_nickname}
-        <p class="login-cta">
-          <a class="cta" href="/account/nickname">먼저 닉네임을 설정하세요 →</a>
-        </p>
-      {:else}
-        {#if replyTo}
-          <div class="reply-bar">
-            <span>@{replyTo.author.display_name}에게 답글</span>
-            <button type="button" class="ghost" onclick={cancelReply}>취소</button>
-          </div>
-        {/if}
-        <div class="row type-row">
-          <span class="asuser">{user.display_name}</span>
-        </div>
-        <textarea
-          bind:this={textareaEl}
-          bind:value={draft}
-          placeholder="이 절·카드에 대한 댓글을 남기세요. (마크다운 일부 지원)"
-          rows="3"
-          maxlength="4000"
-          disabled={posting}
-        ></textarea>
-        {#if draftAttachments.length > 0}
-          <div class="draft-atts">
-            {#each draftAttachments as att, i (att.type === "image" ? att.url : `${att.lat},${att.lng}-${i}`)}
-              {#if att.type === "image"}
-                <div class="draft-att">
-                  <img src={att.url} alt="" />
-                  <button
-                    type="button"
-                    class="att-remove"
-                    onclick={() => removeAttachment(i)}
-                    aria-label="이 첨부 제거"
-                  >×</button>
+            {#snippet body()}
+              {@html c.body_html}
+            {/snippet}
+
+            {#snippet photos()}
+              {@const imgs = imageAtts(c)}
+              {@const maps = mapAtts(c)}
+              {#if imgs.length > 0}
+                <PhotoGrid photos={imgs.map((i) => ({ url: i.url, width: i.width, height: i.height }))} />
+              {/if}
+              {#if maps.length > 0}
+                <div class="map-list">
+                  {#each maps as att (`${att.lat},${att.lng}`)}
+                    <a
+                      class="att-map"
+                      href={`https://map.kakao.com/link/map/${encodeURIComponent(att.label ?? "위치")},${att.lat},${att.lng}`}
+                      target="_blank"
+                      rel="noopener"
+                      title="카카오맵에서 열기"
+                    >
+                      <Icon icon="map-pin" size={14} strokeWidth={1.8} />
+                      {att.label ?? `${att.lat.toFixed(4)}, ${att.lng.toFixed(4)}`}
+                    </a>
+                  {/each}
                 </div>
               {/if}
-            {/each}
-          </div>
-        {/if}
-        <div class="row submit-row">
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            bind:this={fileInputEl}
-            onchange={onPickFiles}
-            style="display: none"
-          />
-          <button
-            type="button"
-            class="att-btn"
-            onclick={() => fileInputEl?.click()}
-            disabled={uploading || posting || draftAttachments.length >= MAX_ATTACHMENTS}
-            title={`사진 첨부 (최대 ${MAX_ATTACHMENTS}장, 자동 1600px 리사이즈)`}
-          >
-            {#if uploading}
-              업로드 중…
-            {:else}
-              <Icon icon="paperclip" size={14} strokeWidth={1.8} />
-              사진 ({draftAttachments.length}/{MAX_ATTACHMENTS})
-            {/if}
-          </button>
-          <span class="counter">{draft.length} / 4000</span>
-          <button
-            class="cta"
-            type="submit"
-            disabled={posting || uploading || (!draft.trim() && draftAttachments.length === 0)}
-          >
-            {posting ? "등록 중…" : "등록"}
-          </button>
-        </div>
-      {/if}
-    </form>
+            {/snippet}
+
+            {#snippet actions()}
+              <button
+                type="button"
+                class="act helpful"
+                class:on={c.you_helpful}
+                onclick={() => toggleHelpful(c)}
+                title={user ? "도움됨 표시 토글" : "로그인 필요"}
+              >
+                👍 도움됨 {c.helpful_count > 0 ? c.helpful_count : ""}
+              </button>
+              {#if user}
+                <button type="button" class="act" onclick={() => openReply(c)}>↩ 답글</button>
+              {/if}
+              {#if user && user.id === c.author_id && c.reply_count === 0}
+                <button type="button" class="act" onclick={() => openEdit(c)}>수정</button>
+              {/if}
+              {#if user && user.id === c.author_id}
+                <button class="act del" type="button" onclick={() => remove(c)}>삭제</button>
+              {/if}
+              {#if user && user.level >= 4}
+                <button
+                  type="button"
+                  class="act pin-btn"
+                  class:on={c.is_pinned}
+                  onclick={() => togglePin(c)}
+                  title="운영자 고정 토글"
+                >
+                  <Icon icon="pin" size={13} strokeWidth={1.8} />
+                  {c.is_pinned ? "해제" : "고정"}
+                </button>
+              {/if}
+            {/snippet}
+          </FeedItem>
+        </li>
+      {/each}
+    </ol>
   {/if}
+
+  <div class="write-cta-wrap">
+    {#if user === null}
+      <button type="button" class="write-cta" onclick={login}>로그인하고 댓글 남기기</button>
+    {:else if user.needs_nickname}
+      <a class="write-cta" href="/account/nickname">먼저 닉네임을 설정하세요 →</a>
+    {:else}
+      <button type="button" class="write-cta" onclick={openNew}>
+        <Icon icon="message-square" size={14} strokeWidth={1.8} />
+        댓글 쓰기
+      </button>
+    {/if}
+  </div>
 </section>
+
+<CommentModal
+  open={modalOpen}
+  mode={modalMode}
+  {target}
+  replyToName={modalReplyName}
+  initialBody={modalInitialBody}
+  initialAttachments={modalInitialAtts}
+  editId={modalEditId}
+  parentId={modalParentId}
+  userName={user?.display_name ?? null}
+  onSubmitted={onModalSubmitted}
+  onClose={closeModal}
+/>
 
 <style>
   .comments {
-    margin-top: 3rem;
-    padding-top: 1.2rem;
-    border-top: 1px solid var(--color-rule);
+    padding: 0 0 5rem 0; /* 하단 CTA 공간 확보 */
   }
   .header-bar {
     display: flex;
     align-items: center;
-    margin-bottom: 0.8rem;
+    gap: 0.5rem;
+    margin: 0.4rem 0 0.6rem;
   }
-  .toggle {
+  .head-count {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.3rem;
+    font-size: 0.88rem;
+    color: var(--color-fg, #1f1c1a);
+    font-weight: 600;
+  }
+  .jump-latest {
+    margin-left: auto;
     background: transparent;
-    border: 1px solid var(--color-rule);
+    border: 1px solid var(--color-rule, #e8dfd9);
     border-radius: 999px;
-    padding: 0.3rem 0.85rem;
+    padding: 0.2rem 0.6rem;
     font: inherit;
-    font-size: 0.92rem;
-    color: var(--color-primary);
+    font-size: 0.78rem;
+    color: var(--color-muted, #8a807a);
     cursor: pointer;
   }
-  .toggle:hover:not(:disabled) {
-    background: var(--color-primary-bg);
+  .jump-latest:hover {
+    color: var(--color-primary, #a8352a);
+    border-color: var(--color-primary, #a8352a);
   }
-  .toggle:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+
   .empty {
     color: var(--color-muted);
     font-size: 0.92rem;
+    margin: 0.5rem 0;
   }
   .error {
     color: var(--color-primary);
@@ -594,7 +444,7 @@
   }
   .list {
     list-style: none;
-    margin: 0 0 1.2rem;
+    margin: 0 0 1rem;
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -627,14 +477,6 @@
     gap: 0.5rem;
     font-size: 0.82rem;
   }
-  .ctype {
-    font-weight: 500;
-  }
-  .ctype.c-memo { color: var(--color-muted); }
-  .ctype.c-question { color: var(--color-secondary); }
-  .ctype.c-cross { color: var(--color-secondary-soft); }
-  .ctype.c-cite { color: var(--color-primary); }
-
   .parent-link {
     display: inline-flex;
     align-items: center;
@@ -664,242 +506,96 @@
     text-decoration: none;
     line-height: 1.3;
   }
-  .promoted-badge:hover {
-    background: var(--color-secondary-bg);
-  }
   .promoted-id {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.72rem;
-    color: var(--color-muted);
-  }
-
-  .edit-area {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    margin: 0.1rem 0;
-  }
-  .edit-area select {
-    align-self: flex-start;
-    font: inherit;
-    border: 1px solid var(--color-rule);
-    border-radius: 5px;
-    padding: 0.2rem 0.5rem;
-    background: var(--color-bg);
-    color: var(--color-fg);
-  }
-  .edit-area textarea {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid var(--color-rule);
-    border-radius: 5px;
-    padding: 0.5rem;
-    font: inherit;
-    font-size: 0.95rem;
-    background: var(--color-bg);
-    color: var(--color-fg);
-    resize: vertical;
-    min-height: 4em;
-  }
-  .edit-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
+    color: var(--color-secondary);
   }
 
   .map-list {
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem;
-    margin-top: 0.4rem;
+    margin-top: 0.3rem;
   }
   .att-map {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.25rem 0.55rem;
-    border: 1px solid var(--color-secondary);
-    color: var(--color-secondary);
-    background: var(--color-secondary-bg);
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--color-rule);
     border-radius: 999px;
+    font-size: 0.82rem;
+    color: var(--color-secondary);
     text-decoration: none;
-    font-size: 0.85rem;
+    background: var(--color-bg);
   }
   .att-map:hover {
-    background: var(--color-secondary);
-    color: var(--color-bg);
+    background: var(--color-secondary-bg);
   }
 
-  .act, .ghost {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
+  .act {
     background: transparent;
-    border: 1px solid transparent;
-    color: var(--feed-action-color, var(--color-muted));
-    padding: 0.18rem 0.45rem;
-    border-radius: 5px;
+    border: none;
+    color: var(--color-muted);
     cursor: pointer;
     font: inherit;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
   }
-  .act:hover, .ghost:hover {
-    color: var(--feed-action-hover, var(--color-secondary));
-    background: var(--color-secondary-bg);
+  .act:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-bg);
   }
-  .act.on, .pin-btn.on {
-    background: var(--color-secondary-bg);
-    border-color: var(--feed-action-hover, var(--color-secondary));
-    color: var(--feed-action-hover, var(--color-secondary));
+  .act.helpful.on,
+  .act.pin-btn.on {
+    color: var(--color-primary);
+    font-weight: 600;
   }
   .act.del:hover {
-    color: var(--feed-action-danger, var(--color-primary));
+    color: var(--color-primary);
     background: var(--color-primary-bg);
   }
 
-  .reply-bar {
+  /* 하단 CTA — sticky bottom inside SideCard scroll container */
+  .write-cta-wrap {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.6rem 0;
+    background: linear-gradient(
+      to top,
+      var(--color-bg, #fbf8f4) 0%,
+      var(--color-bg, #fbf8f4) 75%,
+      transparent 100%
+    );
     display: flex;
+    justify-content: center;
+    z-index: 5;
+  }
+  .write-cta {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0.3rem 0.6rem;
-    margin-bottom: 0.4rem;
-    background: var(--color-secondary-bg);
-    border: 1px solid var(--color-secondary);
-    border-radius: 5px;
-    font-size: 0.85rem;
-    color: var(--color-secondary);
-  }
-  .composer {
-    border: 1px solid var(--color-rule);
-    border-radius: var(--feed-card-radius, 8px);
-    padding: 0.8rem;
-    background: var(--color-primary-bg);
-  }
-  .composer textarea {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid var(--color-rule);
-    border-radius: 5px;
-    padding: 0.6rem;
-    font: inherit;
-    font-size: 0.95rem;
-    background: var(--color-bg);
-    color: var(--color-fg);
-    resize: vertical;
-    min-height: 4em;
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.4rem 0;
-  }
-  .type-row {
-    justify-content: space-between;
-  }
-  .submit-row {
-    justify-content: flex-end;
-  }
-  .type-pick select {
-    font: inherit;
-    border: 1px solid var(--color-rule);
-    border-radius: 5px;
-    padding: 0.25rem 0.5rem;
-    background: var(--color-bg);
-    color: var(--color-fg);
-  }
-  .asuser {
-    font-size: 0.85rem;
-    color: var(--color-muted);
-  }
-  .counter {
-    color: var(--color-muted);
-    font-size: 0.78rem;
-    margin-right: auto;
-  }
-  .cta {
+    gap: 0.4rem;
+    padding: 0.6rem 1.4rem;
+    background: var(--color-primary, #a8352a);
+    color: #fff;
     border: none;
-    background: var(--color-primary);
-    color: var(--color-bg);
-    border-radius: 5px;
-    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
     font: inherit;
+    font-weight: 600;
     font-size: 0.92rem;
     cursor: pointer;
     text-decoration: none;
+    box-shadow: 0 4px 12px rgba(168, 53, 42, 0.3);
   }
-  .cta:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .cta:hover:not(:disabled) {
-    background: var(--color-primary-soft);
-  }
-  .login-cta {
-    margin: 0;
-    text-align: center;
-  }
-
-  .draft-atts {
-    margin-top: 0.5rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-  .draft-att {
-    position: relative;
-    width: 96px;
-    height: 96px;
-    border: 1px solid var(--color-rule);
-    border-radius: 5px;
-    overflow: hidden;
-    background: var(--color-bg);
-  }
-  .draft-att img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  .att-remove {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.65);
-    color: #fff;
-    font: inherit;
-    font-size: 0.95rem;
-    line-height: 1;
-    cursor: pointer;
-  }
-  .att-remove:hover {
-    background: rgba(0, 0, 0, 0.85);
-  }
-  .att-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    background: transparent;
-    border: 1px solid var(--color-rule);
-    border-radius: 5px;
-    padding: 0.35rem 0.7rem;
-    font: inherit;
-    font-size: 0.85rem;
-    color: var(--color-secondary);
-    cursor: pointer;
-    margin-right: auto;
-  }
-  .att-btn:hover:not(:disabled) {
-    background: var(--color-secondary-bg);
-    border-color: var(--color-secondary);
-  }
-  .att-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .write-cta:hover {
+    filter: brightness(0.95);
+    box-shadow: 0 6px 16px rgba(168, 53, 42, 0.4);
   }
 </style>
