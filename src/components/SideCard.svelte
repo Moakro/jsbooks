@@ -413,6 +413,26 @@
     currentIdx = { ...currentIdx, [tab]: idx };
   }
 
+  // ─────────────────────── horizontal swipe ───────────────────────
+  // 같은 탭 내 카드 스택을 좌우 스와이프로 전환. 세로 스크롤은 native 그대로.
+  let swipeStart: { x: number; y: number } | null = null;
+  function onCardTouchStart(e: TouchEvent) {
+    if (e.touches.length !== 1) { swipeStart = null; return; }
+    const t = e.touches[0];
+    swipeStart = { x: t.clientX, y: t.clientY };
+  }
+  function onCardTouchEnd(e: TouchEvent, tab: TabKey, len: number) {
+    if (!swipeStart || len < 2) { swipeStart = null; return; }
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeStart.x;
+    const dy = t.clientY - swipeStart.y;
+    swipeStart = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    const idx = currentIdx[tab];
+    if (dx < 0 && idx < len - 1) setIdx(tab, idx + 1);
+    else if (dx > 0 && idx > 0) setIdx(tab, idx - 1);
+  }
+
   async function pushArchive(kind: string, slug: string) {
     const key = `${kind}:${slug}`;
     const existing = stacks.archive.findIndex((s) => s.key === key);
@@ -852,7 +872,11 @@
               {/if}
             </span>
           {/snippet}
-          <div class="detail-wrap">
+          <div
+            class="detail-wrap"
+            ontouchstart={onCardTouchStart}
+            ontouchend={(e) => onCardTouchEnd(e, "library", stacks.library.length)}
+          >
           {@render detailHeader("library", libTitle, item.key)}
           {@render chevrons("library", stacks.library.length)}
           <div class="detail-body" bind:this={detailEls.library}>
@@ -937,7 +961,11 @@
               {/if}
             </span>
           {/snippet}
-          <div class="detail-wrap">
+          <div
+            class="detail-wrap"
+            ontouchstart={onCardTouchStart}
+            ontouchend={(e) => onCardTouchEnd(e, "archive", stacks.archive.length)}
+          >
           {@render detailHeader("archive", arcTitle, item.key)}
           {@render chevrons("archive", stacks.archive.length)}
           <div class="detail-body" bind:this={detailEls.archive}>
@@ -1080,7 +1108,11 @@
             <span class="kind-pill fd-pill">댓글</span>
             <span class="title-text">{item.label}</span>
           {/snippet}
-          <div class="detail-wrap">
+          <div
+            class="detail-wrap"
+            ontouchstart={onCardTouchStart}
+            ontouchend={(e) => onCardTouchEnd(e, "feed", stacks.feed.length)}
+          >
           {@render detailHeader("feed", fdTitle, item.key)}
           {@render chevrons("feed", stacks.feed.length)}
           <div class="detail-body feed-body" bind:this={detailEls.feed}>
@@ -1338,26 +1370,34 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 36px; height: 36px;
+    width: 40px; height: 40px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--color-bg, #fbf8f4);
-    border: 1px solid var(--color-rule, #e8dfd9);
+    border: 1.5px solid var(--tab-color, var(--color-primary, #a8352a));
     border-radius: 50%;
     color: var(--tab-color, var(--color-primary, #a8352a));
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.2),
+      0 2px 4px rgba(0, 0, 0, 0.12),
+      0 0 0 4px rgba(255, 255, 255, 0.55);
     z-index: 5;
-    opacity: 0.75;
-    transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    opacity: 0.95;
+    transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
     --tab-color: var(--color-primary, #a8352a);
   }
   .nav-chevron:hover, .nav-chevron:focus-visible {
     opacity: 1;
     background: var(--tab-color);
     color: var(--color-bg, #fbf8f4);
+    transform: translateY(-50%) scale(1.06);
+    box-shadow:
+      0 8px 20px rgba(0, 0, 0, 0.25),
+      0 3px 6px rgba(0, 0, 0, 0.15),
+      0 0 0 4px rgba(255, 255, 255, 0.6);
   }
-  .nav-chevron.prev { left: 0.4rem; }
-  .nav-chevron.next { right: 0.4rem; }
+  .nav-chevron.prev { left: 0.5rem; }
+  .nav-chevron.next { right: 0.5rem; }
 
   /* Detail */
   .detail-head {
@@ -1404,10 +1444,10 @@
   .detail-body {
     flex: 1; min-height: 0;
     overflow-y: auto;
-    padding: 0.6rem 1rem 1.2rem;
+    padding: 0.6rem 1rem 4.5rem;
     font-size: 0.95rem; line-height: 1.6;
   }
-  .detail-body.feed-body { padding: 0.4rem 0.6rem 0.9rem; }
+  .detail-body.feed-body { padding: 0.4rem 0.6rem 4.5rem; }
 
   /* Siblings */
   .siblings {
