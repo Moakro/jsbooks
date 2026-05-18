@@ -53,7 +53,7 @@
     min-width: 0;
   }
   .name {
-    font-weight: 600;
+    font-weight: 700;
     color: var(--color-fg, #1f1c1a);
     text-decoration: none;
     overflow: hidden;
