@@ -124,6 +124,19 @@ export const GET: APIRoute = async () => {
     const sentenceVerses = parseSentencesFlat(body);
     const verses = sentenceVerses.length > 0 ? sentenceVerses : parseVerses(body);
 
+    // DEBUG: hwaeundang/2 만
+    if (slug === "hwaeundang-silgi" && chapterKey === "2") {
+      console.log(`[DEBUG] ${outKey}: body length=${body.length}, verses=${verses.length}`);
+      for (const v of verses) {
+        const targets = extractWikilinkTargets(v.text);
+        console.log(`  [DEBUG] verse ${v.id}: text len=${v.text.length}, wikilinks=${JSON.stringify(targets)}`);
+        for (const t of targets) {
+          const ref = resolveCardRef(t, manifest);
+          console.log(`    [DEBUG] target=${t} -> ref=${JSON.stringify(ref)}`);
+        }
+      }
+    }
+
     for (const v of verses) {
       if (!verseSeen.has(v.id)) {
         ctx.verse_anchors.push(v.id);
