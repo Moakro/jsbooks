@@ -1090,8 +1090,16 @@
         {@const item = stacks.feed[currentIdx.feed]}
         {#if item}
           {#snippet fdTitle()}
-            <span class="kind-pill fd-pill">댓글</span>
-            <span class="title-text">{item.label}</span>
+            {#if item.kind === "verse"}
+              <a
+                class="verse-anchor-link"
+                href={`#${item.anchor}`}
+                onclick={minimizeSheet}
+                title="이 절로 이동"
+              >^{item.anchor}</a>
+            {:else}
+              <span class="title-text">{item.label}</span>
+            {/if}
           {/snippet}
           <div
             class="detail-wrap"
@@ -1419,6 +1427,18 @@
   .detail-title .title-text { flex: 1; font-size: 0.96rem; }
   .detail-title .hanja {
     font-weight: normal; color: var(--hanja, #555); font-size: 0.78em;
+  }
+  /* 피드 탭 헤더 — 절 anchor (경전 페이지 verse-label 의 anchor 와 동일 톤) */
+  .detail-title .verse-anchor-link {
+    font-size: 0.86rem;
+    font-weight: 500;
+    color: var(--color-secondary, #1e6e6e);
+    text-decoration: underline;
+    text-decoration-color: var(--color-muted, #8a807a);
+    text-underline-offset: 2px;
+  }
+  .detail-title .verse-anchor-link:hover {
+    color: var(--color-primary, #a8352a);
   }
   .card-close {
     display: inline-flex; align-items: center; justify-content: center;
