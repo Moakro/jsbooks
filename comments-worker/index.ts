@@ -1079,6 +1079,21 @@ async function flagComment(req: Request, env: Env, id: string): Promise<Response
   return json({ ok: true });
 }
 
+// URL → <a> 자동 변환. 같은 탭(target 없음). 이미 escape된 텍스트에 적용.
+// URL 끝 일반 구두점(.,!?)이 잡히면 anchor 밖으로 빼서 자연 흐름 유지.
+const URL_RE = /\bhttps?:\/\/[^\s<>"']+/g;
+function linkifyEscaped(esc: string): string {
+  return esc.replace(URL_RE, (raw) => {
+    let trailing = "";
+    const m = raw.match(/[.,!?;:)\]}]+$/);
+    if (m) {
+      trailing = m[0];
+      raw = raw.slice(0, raw.length - trailing.length);
+    }
+    return `<a href="${raw}" rel="noopener nofollow ugc">${raw}</a>${trailing}`;
+  });
+}
+
 // ── Minimal HTML sanitizer for comment bodies ──
 // Allows a tiny markdown-ish subset converted to HTML with strict escaping.
 function sanitizeHTML(text: string): string {
@@ -1087,8 +1102,10 @@ function sanitizeHTML(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-  // paragraphs by blank lines, single newline → <br>
-  const paras = escaped.split(/\n\s*\n/).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`);
+  // paragraphs by blank lines, single newline → <br>; URL은 같은 탭 anchor로
+  const paras = escaped
+    .split(/\n\s*\n/)
+    .map((p) => `<p>${linkifyEscaped(p.replace(/\n/g, "<br>"))}</p>`);
   return paras.join("");
 }
 
