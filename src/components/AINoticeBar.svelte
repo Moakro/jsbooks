@@ -92,6 +92,18 @@
   .email:hover { background: var(--color-primary, #a8352a); color: #fff; }
   .email:active { transform: translateY(1px); }
 
+  /* 모바일: 컬럼 스택 + 버튼 하단 가운데 정렬 */
+  @media (max-width: 640px) {
+    .notice {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.75rem;
+    }
+    .email {
+      align-self: center;
+    }
+  }
+
   .toast {
     position: fixed;
     left: 50%;
