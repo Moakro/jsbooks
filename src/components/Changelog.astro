@@ -52,18 +52,7 @@ function changelogDate(iso: string): { label: string; abs: string } {
         return (
           <li>
             <time class="date" datetime={r.entry.date} title={d.abs}>{d.label}</time>
-            <span class="body">
-              <span class="badges">
-                {r.categories.map((c) => (
-                  <a class={`badge badge-${c.group}`} href={c.href}>
-                    <span class="badge-group">{c.group === "scripture" ? "경전" : "자료"}</span>
-                    <span class="badge-sep">·</span>
-                    <span class="badge-label">{c.label}</span>
-                  </a>
-                ))}
-              </span>
-              <span class="subject" set:html={r.messageHtml} />
-            </span>
+            <span class="subject" set:html={r.messageHtml} />
           </li>
         );
       })}
@@ -133,46 +122,6 @@ function changelogDate(iso: string): { label: string; abs: string } {
     color: var(--color-muted, #8a807a);
     font-variant-numeric: tabular-nums;
     font-size: 0.85rem;
-  }
-  .body {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.4rem 0.55rem;
-  }
-  .badges {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-  }
-  .badge {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.25em;
-    padding: 0.08em 0.55em;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    line-height: 1.5;
-    text-decoration: none;
-    border: 1px solid transparent;
-    white-space: nowrap;
-  }
-  .badge:hover { filter: brightness(0.97); }
-  .badge-scripture {
-    background: #fbecea;
-    color: #a8352a;
-    border-color: #f0d5d0;
-  }
-  .badge-archive {
-    background: #f3ece1;
-    color: #7a5a32;
-    border-color: #e6dac5;
-  }
-  .badge-sep {
-    opacity: 0.55;
-  }
-  .badge-label {
-    font-weight: 600;
   }
   .subject {
     color: var(--color-fg, #1f1c1a);
