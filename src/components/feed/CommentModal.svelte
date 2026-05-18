@@ -52,15 +52,17 @@
   let textareaEl: HTMLTextAreaElement | undefined = $state();
   let fileInputEl: HTMLInputElement | undefined = $state();
 
-  // body_html → plain text 변환 (<br>·</p>→\n, 나머지 태그 제거). edit 모드 fallback.
+  // body_html → plain text 변환 (edit 모드 fallback, worker 가 body 미반환 시).
+  // <a href="원본URL">표시</a> 는 href 값으로 복원 (내부링크의 상대경로 표시로 인한 링크 깨짐 방지).
   function htmlToPlainText(html: string): string {
     if (!html) return "";
     if (typeof DOMParser === "undefined") return html;
-    const normalized = html
+    const restored = html
+      .replace(/<a\s+[^>]*href="([^"]+)"[^>]*>[\s\S]*?<\/a>/gi, "$1")
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<\/p>/gi, "\n\n")
       .replace(/<\/div>/gi, "\n");
-    const doc = new DOMParser().parseFromString(normalized, "text/html");
+    const doc = new DOMParser().parseFromString(restored, "text/html");
     return (doc.body.textContent ?? "").replace(/\n{3,}/g, "\n\n").trim();
   }
 
