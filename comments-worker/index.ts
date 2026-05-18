@@ -1079,9 +1079,12 @@ async function flagComment(req: Request, env: Env, id: string): Promise<Response
   return json({ ok: true });
 }
 
-// URL → <a> 자동 변환. 같은 탭(target 없음). 이미 escape된 텍스트에 적용.
-// URL 끝 일반 구두점(.,!?)이 잡히면 anchor 밖으로 빼서 자연 흐름 유지.
+// URL → <a> 자동 변환. 이미 escape된 텍스트에 적용.
+// - 내부 (jsbooks.wiki/...): 현재 창, 표시는 상대경로 `./path/#anchor`
+// - 외부: 새 창, 표시는 원본 URL + ↗ 아이콘
+// URL 끝 일반 구두점은 anchor 밖으로 빼서 자연 흐름 유지.
 const URL_RE = /\bhttps?:\/\/[^\s<>"']+/g;
+const INTERNAL_HOSTS = new Set(["jsbooks.wiki", "www.jsbooks.wiki"]);
 function linkifyEscaped(esc: string): string {
   return esc.replace(URL_RE, (raw) => {
     let trailing = "";
@@ -1090,7 +1093,16 @@ function linkifyEscaped(esc: string): string {
       trailing = m[0];
       raw = raw.slice(0, raw.length - trailing.length);
     }
-    return `<a href="${raw}" rel="noopener nofollow ugc">${raw}</a>${trailing}`;
+    // host 추출 — `https://host/path` 에서 host
+    const hostMatch = raw.match(/^https?:\/\/([^/?#]+)/i);
+    const host = hostMatch ? hostMatch[1].toLowerCase() : "";
+    const isInternal = INTERNAL_HOSTS.has(host);
+    if (isInternal) {
+      const pathFrag = raw.slice((hostMatch?.[0] ?? "").length) || "/";
+      const display = `.${pathFrag}`;
+      return `<a href="${raw}">${display}</a>${trailing}`;
+    }
+    return `<a href="${raw}" target="_blank" rel="noopener noreferrer nofollow ugc">${raw} <span aria-hidden="true">↗</span></a>${trailing}`;
   });
 }
 
