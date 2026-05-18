@@ -17,6 +17,15 @@
 import { execSync } from "node:child_process";
 import { writeFileSync, mkdirSync } from "node:fs";
 
+// Cloudflare Pages 등 shallow clone(depth=1) 환경에서는 git log가 최신 커밋만
+// 봐서 그 이전 커밋의 `--public` 토큰이 누락된다. 가능하면 전체 히스토리로 펼친다.
+// 이미 unshallow된 저장소나 remote 없는 환경에서는 조용히 실패.
+try {
+  execSync("git fetch --unshallow", { stdio: "ignore" });
+} catch {
+  /* already unshallow, no remote, or offline — proceed with what we have */
+}
+
 type Entry = {
   hash: string;
   date: string;
