@@ -76,11 +76,9 @@ const SECTIONS: SitemapSection[] = [
     slug: "feed",
     label: "피드",
     href: "/feed/",
-    // TODO: D1에서 최근 활동 끌어오기. 우선 placeholder 3개.
     cards: [
-      { label: "최근 댓글", href: "/feed/comments/", note: "데이터 준비 중", placeholder: true },
-      { label: "짧은 글", href: "/feed/posts/", note: "데이터 준비 중", placeholder: true },
-      { label: "답사기·사진", href: "/feed/visits/", note: "데이터 준비 중", placeholder: true },
+      { label: "전체", href: "/feed/" },
+      { label: "사진", href: "/feed/photos/", note: "준비 중", placeholder: true },
     ],
   },
   {
