@@ -663,6 +663,101 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         display: flex;
         justify-content: center;
       }
+
+      /* feed/ 하위 Svelte 컴포넌트(UserName, FeedItem, FeedList) 의 CSS 가
+       * 빌드에서 번들 누락되는 알려진 이슈 워크어라운드 — 글로벌 CSS 로 대체.
+       * 근본 원인 확인 후 컴포넌트 scoped <style> 로 복귀 예정. */
+      .user-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+      .user-name .name {
+        font-weight: 700;
+        color: var(--color-fg, #1f1c1a);
+        text-decoration: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 14em;
+      }
+      .user-name a.name:hover {
+        text-decoration: underline;
+        text-decoration-color: var(--color-muted, #8a807a);
+      }
+      .user-name .badge {
+        font-size: 0.72rem;
+        border-radius: 999px;
+        padding: 1px 7px;
+        line-height: 1.4;
+        flex-shrink: 0;
+      }
+      .user-name .badge.admin {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        color: var(--color-bg, #fbf8f4);
+        background: var(--color-primary, #a8352a);
+      }
+      .user-name .badge.curator {
+        color: var(--color-bg, #fbf8f4);
+        background: var(--color-primary, #a8352a);
+      }
+      .user-name .badge.verified {
+        color: var(--color-secondary, #1e6e6e);
+        border: 1px solid var(--color-secondary, #1e6e6e);
+        padding: 0 6px;
+      }
+
+      .feed-item {
+        display: block;
+        padding: 0.7rem 0.85rem;
+        border-radius: 8px;
+        background: var(--color-surface, #fdfaf4);
+        border: 1px solid var(--color-rule, #e8dfd9);
+        transition:
+          background 0.3s ease,
+          border-color 0.3s ease;
+      }
+      .feed-item .row {
+        display: flex;
+        gap: 0.6rem;
+        align-items: flex-start;
+      }
+      .feed-item .main {
+        flex: 1;
+        min-width: 0;
+      }
+      .feed-item .head {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        font-size: 0.86rem;
+        line-height: 1.2;
+        color: var(--color-muted, #8a807a);
+        margin-bottom: 0.4rem;
+        min-height: 1.5rem;
+      }
+      .feed-item .head-spacer {
+        flex: 1 1 auto;
+        min-width: 0.5rem;
+      }
+      .feed-item .edited {
+        font-size: 0.78rem;
+        color: var(--color-muted, #8a807a);
+      }
+      .feed-item .body {
+        line-height: 1.6;
+        color: var(--color-fg, #1f1c1a);
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .feed-item .body p { margin: 0.3rem 0; }
+      .feed-item .body p:first-child { margin-top: 0; }
+      .feed-item .body p:last-child { margin-bottom: 0; }
       h1,
       h2,
       h3 {
