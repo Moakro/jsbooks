@@ -126,11 +126,20 @@ export const GET: APIRoute = async () => {
 
     // DEBUG: hwaeundang/2 만
     if (slug === "hwaeundang-silgi" && chapterKey === "2") {
-      console.log(`[DEBUG] ${outKey}: body length=${body.length}, verses=${verses.length}`);
-      console.log(`[DEBUG] body[0..400]=`, JSON.stringify(body.slice(0, 400)));
-      console.log(`[DEBUG] body[400..800]=`, JSON.stringify(body.slice(400, 800)));
-      for (const v of verses) {
-        console.log(`  [DEBUG] verse ${v.id}: text=${JSON.stringify(v.text)}`);
+      console.log(`[DEBUG] ${outKey}: body length=${body.length}`);
+      const HEADING_RE_DEBUG = /^## (\d+)절 \^(\S+)[^\n]*$/gm;
+      let m;
+      const heads = [];
+      while ((m = HEADING_RE_DEBUG.exec(body)) !== null) {
+        heads.push({
+          idx: m.index, m0: JSON.stringify(m[0]), m0len: m[0].length, num: m[1], id: m[2]
+        });
+      }
+      console.log(`[DEBUG] heads:`, JSON.stringify(heads, null, 2));
+      // 첫 헤딩 직후 바이트 30개
+      if (heads.length > 0) {
+        const after = heads[0].idx + heads[0].m0len;
+        console.log(`[DEBUG] body[after first heading +30]=`, JSON.stringify(body.slice(after, after + 30)));
       }
     }
 
