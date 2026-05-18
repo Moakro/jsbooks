@@ -392,7 +392,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
           --header-h: 110px;
         }
       }
-      header {
+      body > header {
         background: color-mix(in oklab, var(--color-surface) 88%, transparent);
         backdrop-filter: saturate(140%) blur(12px);
         -webkit-backdrop-filter: saturate(140%) blur(12px);
@@ -402,7 +402,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         z-index: 10;
         transition: transform 0.22s ease;
       }
-      header.is-hidden {
+      body > header.is-hidden {
         transform: translateY(-100%);
       }
       .header-row.top {
