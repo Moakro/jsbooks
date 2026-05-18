@@ -854,7 +854,7 @@ async function listComments(req: Request, env: Env): Promise<Response> {
   // published + deleted 모두 반환. deleted는 답글이 있어 placeholder로 남은 행.
   // hidden(큐레이터 숨김)은 노출 안 함.
   const rows = await env.DB.prepare(
-    `SELECT c.id, c.target_type, c.target_id, c.parent_id, c.body_html, c.type,
+    `SELECT c.id, c.target_type, c.target_id, c.parent_id, c.body, c.body_html, c.type,
             c.status, c.attachments, c.is_pinned, c.promoted_to_note_id, c.created_at, c.updated_at,
             u.id AS user_id, u.display_name AS author_name,
             u.avatar_url AS author_avatar, u.affiliation AS author_affiliation,
@@ -890,6 +890,7 @@ async function listComments(req: Request, env: Env): Promise<Response> {
     return {
       id: r.id,
       parent_id: r.parent_id,
+      body: isDeleted ? "" : (r.body ?? ""),
       body_html: isDeleted ? "" : r.body_html,
       type: r.type,
       status: r.status,
