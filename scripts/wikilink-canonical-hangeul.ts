@@ -200,12 +200,12 @@ const rawJson = readFileSync(CANONICAL_FILE, "utf8");
 const data = JSON.parse(rawJson) as {
   version: number;
   scripture: string;
-  mappings: Record<string, { hangeul: string; reviewed?: boolean; confidence?: number }>;
+  verses: Record<string, { hangeul: string; reviewed?: boolean; confidence?: number }>;
 };
 
 let total = 0;
 let anchorsTouched = 0;
-for (const [anchor, entry] of Object.entries(data.mappings)) {
+for (const [, entry] of Object.entries(data.verses)) {
   if (!entry.hangeul) continue;
   const { text, count } = wrapWikilinks(entry.hangeul, keys, manifest);
   if (count > 0) {
