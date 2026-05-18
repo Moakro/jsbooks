@@ -74,8 +74,10 @@ const historyPath = `content/scripture/${entry.id}.md`;
       <section class="verse">
         <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
         <div class="verse-label" data-pagefind-ignore>
-          <a href={`#${v.id}`}>{v.num}절</a>
-          <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
+          <span class="verse-label-meta">
+            <a href={`#${v.id}`}>{v.num}절</a>
+            <span class="verse-anchor-hint">^{v.id}</span>
+          </span>
         </div>
         <div class="verse-body" set:html={v.html} />
       </section>
@@ -116,6 +118,19 @@ const historyPath = `content/scripture/${entry.id}.md`;
   }
   .verse-body :global(p) {
     margin: 0.5rem 0;
+  }
+  /* verse-label: 좌측 메타 + 우측 댓글 뱃지 (천지개벽경과 동일) */
+  .verse-label {
+    justify-content: space-between;
+  }
+  .verse-label-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  .verse-anchor-hint {
+    opacity: 0.5;
   }
   .verse-anchor-heading {
     position: absolute;
