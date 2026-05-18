@@ -204,6 +204,12 @@ function buildManifest(): Map<string, CardEntry> {
           manifest.set(m[1], { kind, canonical: slug, displayLabel: m[1] });
         }
       }
+
+      // 한자 alias (name_hanja / 호_한자) — 한자 본문 매칭용
+      const nameHanja = (fm.name_hanja ?? fm["호_한자"]) as string | undefined;
+      if (typeof nameHanja === "string" && nameHanja && !manifest.has(nameHanja)) {
+        manifest.set(nameHanja, { kind, canonical: slug, displayLabel: nameHanja });
+      }
     }
   }
   return manifest;

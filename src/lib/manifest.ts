@@ -36,6 +36,14 @@ export async function buildCardManifest(): Promise<CardManifest> {
           }
         }
       }
+
+      // 한자 alias — 천지개벽경처럼 본문이 한자 텍스트인 경전에서 매치되도록.
+      // 예: 목천포.md `name_hanja: 木川浦` → `木川浦`도 목천포 카드로 라우팅.
+      const data = entry.data as { name_hanja?: string; 호_한자?: string };
+      const nameHanja = data.name_hanja ?? data.호_한자;
+      if (typeof nameHanja === "string" && nameHanja && !byName.has(nameHanja)) {
+        byName.set(nameHanja, { kind, canonical: entry.id });
+      }
     }
   }
 
