@@ -65,9 +65,9 @@
     <div class="deleted-placeholder">{deletedLabel}</div>
   {:else}
     <div class="row">
-      <UserAvatar nickname={user.nickname} avatarUrl={user.avatar_url ?? null} size={avatarSize} />
       <div class="main">
         <header class="head">
+          <UserAvatar nickname={user.nickname} avatarUrl={user.avatar_url ?? null} size={avatarSize} />
           <UserName {user} />
           <span class="dot" aria-hidden="true">·</span>
           <RelativeTime iso={createdAt} />
