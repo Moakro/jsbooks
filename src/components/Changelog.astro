@@ -9,6 +9,8 @@
  */
 import { aggregateChangelog } from "../lib/history";
 import { relativeTime, absoluteTime } from "../lib/relative-time";
+import { buildCardManifest } from "../lib/manifest";
+import { renderWikilinks } from "../lib/wikilink";
 import Icon from "./Icon.svelte";
 
 interface Props {
@@ -17,7 +19,10 @@ interface Props {
 }
 const { limit = 30 } = Astro.props;
 
-const recent = aggregateChangelog().slice(0, limit);
+const manifest = await buildCardManifest();
+const recent = aggregateChangelog()
+  .slice(0, limit)
+  .map((r) => ({ ...r, messageHtml: renderWikilinks(r.message, manifest) }));
 
 function changelogDate(iso: string): { label: string; abs: string } {
   const now = new Date();
@@ -57,7 +62,7 @@ function changelogDate(iso: string): { label: string; abs: string } {
                   </a>
                 ))}
               </span>
-              <span class="subject">{r.message}</span>
+              <span class="subject" set:html={r.messageHtml} />
             </span>
           </li>
         );

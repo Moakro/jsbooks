@@ -423,7 +423,7 @@
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
     display: flex;
     flex-direction: column;
-    z-index: 50;
+    z-index: 100;
     animation: slide-down 0.15s ease;
   }
   @keyframes slide-down {
