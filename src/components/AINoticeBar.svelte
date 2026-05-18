@@ -25,10 +25,11 @@
 </script>
 
 <section class="notice">
-  <p class="text">
-    경전 본문의 인물·장소·용어 연결을 AI로 순차 보강하고 있습니다.
-    해당 경전 구절의 댓글 혹은 이메일로 의견 주시면 큰 도움이 됩니다.
-  </p>
+  <ul class="text">
+    <li>경전 본문의 인물·장소·용어 연결을 AI로 순차 보강하고 있습니다.</li>
+    <li>해당 경전 구절의 댓글 혹은 이메일로 의견 주시면 큰 도움이 됩니다.</li>
+    <li>추가할 경전, 문서 등을 보내주시면 편집 후 서재에 올리겠습니다.</li>
+  </ul>
   <button type="button" class="email" onclick={copy} aria-label={`${EMAIL} 클립보드로 복사`}>
     <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -45,10 +46,9 @@
 <style>
   .notice {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 0.55rem 0.9rem;
-    padding: 0.85rem 1rem;
+    gap: 1rem;
+    padding: 0.95rem 1.1rem;
     margin: 0 0 1rem;
     background: var(--color-secondary-bg, #f0f7f6);
     border: 1px solid var(--color-rule, #e8dfd9);
@@ -60,10 +60,18 @@
   }
   .text {
     margin: 0;
+    padding: 0 0 0 1.1rem;
     flex: 1 1 auto;
     min-width: 0;
+    list-style: disc;
     word-break: keep-all;
     overflow-wrap: anywhere;
+  }
+  .text li {
+    margin: 0;
+  }
+  .text li + li {
+    margin-top: 0.25rem;
   }
   .email {
     display: inline-flex;
