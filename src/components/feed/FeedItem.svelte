@@ -155,8 +155,10 @@
     gap: 0.4rem;
     flex-wrap: wrap;
     font-size: 0.86rem;
+    line-height: 1.2;
     color: var(--color-muted, #8a807a);
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.4rem;
+    min-height: 1.5rem;
   }
   .head-spacer {
     flex: 1 1 auto;

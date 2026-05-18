@@ -180,7 +180,7 @@
     border: 1px dashed var(--color-rule, #e8dfd9);
   }
   .author {
-    font-weight: 600;
+    font-weight: 700;
     color: var(--color-fg, #1f1c1a);
   }
   .badge-admin {
