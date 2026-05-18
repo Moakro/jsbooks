@@ -409,7 +409,22 @@
   }
 
   function setIdx(tab: TabKey, idx: number) {
+    const prevIdx = currentIdx[tab];
+    if (idx === prevIdx) return;
+    const dir = idx > prevIdx ? 1 : -1;
     currentIdx = { ...currentIdx, [tab]: idx };
+    // 새 카드가 들어오는 방향 — swipe/chevron 동일하게 부드럽게 슬라이드.
+    tick().then(() => {
+      const el = detailEls[tab];
+      if (!el) return;
+      el.animate(
+        [
+          { transform: `translateX(${dir * 18}%)`, opacity: 0.35 },
+          { transform: "translateX(0)", opacity: 1 },
+        ],
+        { duration: 240, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)" },
+      );
+    });
   }
 
   // ─────────────────────── horizontal swipe ───────────────────────
