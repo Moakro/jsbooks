@@ -9,5 +9,13 @@
 	},
 	"observability": {
 		"enabled": true
+	},
+	"env": {
+		"staging": {
+			"name": "jsbooks-stage",
+			"routes": [
+				{ "pattern": "stage.jsbooks.wiki/*", "zone_name": "jsbooks.wiki" }
+			]
+		}
 	}
 }
