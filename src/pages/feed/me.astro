@@ -1,8 +1,30 @@
 ---
 import Base from "../../layouts/Base.astro";
-import Placeholder from "../../components/Placeholder.astro";
+import FeedList from "../../components/feed/FeedList.svelte";
 ---
 
-<Base title="피드 — jsbooks">
-  <Placeholder title="피드 — me" note="해당 종류의 사용자 활동이 누적되는 자리." />
+<Base title="내 활동 — jsbooks">
+  <section class="feed-page">
+    <h1>내 활동</h1>
+    <p class="lede">내가 작성한 댓글 기록입니다.</p>
+    <FeedList client:load source="mine" />
+  </section>
 </Base>
+
+<style>
+  .feed-page {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 0 0.25rem;
+  }
+  .feed-page h1 {
+    margin: 0 0 0.4rem;
+    font-size: 1.5rem;
+    color: var(--color-primary, #a8352a);
+  }
+  .lede {
+    color: var(--color-muted, #8a807a);
+    margin: 0 0 1.2rem;
+    font-size: 0.92rem;
+  }
+</style>

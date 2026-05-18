@@ -75,6 +75,8 @@ export default {
       if (path === "/api/comments" && req.method === "POST") return createComment(req, env);
       if (path === "/api/comments/counts" && req.method === "GET") return countComments(req, env);
       if (path === "/api/comments/verse-feed" && req.method === "GET") return verseFeed(req, env);
+      if (path === "/api/comments/recent" && req.method === "GET") return recentFeed(req, env);
+      if (path === "/api/comments/mine" && req.method === "GET") return mineFeed(req, env);
 
       const m = path.match(/^\/api\/comments\/([^/]+)(?:\/(react|flag|pin))?$/);
       if (m) {
@@ -690,6 +692,132 @@ async function verseFeed(req: Request, env: Env): Promise<Response> {
   });
 
   return json({ verses }, 200, { "Cache-Control": "private, max-age=15" });
+}
+
+// 전체 피드 — 최근 발행 댓글을 타깃·작성자 메타 포함해서 반환.
+// 클라이언트가 목록 페이지(/feed/)에서 사용.
+async function recentFeed(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const limitRaw = parseInt(url.searchParams.get("limit") ?? "30", 10);
+  const limit = Math.min(Math.max(limitRaw || 30, 1), 100);
+  const before = url.searchParams.get("before");
+
+  const where: string[] = ["c.status='published'", "c.parent_id IS NULL"];
+  const args: unknown[] = [];
+  if (before) {
+    where.push("c.created_at < ?");
+    args.push(before);
+  }
+  const rows = await env.DB.prepare(
+    `SELECT c.id, c.target_type, c.target_id, c.body_html, c.attachments, c.created_at,
+            u.display_name AS author_name, u.avatar_url AS author_avatar,
+            u.level AS author_level
+       FROM comments c
+       JOIN users u ON u.id = c.user_id
+      WHERE ${where.join(" AND ")}
+      ORDER BY c.created_at DESC
+      LIMIT ?`,
+  ).bind(...args, limit).all<{
+    id: string;
+    target_type: string;
+    target_id: string;
+    body_html: string | null;
+    attachments: string | null;
+    created_at: string;
+    author_name: string | null;
+    author_avatar: string | null;
+    author_level: number;
+  }>();
+
+  const items = (rows.results ?? []).map((r) => buildFeedItem(r));
+  const nextCursor = items.length === limit ? items[items.length - 1].created_at : null;
+  return json({ items, nextCursor }, 200, { "Cache-Control": "public, max-age=15" });
+}
+
+// /feed/me/ — 로그인 사용자의 댓글 목록.
+async function mineFeed(req: Request, env: Env): Promise<Response> {
+  const me = await currentUserId(req, env);
+  if (!me) return json({ items: [], nextCursor: null }, 200);
+  const url = new URL(req.url);
+  const limitRaw = parseInt(url.searchParams.get("limit") ?? "30", 10);
+  const limit = Math.min(Math.max(limitRaw || 30, 1), 100);
+  const before = url.searchParams.get("before");
+
+  const where: string[] = ["c.status='published'", "c.user_id=?"];
+  const args: unknown[] = [me];
+  if (before) {
+    where.push("c.created_at < ?");
+    args.push(before);
+  }
+  const rows = await env.DB.prepare(
+    `SELECT c.id, c.target_type, c.target_id, c.body_html, c.attachments, c.created_at,
+            u.display_name AS author_name, u.avatar_url AS author_avatar,
+            u.level AS author_level
+       FROM comments c
+       JOIN users u ON u.id = c.user_id
+      WHERE ${where.join(" AND ")}
+      ORDER BY c.created_at DESC
+      LIMIT ?`,
+  ).bind(...args, limit).all<{
+    id: string;
+    target_type: string;
+    target_id: string;
+    body_html: string | null;
+    attachments: string | null;
+    created_at: string;
+    author_name: string | null;
+    author_avatar: string | null;
+    author_level: number;
+  }>();
+
+  const items = (rows.results ?? []).map((r) => buildFeedItem(r));
+  const nextCursor = items.length === limit ? items[items.length - 1].created_at : null;
+  return json({ items, nextCursor }, 200, { "Cache-Control": "private, max-age=5" });
+}
+
+function buildFeedItem(r: {
+  id: string;
+  target_type: string;
+  target_id: string;
+  body_html: string | null;
+  attachments: string | null;
+  created_at: string;
+  author_name: string | null;
+  author_avatar: string | null;
+  author_level: number;
+}) {
+  let photos = 0;
+  if (r.attachments) {
+    try {
+      const arr = JSON.parse(r.attachments);
+      if (Array.isArray(arr)) photos = arr.filter((a: { type?: string }) => a?.type === "image").length;
+    } catch {}
+  }
+  const plain = stripHtmlToPlain(r.body_html ?? "");
+  const preview = plain || (photos > 0 ? `📷 사진 ${photos}장` : "");
+  // target_id 가 "scripture-slug:anchor" 형태(verse) 일 때 분해해서 라우팅 힌트 제공.
+  let scripture: string | null = null;
+  let anchor: string | null = null;
+  if (r.target_type === "verse" && r.target_id.includes(":")) {
+    const i = r.target_id.indexOf(":");
+    scripture = r.target_id.slice(0, i);
+    anchor = r.target_id.slice(i + 1);
+  }
+  return {
+    id: r.id,
+    target_type: r.target_type,
+    target_id: r.target_id,
+    scripture,
+    anchor,
+    preview,
+    photos,
+    created_at: r.created_at,
+    author: {
+      display_name: r.author_name ?? "",
+      avatar_url: r.author_avatar ?? null,
+      is_admin: (r.author_level ?? 0) >= 4,
+    },
+  };
 }
 
 function stripHtmlToPlain(html: string): string {

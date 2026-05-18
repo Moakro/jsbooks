@@ -93,9 +93,6 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
       label: "종류",
       items: [
         { label: "전체", path: "/feed/" },
-        { label: "댓글", path: "/feed/comments/" },
-        { label: "짧은 글", path: "/feed/posts/" },
-        { label: "답사기", path: "/feed/visits/" },
         { label: "사진", path: "/feed/photos/" },
       ],
     },
@@ -106,16 +103,6 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
         { label: "오늘", path: "/feed/?since=1d" },
         { label: "1주", path: "/feed/?since=7d" },
         { label: "1달", path: "/feed/?since=30d" },
-      ],
-    },
-    {
-      type: "section",
-      label: "댓글 종류",
-      items: [
-        { label: "메모", path: "/feed/comments/?type=memo" },
-        { label: "질문", path: "/feed/comments/?type=question" },
-        { label: "교차참조", path: "/feed/comments/?type=cross" },
-        { label: "학술인용", path: "/feed/comments/?type=cite" },
       ],
     },
     {

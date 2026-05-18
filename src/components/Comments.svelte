@@ -360,7 +360,6 @@
             >
               {#snippet meta()}
                 <div class="meta-line">
-                  <span class="ctype c-{c.type}">{TYPE_LABEL[c.type]}</span>
                   {#if parentMentionLabel(c)}
                     <button
                       type="button"
@@ -391,12 +390,6 @@
               {#snippet body()}
                 {#if editingId === c.id}
                   <div class="edit-area">
-                    <select bind:value={editingType}>
-                      <option value="memo">메모</option>
-                      <option value="question">질문</option>
-                      <option value="cross">교차참조</option>
-                      <option value="cite">학술인용</option>
-                    </select>
                     <textarea bind:value={editingDraft} rows="3" maxlength="4000"></textarea>
                     <div class="edit-actions">
                       <button
@@ -496,14 +489,6 @@
           </div>
         {/if}
         <div class="row type-row">
-          <label class="type-pick">
-            <select bind:value={draftType}>
-              <option value="memo">메모</option>
-              <option value="question">질문</option>
-              <option value="cross">교차참조</option>
-              <option value="cite">학술인용</option>
-            </select>
-          </label>
           <span class="asuser">{user.display_name}</span>
         </div>
         <textarea
