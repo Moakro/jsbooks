@@ -27,7 +27,6 @@
   };
 
   type VerseData = {
-    kind: "verse";
     scriptureSlug: string;
     scriptureName: string;
     anchor: string;
@@ -389,7 +388,7 @@
     const key = `${slug}#${anchor}`;
     const v = idx[key];
     if (!v) throw new Error(`verse not found: ${key}`);
-    return { kind: "verse", ...v };
+    return v;
   }
 
   function openTab(tab: TabKey, view: "list" | "detail") {
