@@ -2,6 +2,7 @@
 import Base from "../layouts/Base.astro";
 import DayBox from "../components/DayBox.svelte";
 import Changelog from "../components/Changelog.astro";
+import AINoticeBar from "../components/AINoticeBar.svelte";
 import Sitemap from "../components/Sitemap.astro";
 // import AIPrompt from "../components/AIPrompt.svelte";
 // import AdminGate from "../components/AdminGate.astro";
@@ -11,6 +12,7 @@ import Sitemap from "../components/Sitemap.astro";
   <Fragment slot="pre-main">
     <DayBox client:load />
     <Changelog />
+    <AINoticeBar client:load />
     <Sitemap />
     {/* AI 로직 완성 전까지 비공개:
     <AdminGate>

@@ -340,7 +340,7 @@
       badge.dataset.anchor = anchor;
       badge.setAttribute("aria-label", `${anchor} 댓글`);
       badge.innerHTML =
-        `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>` +
+        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>` +
         `<span class="vcb-count" data-count="0">0</span>`;
       const label = sec.querySelector(".verse-label") ?? sec.querySelector(".verse-label-meta");
       if (label) label.appendChild(badge);
@@ -1663,26 +1663,29 @@
 
   /* verse-comment-badge — 본문에 동적 주입 */
   :global(.verse-comment-badge) {
-    display: inline-flex; align-items: center; gap: 0.25rem;
+    display: inline-flex; align-items: center; gap: 0.3rem;
     margin-left: 0.6rem;
-    padding: 0.12rem 0.5rem;
-    font-size: 0.72rem; line-height: 1.2;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.78rem; line-height: 1.2;
     color: var(--color-secondary, #1e6e6e);
-    background: var(--color-bg, #fbf8f4);
-    border: 1px solid var(--color-rule, #e8dfd9);
+    background: var(--color-secondary-bg, #f0f7f6);
+    border: 1px solid var(--color-secondary, #1e6e6e);
     border-radius: 999px;
     cursor: pointer;
-    transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
     vertical-align: middle;
+    box-shadow: 0 1px 2px rgba(30, 110, 110, 0.08);
   }
   :global(.verse-comment-badge:hover),
   :global(.verse-comment-badge:focus-visible) {
-    color: var(--color-secondary, #1e6e6e);
+    color: #fff;
     border-color: var(--color-secondary, #1e6e6e);
-    background: var(--color-secondary-bg, #f0f7f6);
+    background: var(--color-secondary, #1e6e6e);
     opacity: 1;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(30, 110, 110, 0.2);
   }
-  :global(.verse-comment-badge.is-empty) { opacity: 0.35; }
+  :global(.verse-comment-badge.is-empty) { opacity: 0.7; }
   :global(.verse-comment-badge.is-empty:hover) { opacity: 1; }
   :global(.verse-comment-badge svg) { flex-shrink: 0; }
   :global(.verse-comment-badge .vcb-count) {
