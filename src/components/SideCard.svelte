@@ -106,18 +106,10 @@
   let scriptureMode = $derived(!!(scriptureSlug && chapterAnchor));
 
   // ──────────────────────────── State ─────────────────────────────
-  const TAB_STORAGE_KEY = "sidecard-last-tab";
-  function readStoredTab(): TabKey {
-    if (typeof window === "undefined") return "archive";
-    try {
-      const v = sessionStorage.getItem(TAB_STORAGE_KEY);
-      if (v === "library" || v === "archive" || v === "feed") return v;
-    } catch {}
-    return "archive";
-  }
-
+  // 기본 탭은 항상 archive(자료). 카드를 열면 push 함수들이 openTab 으로
+  // activeTab 을 마지막 카드 탭으로 설정 — 따로 sessionStorage 복원 불필요.
   let sheetOpen = $state(false);
-  let activeTab = $state<TabKey>(readStoredTab());
+  let activeTab = $state<TabKey>("archive");
   let viewMode = $state<Record<TabKey, "list" | "detail">>({
     library: "list",
     archive: "list",
@@ -185,13 +177,6 @@
     if (sheetVisible) document.body.setAttribute("data-sidecard", "open");
     else if (handleVisible) document.body.setAttribute("data-sidecard", "minimized");
     else document.body.removeAttribute("data-sidecard");
-  });
-
-  $effect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      sessionStorage.setItem(TAB_STORAGE_KEY, activeTab);
-    } catch {}
   });
 
   // ─────────────────────────── Mount ──────────────────────────────
