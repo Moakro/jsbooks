@@ -124,25 +124,6 @@ export const GET: APIRoute = async () => {
     const sentenceVerses = parseSentencesFlat(body);
     const verses = sentenceVerses.length > 0 ? sentenceVerses : parseVerses(body);
 
-    // DEBUG: hwaeundang/2 만
-    if (slug === "hwaeundang-silgi" && chapterKey === "2") {
-      console.log(`[DEBUG] ${outKey}: body length=${body.length}`);
-      const HEADING_RE_DEBUG = /^## (\d+)절 \^(\S+)[^\n]*$/gm;
-      let m;
-      const heads = [];
-      while ((m = HEADING_RE_DEBUG.exec(body)) !== null) {
-        heads.push({
-          idx: m.index, m0: JSON.stringify(m[0]), m0len: m[0].length, num: m[1], id: m[2]
-        });
-      }
-      console.log(`[DEBUG] heads:`, JSON.stringify(heads, null, 2));
-      // 첫 헤딩 직후 바이트 30개
-      if (heads.length > 0) {
-        const after = heads[0].idx + heads[0].m0len;
-        console.log(`[DEBUG] body[after first heading +30]=`, JSON.stringify(body.slice(after, after + 30)));
-      }
-    }
-
     for (const v of verses) {
       if (!verseSeen.has(v.id)) {
         ctx.verse_anchors.push(v.id);

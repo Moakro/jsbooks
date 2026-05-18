@@ -93,11 +93,13 @@ export function parseVerseGroups(body: string): ParsedVerseGroup[] {
   // 평면 모드: ## N절 heading이 없으면 body 전체가 한 그룹.
   if (headings.length === 0) {
     const sentences: ParsedSentence[] = [];
-    // # N장 같은 헤딩 줄을 paragraph 분할 시 자연스럽게 무시.
+    // # N장, ## 1절 ^X-Y 같은 헤딩 줄을 paragraph 분할 시 자연스럽게 무시.
+    // (이전 `/^#\s/` 는 `## ` 시작 미스했고, 그 결과 hwaeundang `## 1절 ^2-1`
+    // 형태의 헤딩이 sentence로 잘못 캡처돼 본문이 통째 누락되던 버그)
     for (const para of body.split(/\n\s*\n/)) {
       const trimmed = para.trim();
       if (!trimmed) continue;
-      if (/^#\s/.test(trimmed)) continue;
+      if (/^#+\s/.test(trimmed)) continue;
       const am = trimmed.match(SENTENCE_ANCHOR_RE);
       if (!am) continue;
       sentences.push({
