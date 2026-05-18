@@ -81,6 +81,10 @@
     // verses.json 에 없는 anchor (구식 데이터) — 일단 slug 페이지 + hash 로 fallback.
     return { name: item.scripture, href: `/library/${item.scripture}/#${item.anchor}` };
   }
+
+  function truncatePreview(s: string, max = 20): string {
+    return s.length > max ? s.slice(0, max) + "…" : s;
+  }
 </script>
 
 {#if loading}
@@ -109,20 +113,21 @@
           <time class="time" datetime={item.created_at}>{relativeTime(item.created_at)}</time>
         </div>
 
-        {#if ctx}
-          <a class="target" href={`${ctx.href}`}>
-            <span class="target-name">{ctx.name}</span>
-            {#if item.anchor}<span class="target-anchor">^{item.anchor}</span>{/if}
-          </a>
-        {:else}
-          <span class="target target-plain">
-            <span class="target-name">{item.target_type} · {item.target_id}</span>
-          </span>
-        {/if}
-
-        {#if item.preview}
-          <p class="preview">{item.preview}</p>
-        {/if}
+        <div class="target-row">
+          {#if ctx}
+            <a class="target" href={`${ctx.href}`}>
+              <span class="target-name">{ctx.name}</span>
+              {#if item.anchor}<span class="target-anchor">^{item.anchor}</span>{/if}
+            </a>
+          {:else}
+            <span class="target target-plain">
+              <span class="target-name">{item.target_type} · {item.target_id}</span>
+            </span>
+          {/if}
+          {#if item.preview}
+            <span class="preview">{truncatePreview(item.preview)}</span>
+          {/if}
+        </div>
         {#if item.photos > 0 && !item.preview.startsWith("📷")}
           <p class="photos">📷 사진 {item.photos}장</p>
         {/if}
@@ -194,6 +199,13 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .target-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.1rem;
+  }
   .target {
     display: inline-flex;
     align-items: baseline;
@@ -205,7 +217,7 @@
     border-radius: 6px;
     font-size: 0.8rem;
     text-decoration: none;
-    margin-bottom: 0.45rem;
+    flex: 0 0 auto;
   }
   .target:hover { background: var(--color-secondary, #1e6e6e); color: #fff; }
   .target-plain {
@@ -223,11 +235,13 @@
   }
 
   .preview {
-    margin: 0;
     color: var(--color-fg, #1f1c1a);
-    line-height: 1.55;
+    line-height: 1.5;
+    font-size: 0.9rem;
     word-break: keep-all;
     overflow-wrap: anywhere;
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .photos {
     margin: 0.25rem 0 0;
