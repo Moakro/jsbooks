@@ -75,7 +75,7 @@
     background: var(--color-secondary-bg, #f0f7f6);
     color: var(--color-secondary, #1e6e6e);
   }
-  .text { flex: 1; line-height: 1.45; }
+  .text { flex: 1; line-height: 1.45; white-space: pre-line; }
   .x {
     background: transparent;
     border: none;
