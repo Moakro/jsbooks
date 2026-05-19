@@ -1,0 +1,48 @@
+---
+import Base from "../../../layouts/Base.astro";
+import AdminGate from "../../../components/AdminGate.astro";
+import WikilinkQueue from "../../../components/admin/WikilinkQueue.svelte";
+import Snackbar from "../../../components/admin/Snackbar.svelte";
+---
+
+<Base title="wikilink 검수 큐 — admin">
+  <AdminGate>
+    <header class="hd">
+      <p class="crumb"><a href="/admin/">← admin 인덱스</a></p>
+      <h1>Wikilink 검수 큐</h1>
+      <p class="meta">
+        경전 본문에서 자동 스캔된 wikilink 후보를 검수·적용합니다. 적용된 항목은 큐에서
+        제거되며, vault markdown은 <code>content/.bak/&lt;timestamp&gt;/</code>에 백업됩니다.
+        로컬 dev 모드에서만 동작합니다.
+      </p>
+    </header>
+
+    <WikilinkQueue client:load />
+    <Snackbar client:load />
+  </AdminGate>
+</Base>
+
+<style>
+  .hd {
+    margin-bottom: 1rem;
+  }
+  .hd h1 {
+    margin: 0.2rem 0 0.3rem;
+  }
+  .crumb {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+  .meta {
+    color: var(--color-muted);
+    font-size: 0.88rem;
+    margin: 0;
+    line-height: 1.5;
+  }
+  .meta code {
+    background: var(--color-surface-2);
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.82rem;
+  }
+</style>
