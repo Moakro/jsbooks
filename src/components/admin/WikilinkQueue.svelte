@@ -131,12 +131,19 @@
       });
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j?.error ?? j?.stderr ?? "apply failed");
-      const bak = j.backupDir ? `\n백업: ${j.backupDir}` : "";
-      showSnackbar(
-        `적용 ${j.applied}건${j.skipped ? `, 스킵 ${j.skipped}건` : ""}${bak}`,
-        j.skipped ? "info" : "success",
-        5000,
-      );
+      const r = j.reasons ?? { alreadyWrapped: 0, outOfRange: 0, other: 0 };
+      const reasonParts: string[] = [];
+      if (r.alreadyWrapped) reasonParts.push(`이미 wikilink ${r.alreadyWrapped}`);
+      if (r.outOfRange) reasonParts.push(`범위 외 ${r.outOfRange}`);
+      if (r.other) reasonParts.push(`기타 ${r.other}`);
+      const lines = [
+        `성공 ${j.applied}건`,
+        j.skipped
+          ? `실패 ${j.skipped}건${reasonParts.length ? ` (${reasonParts.join(" · ")})` : ""}`
+          : `실패 0건`,
+        j.backupDir ? `백업: ${j.backupDir}` : `백업: -`,
+      ];
+      showSnackbar(lines.join("\n"), j.skipped ? "info" : "success", 6000);
       // 큐 다시 로드 (적용된 라인 제거됨)
       await load();
       selected = new Set();
@@ -154,7 +161,22 @@
     selected = s;
   }
 
+  function isFilterless(): boolean {
+    return (
+      filterSlug === "all" &&
+      filterKind.size === 0 &&
+      filterCheck === "all" &&
+      searchTerm === ""
+    );
+  }
+
   function selectAllVisible() {
+    const n = visibleCount();
+    if (n === 0) return;
+    // 필터 미적용 상태에서 전체 토글 시 사고 방지 confirm.
+    if (isFilterless() && !confirm(`필터가 적용되지 않았습니다. ${n}건 전체를 적용 대상으로 표시합니다. 계속하시겠습니까?`)) {
+      return;
+    }
     const s = new Set(selected);
     for (const f of filteredFiles()) for (const m of f.matches) s.add(m.id);
     selected = s;

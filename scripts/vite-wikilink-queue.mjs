@@ -12,8 +12,11 @@
  *
  *   POST /__wikilink-queue/apply
  *     body: { ids: string[] }
- *     → 선택된 id 들의 항목만 임시 큐로 추출 → apply-wikilink-queue.ts 실행 →
- *       성공한 항목을 본 큐 markdown 에서 제거. 응답: { ok, applied, skipped, backupDir, removedIds }
+ *     → 큐 파일 + 적용 대상 vault scripture 파일을 같은 .bak/<ts>/ 디렉토리에 일괄 백업한 뒤
+ *       선택된 id 들의 항목만 임시 큐로 추출 → apply-wikilink-queue.ts 실행 →
+ *       성공한 항목을 본 큐 markdown 에서 제거.
+ *       응답: { ok, applied, skipped, reasons:{alreadyWrapped,outOfRange,other}, backupDir, removedIds, stdout, stderr }
+ *     ⚠️ VAULT_PATH override(`!= cwd/content`) 환경에선 422 반환 — apply 스크립트가 cwd/content 가정.
  */
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
@@ -22,10 +25,42 @@ import { spawn } from "node:child_process";
 import os from "node:os";
 
 const REPO_ROOT = process.cwd();
-const VAULT_ROOT = process.env.VAULT_PATH || path.join(REPO_ROOT, "content");
+const EXPECTED_VAULT = path.join(REPO_ROOT, "content");
+const VAULT_ROOT = process.env.VAULT_PATH || EXPECTED_VAULT;
 const QUEUE_PATH = path.join(VAULT_ROOT, "_data", "wikilink-review-queue.md");
 const SCAN_SCRIPT = path.join(REPO_ROOT, "scripts", "scan-scripture-wikilinks.ts");
 const APPLY_SCRIPT = path.join(REPO_ROOT, "scripts", "apply-wikilink-queue.ts");
+
+// apply 스크립트는 process.cwd()/content/_data/... 를 하드코드하므로
+// VAULT_PATH override 환경에선 admin /apply 미지원. /load·/scan 은 허용.
+function vaultPathOverrideRejected() {
+  return path.resolve(VAULT_ROOT) !== path.resolve(EXPECTED_VAULT);
+}
+
+/**
+ * 여러 vault 파일을 같은 timestamp 디렉토리(`content/.bak/<ts>/`)에 백업.
+ * canonical-mapping plugin 의 backup() 패턴을 다중 파일·단일 ts 로 확장.
+ * 반환: 백업 디렉토리 절대 경로.
+ */
+async function backupFilesToOneDir(paths) {
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const dir = path.join(VAULT_ROOT, ".bak", ts);
+  for (const p of paths) {
+    try {
+      const stat = await fs.stat(p);
+      if (!stat.isFile()) continue;
+    } catch {
+      continue;
+    }
+    const rel = path.relative(VAULT_ROOT, p);
+    const dest = rel.startsWith("..")
+      ? path.join(dir, "_external", path.basename(p))
+      : path.join(dir, rel);
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    await fs.copyFile(p, dest);
+  }
+  return dir;
+}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -254,29 +289,43 @@ async function writeTempCheckedQueue(idSet) {
   return { tmpPath, kept };
 }
 
-/** apply 흐름: 큐 파일을 .bak/스왑으로 임시 교체 → apply 실행 → 원본 복원 + 적용분 제거. */
+/** apply 흐름:
+ *   1) 적용 대상 vault scripture 파일 + 큐 파일 → 단일 .bak/<ts>/ 디렉토리에 일괄 백업
+ *   2) 큐 파일을 임시(체크된 항목만) 내용으로 swap → apply 스크립트 실행 → 큐 원본 복원
+ *   3) stdout 파싱으로 성공·실패 분류 → 성공 라인만 본 큐에서 제거
+ */
 async function applyCheckedEntries(idSet) {
   if (idSet.size === 0) {
-    return { ok: true, applied: 0, skipped: 0, removedIds: [], stdout: "", stderr: "" };
+    return {
+      ok: true, applied: 0, skipped: 0, removedIds: [],
+      stdout: "", stderr: "", reasons: { alreadyWrapped: 0, outOfRange: 0, other: 0 },
+    };
   }
   const { tmpPath, kept } = await writeTempCheckedQueue(idSet);
-  // 원본 큐 백업
-  const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const swapBak = path.join(VAULT_ROOT, ".bak", ts, "_data", "wikilink-review-queue.md");
-  await fs.mkdir(path.dirname(swapBak), { recursive: true });
-  const originalRaw = await fs.readFile(QUEUE_PATH, "utf8");
-  await fs.writeFile(swapBak, originalRaw, "utf8");
+
+  // 적용 대상 vault 파일 경로 집합 추출 (id 의 file 컬럼 → 절대 경로)
+  const targetVaultFiles = new Set();
+  for (const id of idSet) {
+    const [relFile] = id.split("|");
+    // 큐의 file 컬럼은 'content/scripture/...' 형식 — REPO_ROOT 기준.
+    // VAULT_ROOT 가 REPO_ROOT/content 가 아닐 가능성은 사전 차단(vaultPathOverrideRejected).
+    targetVaultFiles.add(path.join(REPO_ROOT, relFile));
+  }
+
+  // 큐 + 적용 대상 vault 파일을 같은 ts 디렉토리에 일괄 백업
+  const backupDir = await backupFilesToOneDir([QUEUE_PATH, ...targetVaultFiles]);
 
   // 본 큐를 임시(체크된 것만)로 교체 → apply 스크립트 실행 → 본 큐 복원
+  const originalRaw = await fs.readFile(QUEUE_PATH, "utf8");
   const tmpRaw = await fs.readFile(tmpPath, "utf8");
   await fs.writeFile(QUEUE_PATH, tmpRaw, "utf8");
   let run;
   try {
     run = await runNodeScript(APPLY_SCRIPT, []);
   } finally {
-    // 원본 복원
+    // 원본 큐 복원
     await fs.writeFile(QUEUE_PATH, originalRaw, "utf8");
-    // 임시 정리
+    // 임시 디렉토리 정리
     try {
       await fs.rm(path.dirname(tmpPath), { recursive: true, force: true });
     } catch {}
@@ -290,12 +339,13 @@ async function applyCheckedEntries(idSet) {
       removedIds: [],
       stdout: run.stdout,
       stderr: run.stderr,
-      backupDir: path.dirname(swapBak),
+      backupDir,
+      reasons: { alreadyWrapped: 0, outOfRange: 0, other: kept },
     };
   }
 
   // stdout 파싱: "Total: N applied[, M skipped]" + 파일별 "[skip] file:line ..."
-  const { applied, skipped, skippedKeys } = parseApplyStdout(run.stdout);
+  const { applied, skipped, skippedKeys, reasons } = parseApplyStdout(run.stdout);
 
   // 적용 성공한 id 집합 산출: 전체 요청 id 중에서 skipped 키와 일치하지 않는 것
   const removedIds = [];
@@ -313,28 +363,36 @@ async function applyCheckedEntries(idSet) {
     ok: true,
     applied,
     skipped,
+    reasons,
     removedIds,
     removedFromQueue: removeRes.removed,
-    backupDir: path.dirname(swapBak),
+    backupDir,
     stdout: run.stdout,
     stderr: run.stderr,
   };
 }
 
-/** apply 스크립트 stdout 에서 적용·스킵 카운트와 스킵된 (file:line|matchedText) 키 집합 추출. */
+/** apply 스크립트 stdout 에서 적용·스킵 카운트, 스킵 키 집합, 스킵 사유 분류 추출.
+ *
+ *  스킵 메시지(apply-wikilink-queue.ts 기준):
+ *    - `  [skip] <file>:<line> "<text>" 위치 못 찾음 (이미 wikilink 됐거나 텍스트 변경됨)`
+ *    - `  [skip] <file>:<line> out of range`
+ */
 function parseApplyStdout(stdout) {
   const totalRe = /^Total:\s+(\d+)\s+applied(?:,\s+(\d+)\s+skipped)?/m;
   const tm = stdout.match(totalRe);
   const applied = tm ? parseInt(tm[1], 10) : 0;
   const skipped = tm && tm[2] ? parseInt(tm[2], 10) : 0;
-  // 스킵 라인: `  [skip] <file>:<line> "<text>" ...`
   const skipRe = /^\s*\[skip\]\s+(\S+):(\d+)\s+"([^"]+)"/gm;
   const skippedKeys = new Set();
   let m;
   while ((m = skipRe.exec(stdout))) {
     skippedKeys.add(`${m[1]}:${m[2]}|${m[3]}`);
   }
-  return { applied, skipped, skippedKeys };
+  const outOfRange = (stdout.match(/\[skip\][^\n]*out of range/g) ?? []).length;
+  const alreadyWrapped = (stdout.match(/\[skip\][^\n]*위치 못 찾음/g) ?? []).length;
+  const other = Math.max(0, skipped - outOfRange - alreadyWrapped);
+  return { applied, skipped, skippedKeys, reasons: { alreadyWrapped, outOfRange, other } };
 }
 
 // ─── Vite plugin ────────────────────────────────────────────────────────────
@@ -391,6 +449,15 @@ export default function wikilinkQueueDev() {
           }
         }
         if (req.method === "POST" && url === "/__wikilink-queue/apply") {
+          if (vaultPathOverrideRejected()) {
+            return json(res, 422, {
+              ok: false,
+              error:
+                "VAULT_PATH override 감지 — admin /apply 미지원. apply 스크립트가 cwd/content 를 가정하므로 CLI 로 직접 실행해 주세요 (pnpm tsx scripts/apply-wikilink-queue.ts).",
+              vault: VAULT_ROOT,
+              expected: EXPECTED_VAULT,
+            });
+          }
           try {
             const body = await readBody(req);
             const ids = Array.isArray(body?.ids) ? body.ids : [];
