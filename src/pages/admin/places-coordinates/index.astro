@@ -1,0 +1,488 @@
+---
+import Base from "../../../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import AdminGate from "../../../components/AdminGate.astro";
+
+const places = await getCollection("places");
+
+type Row = {
+  slug: string;
+  name: string;
+  nameHanja: string;
+  region: string;
+  status: string;
+  coord: [number, number] | null;
+};
+
+const rows: Row[] = places
+  .map((e) => ({
+    slug: e.id,
+    name: e.data.name ?? e.id,
+    nameHanja: e.data.name_hanja ?? "",
+    region: e.data.region ?? "",
+    status: e.data.status ?? "",
+    coord: e.data.coord ?? null,
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+const total = rows.length;
+const withCoord = rows.filter((r) => r.coord).length;
+---
+
+<Base title="places coordinates — admin">
+  <AdminGate>
+    <h1>장소 좌표 입력</h1>
+    <p class="meta">
+      <code>content/places/*.md</code> frontmatter에 <code>coord: [lat, lng]</code> 추가.
+      로컬 dev 모드에서만 저장됩니다.
+    </p>
+
+    <div class="summary">
+      <div>전체 <strong>{total}</strong></div>
+      <div>좌표 입력 <strong>{withCoord}</strong> / 미입력 <strong>{total - withCoord}</strong></div>
+    </div>
+
+    <div class="app">
+      <aside class="list">
+        <input id="q" class="search" type="search" placeholder="이름·한자·지역 검색" autocomplete="off" />
+        <ul id="rows">
+          {rows.map((r) => (
+            <li
+              class="row"
+              data-slug={r.slug}
+              data-name={r.name}
+              data-hanja={r.nameHanja}
+              data-region={r.region}
+              data-status={r.status}
+              data-lat={r.coord ? String(r.coord[0]) : ""}
+              data-lng={r.coord ? String(r.coord[1]) : ""}
+            >
+              <button type="button" class="row-btn">
+                <span class={r.coord ? "ind ind-on" : "ind ind-off"} aria-hidden="true">{r.coord ? "✓" : "·"}</span>
+                <span class="row-main">
+                  <span class="row-name">{r.name}</span>
+                  {r.nameHanja && <span class="row-hanja">{r.nameHanja}</span>}
+                </span>
+                <span class="row-region">{r.region}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+      <section class="detail" id="detail">
+        <p class="empty" id="empty">왼쪽 목록에서 장소를 선택하세요.</p>
+        <div class="card" id="card" hidden>
+          <header class="card-head">
+            <h2 id="d-name">—</h2>
+            <p class="card-meta">
+              <span id="d-hanja"></span>
+              <span class="dot" id="d-dot1" hidden>·</span>
+              <span id="d-region"></span>
+              <span class="dot" id="d-dot2" hidden>·</span>
+              <span id="d-status" class="status"></span>
+            </p>
+          </header>
+
+          <div class="current">
+            <span class="label">현재 좌표</span>
+            <span id="d-current" class="value">—</span>
+          </div>
+
+          <div class="inputs">
+            <label class="field">
+              <span>위도 (lat)</span>
+              <input id="lat" type="number" step="0.000001" min="-90" max="90" placeholder="예: 35.586200" />
+            </label>
+            <label class="field">
+              <span>경도 (lng)</span>
+              <input id="lng" type="number" step="0.000001" min="-180" max="180" placeholder="예: 126.679100" />
+            </label>
+          </div>
+
+          <div class="actions">
+            <button type="button" id="save" class="btn primary">저장</button>
+            <button type="button" id="remove" class="btn ghost" hidden>좌표 삭제</button>
+            <span id="status-msg" class="status-msg" role="status"></span>
+          </div>
+
+          <div class="search-links">
+            <span class="label">좌표 찾기 보조:</span>
+            <a id="link-kakao" href="#" target="_blank" rel="noopener noreferrer">카카오맵</a>
+            <a id="link-google" href="#" target="_blank" rel="noopener noreferrer">구글맵</a>
+            <a id="link-osm" href="#" target="_blank" rel="noopener noreferrer" hidden>OpenStreetMap (현재 좌표)</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </AdminGate>
+</Base>
+
+<script>
+  // 좌측 검색 필터
+  const search = document.getElementById("q") as HTMLInputElement;
+  const rowsEl = document.getElementById("rows") as HTMLUListElement;
+  const rows = Array.from(rowsEl.querySelectorAll<HTMLLIElement>(".row"));
+
+  function applyFilter() {
+    const q = search.value.trim().toLowerCase();
+    for (const r of rows) {
+      if (!q) {
+        r.hidden = false;
+        continue;
+      }
+      const hay = [
+        r.dataset.name ?? "",
+        r.dataset.hanja ?? "",
+        r.dataset.region ?? "",
+      ].join(" ").toLowerCase();
+      r.hidden = !hay.includes(q);
+    }
+  }
+  search.addEventListener("input", applyFilter);
+
+  // 행 선택
+  const empty = document.getElementById("empty")!;
+  const card = document.getElementById("card") as HTMLDivElement;
+  const dName = document.getElementById("d-name")!;
+  const dHanja = document.getElementById("d-hanja")!;
+  const dRegion = document.getElementById("d-region")!;
+  const dStatus = document.getElementById("d-status")!;
+  const dDot1 = document.getElementById("d-dot1") as HTMLElement;
+  const dDot2 = document.getElementById("d-dot2") as HTMLElement;
+  const dCurrent = document.getElementById("d-current")!;
+  const latInput = document.getElementById("lat") as HTMLInputElement;
+  const lngInput = document.getElementById("lng") as HTMLInputElement;
+  const saveBtn = document.getElementById("save") as HTMLButtonElement;
+  const removeBtn = document.getElementById("remove") as HTMLButtonElement;
+  const statusMsg = document.getElementById("status-msg")!;
+  const linkKakao = document.getElementById("link-kakao") as HTMLAnchorElement;
+  const linkGoogle = document.getElementById("link-google") as HTMLAnchorElement;
+  const linkOsm = document.getElementById("link-osm") as HTMLAnchorElement;
+
+  let selectedRow: HTMLLIElement | null = null;
+
+  function selectRow(row: HTMLLIElement) {
+    if (selectedRow) selectedRow.classList.remove("selected");
+    selectedRow = row;
+    row.classList.add("selected");
+
+    const name = row.dataset.name ?? "";
+    const hanja = row.dataset.hanja ?? "";
+    const region = row.dataset.region ?? "";
+    const status = row.dataset.status ?? "";
+    const lat = row.dataset.lat ? Number(row.dataset.lat) : null;
+    const lng = row.dataset.lng ? Number(row.dataset.lng) : null;
+
+    empty.hidden = true;
+    card.hidden = false;
+    dName.textContent = name;
+    dHanja.textContent = hanja;
+    dRegion.textContent = region;
+    dStatus.textContent = status;
+    dDot1.hidden = !(hanja && (region || status));
+    dDot2.hidden = !(region && status);
+
+    if (lat != null && lng != null) {
+      dCurrent.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      latInput.value = String(lat);
+      lngInput.value = String(lng);
+      removeBtn.hidden = false;
+      linkOsm.hidden = false;
+      linkOsm.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}`;
+    } else {
+      dCurrent.textContent = "— (미입력)";
+      latInput.value = "";
+      lngInput.value = "";
+      removeBtn.hidden = true;
+      linkOsm.hidden = true;
+    }
+
+    const q = encodeURIComponent([name, region].filter(Boolean).join(" "));
+    linkKakao.href = `https://map.kakao.com/?q=${q}`;
+    linkGoogle.href = `https://www.google.com/maps/search/?api=1&query=${q}`;
+    statusMsg.textContent = "";
+    statusMsg.className = "status-msg";
+  }
+
+  rowsEl.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    const btn = target.closest(".row-btn");
+    if (!btn) return;
+    const row = btn.closest(".row") as HTMLLIElement | null;
+    if (!row) return;
+    selectRow(row);
+  });
+
+  function setStatus(msg: string, kind: "ok" | "err" | "" = "") {
+    statusMsg.textContent = msg;
+    statusMsg.className = "status-msg" + (kind ? " " + kind : "");
+  }
+
+  function updateRowAfterSave(row: HTMLLIElement, lat: number, lng: number) {
+    row.dataset.lat = String(lat);
+    row.dataset.lng = String(lng);
+    const ind = row.querySelector(".ind");
+    if (ind) {
+      ind.textContent = "✓";
+      ind.classList.remove("ind-off");
+      ind.classList.add("ind-on");
+    }
+  }
+
+  function updateRowAfterDelete(row: HTMLLIElement) {
+    row.dataset.lat = "";
+    row.dataset.lng = "";
+    const ind = row.querySelector(".ind");
+    if (ind) {
+      ind.textContent = "·";
+      ind.classList.remove("ind-on");
+      ind.classList.add("ind-off");
+    }
+  }
+
+  saveBtn.addEventListener("click", async () => {
+    if (!selectedRow) return;
+    const slug = selectedRow.dataset.slug!;
+    const lat = Number(latInput.value);
+    const lng = Number(lngInput.value);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      setStatus("위도(lat)는 -90 ~ 90 사이 숫자여야 합니다.", "err");
+      return;
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setStatus("경도(lng)는 -180 ~ 180 사이 숫자여야 합니다.", "err");
+      return;
+    }
+    setStatus("저장 중…");
+    saveBtn.disabled = true;
+    try {
+      const res = await fetch("/api/admin/places-coordinates/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, lat, lng }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      updateRowAfterSave(selectedRow, lat, lng);
+      // detail 동기화
+      dCurrent.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      removeBtn.hidden = false;
+      linkOsm.hidden = false;
+      linkOsm.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}`;
+      setStatus("저장 완료", "ok");
+    } catch (err: any) {
+      setStatus("저장 실패: " + (err?.message ?? String(err)), "err");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  removeBtn.addEventListener("click", async () => {
+    if (!selectedRow) return;
+    const slug = selectedRow.dataset.slug!;
+    if (!confirm("좌표를 삭제하시겠습니까?")) return;
+    setStatus("삭제 중…");
+    removeBtn.disabled = true;
+    try {
+      const res = await fetch("/api/admin/places-coordinates/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      updateRowAfterDelete(selectedRow);
+      latInput.value = "";
+      lngInput.value = "";
+      dCurrent.textContent = "— (미입력)";
+      removeBtn.hidden = true;
+      linkOsm.hidden = true;
+      setStatus("좌표 삭제됨", "ok");
+    } catch (err: any) {
+      setStatus("삭제 실패: " + (err?.message ?? String(err)), "err");
+    } finally {
+      removeBtn.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  h1 { margin: 0 0 0.4rem; }
+  .meta { color: var(--color-muted); margin: 0 0 1rem; font-size: 0.9rem; }
+  .meta code { font-size: 0.85em; }
+
+  .summary {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    background: var(--color-surface-2);
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: minmax(280px, 360px) 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; }
+  }
+
+  .list {
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    background: var(--color-surface-2);
+    overflow: hidden;
+  }
+  .search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.55rem 0.7rem;
+    border: 0;
+    border-bottom: 1px solid var(--color-rule);
+    background: transparent;
+    color: var(--color-fg);
+    font: inherit;
+    outline: none;
+  }
+  .search:focus { background: var(--color-surface-1, var(--color-surface-2)); }
+
+  #rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .row { border-bottom: 1px solid var(--color-rule); }
+  .row:last-child { border-bottom: 0; }
+  .row-btn {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.5rem;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    border: 0;
+    background: transparent;
+    color: var(--color-fg);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+  .row-btn:hover { background: var(--color-primary-bg, rgba(0,0,0,0.04)); }
+  .row.selected .row-btn {
+    background: var(--color-primary-bg, rgba(0,0,0,0.06));
+    box-shadow: inset 3px 0 0 var(--color-primary);
+  }
+  .ind {
+    display: inline-block;
+    width: 1.1em;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.85em;
+  }
+  .ind-on { color: var(--color-primary); }
+  .ind-off { color: var(--color-muted); opacity: 0.5; }
+  .row-main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+  .row-name { font-size: 0.92rem; }
+  .row-hanja { font-size: 0.75rem; color: var(--color-muted); }
+  .row-region {
+    font-size: 0.72rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 9em;
+  }
+
+  .detail {
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    padding: 1rem 1.2rem;
+    min-height: 12rem;
+  }
+  .empty { color: var(--color-muted); margin: 0; }
+  .card-head h2 { margin: 0; font-size: 1.1rem; }
+  .card-meta {
+    margin: 0.25rem 0 0;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+  }
+  .dot { color: var(--color-muted); }
+  .status { font-size: 0.78rem; padding: 0.05rem 0.4rem; border-radius: 3px; background: var(--color-rule); }
+
+  .current {
+    margin: 0.9rem 0 0.6rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .current .label { font-size: 0.8rem; color: var(--color-muted); }
+  .current .value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; }
+
+  .inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+    margin: 0.6rem 0;
+  }
+  @media (max-width: 480px) {
+    .inputs { grid-template-columns: 1fr; }
+  }
+  .field { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; color: var(--color-muted); }
+  .field input {
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 4px;
+    background: var(--color-surface-2);
+    color: var(--color-fg);
+    font: inherit;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9rem;
+  }
+  .field input:focus { outline: 2px solid var(--color-primary); outline-offset: -1px; }
+
+  .actions { display: flex; align-items: center; gap: 0.5rem; margin: 0.8rem 0 0; flex-wrap: wrap; }
+  .btn {
+    padding: 0.45rem 0.9rem;
+    border-radius: 4px;
+    border: 1px solid var(--color-rule);
+    background: var(--color-surface-2);
+    color: var(--color-fg);
+    font: inherit;
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--color-primary-bg, rgba(0,0,0,0.04)); }
+  .btn.primary { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+  .btn.primary:hover { opacity: 0.9; }
+  .btn.ghost { background: transparent; color: var(--color-muted); }
+  .btn[disabled] { opacity: 0.6; cursor: progress; }
+
+  .status-msg { font-size: 0.85rem; color: var(--color-muted); }
+  .status-msg.ok { color: var(--color-primary); }
+  .status-msg.err { color: #c0392b; }
+
+  .search-links {
+    margin: 0.9rem 0 0;
+    padding-top: 0.7rem;
+    border-top: 1px dashed var(--color-rule);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+  }
+  .search-links .label { color: var(--color-muted); font-size: 0.8rem; }
+  .search-links a { color: var(--color-primary); text-decoration: none; }
+  .search-links a:hover { text-decoration: underline; }
+</style>
