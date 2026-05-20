@@ -27,9 +27,7 @@
   {:else}
     <span class="name">{user.nickname}</span>
   {/if}
-  {#if isAdmin}
-    <span class="badge admin" title="운영자">운영자</span>
-  {:else if isCurator}
+  {#if isCurator}
     <span class="badge curator" title="큐레이터">큐레이터</span>
   {:else if isVerified}
     <span class="badge verified" title="검증 회원">검증</span>
