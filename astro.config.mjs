@@ -4,6 +4,7 @@ import svelte from '@astrojs/svelte';
 import canonicalMappingDev from './scripts/vite-canonical-mapping.mjs';
 import notePromotionDev from './scripts/vite-note-promotion.mjs';
 import wikilinkQueueDev from './scripts/vite-wikilink-queue.mjs';
+import placesCoordinatesDev from './scripts/vite-places-coordinates.mjs';
 
 import cloudflare from '@astrojs/cloudflare';
 
@@ -12,7 +13,7 @@ export default defineConfig({
   integrations: [svelte()],
 
   vite: {
-    plugins: [canonicalMappingDev(), notePromotionDev(), wikilinkQueueDev()],
+    plugins: [canonicalMappingDev(), notePromotionDev(), wikilinkQueueDev(), placesCoordinatesDev()],
     server: {
       // Allow Tailscale magic-DNS names + localhost in dev so we can preview
       // builds running on the home server (azgianlab) from any device on the
@@ -26,6 +27,7 @@ export default defineConfig({
           '**/content/scripture/_mappings/**',
           '**/content/scripture/cheonjigaebyeokgyeong/**',
           '**/content/scripture/cheonjigaebyeokgyeong-hangeul/**',
+          '**/content/places/**',
           '**/content/.bak/**',
         ],
       },
