@@ -1,11 +1,59 @@
 ---
 import Base from "../../layouts/Base.astro";
-import Placeholder from "../../components/Placeholder.astro";
+import MonthGrid from "../../components/calendar/MonthGrid.astro";
+import { getDayInfo } from "../../lib/date";
+
+// 빌드 시점 기준 현재 월.
+const now = new Date();
+const year = now.getFullYear();
+const month = now.getMonth() + 1; // 1–12
+const info = getDayInfo(now);
+const monthLabel = `${year}년 ${month}월`;
 ---
 
-<Base title="달력 — jsbooks">
-  <Placeholder
-    title="달력"
-    note="양력·음력·간지·24절기와 교단별 기념일을 함께 보는 월간 캘린더가 들어올 자리. 회원은 개인 일정을 등록·공유할 수 있게 됩니다."
-  />
+<Base title={`달력 — ${monthLabel}`}>
+  <header class="cal-header">
+    <h1>{monthLabel}</h1>
+    <p class="cal-sub">
+      양력·음력·간지(일진)·24절기를 함께 보는 월간 달력.
+      <a href="/calendar/today/">오늘</a>
+    </p>
+    <p class="cal-jeolgi">
+      이번 절기 <strong>{info.jeolgi.current.name}</strong>
+      <span class="hanja">({info.jeolgi.current.hanja})</span>
+      · 다음 절기 <strong>{info.jeolgi.next.name}</strong>까지 {info.jeolgi.daysUntil}일
+    </p>
+  </header>
+
+  <MonthGrid year={year} month={month} today={now} />
+
+  <p class="cal-note">절기는 평균일 기준으로 ±1일 오차가 있을 수 있습니다.</p>
 </Base>
+
+<style>
+  .cal-header {
+    margin-bottom: 1.1rem;
+  }
+  .cal-header h1 {
+    margin: 0 0 0.3rem;
+    font-size: 1.6rem;
+  }
+  .cal-sub {
+    margin: 0 0 0.3rem;
+    color: var(--color-muted, #8a807a);
+    font-size: 0.92rem;
+  }
+  .cal-jeolgi {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--color-fg, #1f1c1a);
+  }
+  .cal-jeolgi .hanja {
+    color: var(--color-muted, #8a807a);
+  }
+  .cal-note {
+    margin-top: 0.8rem;
+    font-size: 0.78rem;
+    color: var(--color-muted, #8a807a);
+  }
+</style>
