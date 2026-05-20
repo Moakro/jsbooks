@@ -59,6 +59,11 @@ const otherBacklinks = backlinks.filter(
 );
 
 const historyPath = `content/places/${entry.id}.md`;
+
+// coord: "none"(광역/추상)·undefined 는 좌표가 아님 — 숫자 튜플만 전달.
+const coord = Array.isArray(entry.data.coord)
+  ? (entry.data.coord as [number, number])
+  : undefined;
 ---
 
 <Base title={`${entry.data.name} — 장소`}>
@@ -68,7 +73,7 @@ const historyPath = `content/places/${entry.id}.md`;
     name_hanja={entry.data.name_hanja}
     region={entry.data.region}
     isStub={entry.data.status === "stub"}
-    coord={entry.data.coord}
+    coord={coord}
     photos={entry.data.photos}
     bodyHTML={bodyHTML}
     scriptureBacklinks={scriptureBacklinks}

@@ -3,11 +3,12 @@
  * Only runs in `astro dev` (apply: 'serve'); zero effect in production build.
  *
  * Endpoints (POST, JSON body):
- *   /api/admin/places-coordinates/save     { slug, lat, lng }
- *   /api/admin/places-coordinates/delete   { slug }
+ *   /api/admin/places-coordinates/save     { slug, lat, lng }       → coord: [lat, lng]
+ *   /api/admin/places-coordinates/save     { slug, none: true }     → coord: none
+ *   /api/admin/places-coordinates/delete   { slug }                 → coord 라인 제거
  *
  * 동작:
- *   - frontmatter `coord: [lat, lng]` 라인을 정규식 upsert (다른 키 비건드림)
+ *   - frontmatter `coord: [lat, lng]` (또는 `coord: none`) 라인을 정규식 upsert (다른 키 비건드림)
  *   - 변경 전 content/.bak/<ts>/places/<slug>.md 자동 백업
  *   - chokidar full-reload 차단을 위해 places/** unwatch
  */
@@ -67,11 +68,11 @@ function json(res, status, body) {
 
 // NOTE: JavaScript에서 `\s` 는 `\n` 을 포함하므로 라인 매칭에는 [ \t] 만 사용.
 //       `\s*$` 로 쓰면 trailing newline까지 먹어 다음 frontmatter 라인이 깨진다.
-const COORD_LINE_RE = /^coord:[ \t]*\[[^\]]*\][ \t]*$/m;
-const COORD_LINE_WITH_NL_RE = /^coord:[ \t]*\[[^\]]*\][ \t]*\n?/m;
+// 좌표 튜플(`[..]`) 또는 `none` 둘 다 매칭.
+const COORD_LINE_RE = /^coord:[ \t]*(?:\[[^\]]*\]|none)[ \t]*$/m;
+const COORD_LINE_WITH_NL_RE = /^coord:[ \t]*(?:\[[^\]]*\]|none)[ \t]*\n?/m;
 
-function upsertCoordInFrontmatter(content, lat, lng) {
-  const coordLine = `coord: [${lat.toFixed(6)}, ${lng.toFixed(6)}]`;
+function upsertCoordLine(content, coordLine) {
   const m = content.match(/^(---\n[\s\S]*?\n)(---\n?)([\s\S]*)$/);
   if (!m) throw new Error("frontmatter not found");
   const [, fmBody, fmEnd, rest] = m;
@@ -81,6 +82,14 @@ function upsertCoordInFrontmatter(content, lat, lng) {
   }
   const fmBodyTrimmed = fmBody.endsWith("\n") ? fmBody : fmBody + "\n";
   return fmBodyTrimmed + coordLine + "\n" + fmEnd + rest;
+}
+
+function upsertCoordInFrontmatter(content, lat, lng) {
+  return upsertCoordLine(content, `coord: [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
+}
+
+function upsertCoordNoneInFrontmatter(content) {
+  return upsertCoordLine(content, "coord: none");
 }
 
 function removeCoordFromFrontmatter(content) {
@@ -124,8 +133,18 @@ function validateLatLng(lat, lng) {
 // ─── handlers ───────────────────────────────────────────────────────────────
 
 async function handleSave(body) {
-  const { slug, lat, lng } = body ?? {};
+  const { slug, lat, lng, none } = body ?? {};
   const filePath = resolveSlugPath(slug);
+
+  // 광역/추상 장소 → coord: none
+  if (none === true) {
+    const content = await readText(filePath);
+    const next = upsertCoordNoneInFrontmatter(content);
+    await backup(filePath);
+    await writeText(filePath, next);
+    return { ok: true, slug, coord: "none", path: filePath };
+  }
+
   validateLatLng(lat, lng);
   const content = await readText(filePath);
   const next = upsertCoordInFrontmatter(content, lat, lng);
@@ -181,7 +200,7 @@ export default function placesCoordinatesDev() {
           const out = isSave ? await handleSave(body) : await handleDelete(body);
           console.log(
             `[admin] places-coordinates/${isSave ? "save" : "delete"} slug=${body?.slug}`,
-            isSave ? `→ [${body?.lat}, ${body?.lng}]` : (out.removed ? "→ removed" : "→ noop"),
+            isSave ? (body?.none ? "→ none" : `→ [${body?.lat}, ${body?.lng}]`) : (out.removed ? "→ removed" : "→ noop"),
           );
           notifyFileChange([out.path].filter(Boolean));
           return json(res, 200, out);

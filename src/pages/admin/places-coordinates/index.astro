@@ -2,8 +2,11 @@
 import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import AdminGate from "../../../components/AdminGate.astro";
+import KakaoMap from "../../../components/KakaoMap.svelte";
 
 const places = await getCollection("places");
+
+type CoordKind = "num" | "none" | "missing";
 
 type Row = {
   slug: string;
@@ -12,21 +15,35 @@ type Row = {
   region: string;
   status: string;
   coord: [number, number] | null;
+  kind: CoordKind;
 };
 
+function coordKind(coord: unknown): CoordKind {
+  if (Array.isArray(coord)) return "num";
+  if (coord === "none") return "none";
+  return "missing";
+}
+
 const rows: Row[] = places
-  .map((e) => ({
-    slug: e.id,
-    name: e.data.name ?? e.id,
-    nameHanja: e.data.name_hanja ?? "",
-    region: e.data.region ?? "",
-    status: e.data.status ?? "",
-    coord: e.data.coord ?? null,
-  }))
+  .map((e) => {
+    const raw = e.data.coord;
+    const kind = coordKind(raw);
+    return {
+      slug: e.id,
+      name: e.data.name ?? e.id,
+      nameHanja: e.data.name_hanja ?? "",
+      region: e.data.region ?? "",
+      status: e.data.status ?? "",
+      coord: kind === "num" ? (raw as [number, number]) : null,
+      kind,
+    };
+  })
   .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
 const total = rows.length;
-const withCoord = rows.filter((r) => r.coord).length;
+const withCoord = rows.filter((r) => r.kind === "num").length;
+const noneCount = rows.filter((r) => r.kind === "none").length;
+const missing = total - withCoord - noneCount;
 ---
 
 <Base title="places coordinates — admin">
@@ -34,12 +51,14 @@ const withCoord = rows.filter((r) => r.coord).length;
     <h1>장소 좌표 입력</h1>
     <p class="meta">
       <code>content/places/*.md</code> frontmatter에 <code>coord: [lat, lng]</code> 추가.
-      로컬 dev 모드에서만 저장됩니다.
+      지도 클릭 또는 핀 드래그로 좌표가 자동 입력됩니다. 로컬 dev 모드에서만 저장됩니다.
     </p>
 
     <div class="summary">
       <div>전체 <strong>{total}</strong></div>
-      <div>좌표 입력 <strong>{withCoord}</strong> / 미입력 <strong>{total - withCoord}</strong></div>
+      <div>좌표 입력 <strong id="sum-num">{withCoord}</strong></div>
+      <div>미입력 <strong id="sum-missing">{missing}</strong></div>
+      <div>해당없음 <strong id="sum-none">{noneCount}</strong></div>
     </div>
 
     <div class="app">
@@ -54,11 +73,14 @@ const withCoord = rows.filter((r) => r.coord).length;
               data-hanja={r.nameHanja}
               data-region={r.region}
               data-status={r.status}
+              data-kind={r.kind}
               data-lat={r.coord ? String(r.coord[0]) : ""}
               data-lng={r.coord ? String(r.coord[1]) : ""}
             >
               <button type="button" class="row-btn">
-                <span class={r.coord ? "ind ind-on" : "ind ind-off"} aria-hidden="true">{r.coord ? "✓" : "·"}</span>
+                <span class={`ind ind-${r.kind}`} aria-hidden="true">
+                  {r.kind === "num" ? "✓" : r.kind === "none" ? "⊘" : "·"}
+                </span>
                 <span class="row-main">
                   <span class="row-name">{r.name}</span>
                   {r.nameHanja && <span class="row-hanja">{r.nameHanja}</span>}
@@ -89,6 +111,11 @@ const withCoord = rows.filter((r) => r.coord).length;
             <span id="d-current" class="value">—</span>
           </div>
 
+          <div class="map-wrap">
+            <KakaoMap client:only="svelte" mode="input" height="340px" />
+            <p class="map-hint">지도를 클릭하거나 핀을 드래그하면 아래 좌표가 채워집니다.</p>
+          </div>
+
           <div class="inputs">
             <label class="field">
               <span>위도 (lat)</span>
@@ -100,8 +127,14 @@ const withCoord = rows.filter((r) => r.coord).length;
             </label>
           </div>
 
+          <label class="field paste-field">
+            <span>좌표 붙여넣기 (구글맵 등 <code>lat, lng</code> 통째로)</span>
+            <input id="paste" type="text" placeholder="예: 35.586200, 126.679100" autocomplete="off" />
+          </label>
+
           <div class="actions">
             <button type="button" id="save" class="btn primary">저장</button>
+            <button type="button" id="save-none" class="btn">좌표 없음(광역/추상)</button>
             <button type="button" id="remove" class="btn ghost" hidden>좌표 삭제</button>
             <span id="status-msg" class="status-msg" role="status"></span>
           </div>
@@ -141,7 +174,7 @@ const withCoord = rows.filter((r) => r.coord).length;
   }
   search.addEventListener("input", applyFilter);
 
-  // 행 선택
+  // 요소 참조
   const empty = document.getElementById("empty")!;
   const card = document.getElementById("card") as HTMLDivElement;
   const dName = document.getElementById("d-name")!;
@@ -153,14 +186,45 @@ const withCoord = rows.filter((r) => r.coord).length;
   const dCurrent = document.getElementById("d-current")!;
   const latInput = document.getElementById("lat") as HTMLInputElement;
   const lngInput = document.getElementById("lng") as HTMLInputElement;
+  const pasteInput = document.getElementById("paste") as HTMLInputElement;
   const saveBtn = document.getElementById("save") as HTMLButtonElement;
+  const saveNoneBtn = document.getElementById("save-none") as HTMLButtonElement;
   const removeBtn = document.getElementById("remove") as HTMLButtonElement;
   const statusMsg = document.getElementById("status-msg")!;
   const linkKakao = document.getElementById("link-kakao") as HTMLAnchorElement;
   const linkGoogle = document.getElementById("link-google") as HTMLAnchorElement;
   const linkOsm = document.getElementById("link-osm") as HTMLAnchorElement;
 
+  // 요약 카운트
+  const sumNum = document.getElementById("sum-num")!;
+  const sumMissing = document.getElementById("sum-missing")!;
+  const sumNone = document.getElementById("sum-none")!;
+
+  function recountSummary() {
+    let num = 0, none = 0, missing = 0;
+    for (const r of rows) {
+      const k = r.dataset.kind;
+      if (k === "num") num++;
+      else if (k === "none") none++;
+      else missing++;
+    }
+    sumNum.textContent = String(num);
+    sumMissing.textContent = String(missing);
+    sumNone.textContent = String(none);
+  }
+
   let selectedRow: HTMLLIElement | null = null;
+
+  // 섬(지도)에게 중심 이동/마커 표시 요청
+  function mapGoto(lat: number | null, lng: number | null) {
+    if (lat == null || lng == null) {
+      window.dispatchEvent(new CustomEvent("jsbooks:map-goto", { detail: { clear: true } }));
+    } else {
+      window.dispatchEvent(
+        new CustomEvent("jsbooks:map-goto", { detail: { lat, lng, recenterLevel: 4 } }),
+      );
+    }
+  }
 
   function selectRow(row: HTMLLIElement) {
     if (selectedRow) selectedRow.classList.remove("selected");
@@ -171,6 +235,7 @@ const withCoord = rows.filter((r) => r.coord).length;
     const hanja = row.dataset.hanja ?? "";
     const region = row.dataset.region ?? "";
     const status = row.dataset.status ?? "";
+    const kind = row.dataset.kind ?? "missing";
     const lat = row.dataset.lat ? Number(row.dataset.lat) : null;
     const lng = row.dataset.lng ? Number(row.dataset.lng) : null;
 
@@ -182,20 +247,30 @@ const withCoord = rows.filter((r) => r.coord).length;
     dStatus.textContent = status;
     dDot1.hidden = !(hanja && (region || status));
     dDot2.hidden = !(region && status);
+    pasteInput.value = "";
 
-    if (lat != null && lng != null) {
+    if (kind === "num" && lat != null && lng != null) {
       dCurrent.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
       latInput.value = String(lat);
       lngInput.value = String(lng);
       removeBtn.hidden = false;
       linkOsm.hidden = false;
       linkOsm.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}`;
+      mapGoto(lat, lng);
+    } else if (kind === "none") {
+      dCurrent.textContent = "해당없음 (광역/추상)";
+      latInput.value = "";
+      lngInput.value = "";
+      removeBtn.hidden = false;
+      linkOsm.hidden = true;
+      mapGoto(null, null);
     } else {
       dCurrent.textContent = "— (미입력)";
       latInput.value = "";
       lngInput.value = "";
       removeBtn.hidden = true;
       linkOsm.hidden = true;
+      mapGoto(null, null);
     }
 
     const q = encodeURIComponent([name, region].filter(Boolean).join(" "));
@@ -219,25 +294,101 @@ const withCoord = rows.filter((r) => r.coord).length;
     statusMsg.className = "status-msg" + (kind ? " " + kind : "");
   }
 
+  // 섬(지도) → 폼: 클릭/드래그로 고른 좌표 채우기
+  window.addEventListener("jsbooks:coord-pick", (e) => {
+    const d = (e as CustomEvent).detail ?? {};
+    const lat = Number(d.lat);
+    const lng = Number(d.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    latInput.value = lat.toFixed(6);
+    lngInput.value = lng.toFixed(6);
+    dCurrent.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)} (미저장)`;
+    setStatus("좌표를 지도에서 선택했습니다. 저장하세요.", "");
+  });
+
+  // 좌표 통째 붙여넣기 분리: "35.5862, 126.6791" / "(35.5862, 126.6791)" 등
+  function parsePastedCoord(text: string): { lat: number; lng: number } | null {
+    const cleaned = text.replace(/[()]/g, " ").trim();
+    const parts = cleaned.split(/[,\s]+/).filter(Boolean);
+    if (parts.length < 2) return null;
+    const lat = Number(parts[0]);
+    const lng = Number(parts[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+  }
+
+  function applyPasted(text: string): boolean {
+    const r = parsePastedCoord(text);
+    if (!r) return false;
+    latInput.value = r.lat.toFixed(6);
+    lngInput.value = r.lng.toFixed(6);
+    dCurrent.textContent = `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)} (미저장)`;
+    mapGoto(r.lat, r.lng);
+    setStatus("붙여넣은 좌표를 분리했습니다. 저장하세요.", "");
+    return true;
+  }
+
+  // 전용 붙여넣기 칸 + lat 칸 둘 다에서 동작
+  pasteInput.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text") ?? "";
+    if (applyPasted(text)) {
+      e.preventDefault();
+      pasteInput.value = "";
+    }
+  });
+  pasteInput.addEventListener("input", () => {
+    if (pasteInput.value.includes(",")) {
+      if (applyPasted(pasteInput.value)) pasteInput.value = "";
+    }
+  });
+  latInput.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text") ?? "";
+    if (text.includes(",") && applyPasted(text)) e.preventDefault();
+  });
+
   function updateRowAfterSave(row: HTMLLIElement, lat: number, lng: number) {
     row.dataset.lat = String(lat);
     row.dataset.lng = String(lng);
-    const ind = row.querySelector(".ind");
-    if (ind) {
-      ind.textContent = "✓";
-      ind.classList.remove("ind-off");
-      ind.classList.add("ind-on");
-    }
+    row.dataset.kind = "num";
+    setInd(row, "num");
+  }
+
+  function updateRowAfterNone(row: HTMLLIElement) {
+    row.dataset.lat = "";
+    row.dataset.lng = "";
+    row.dataset.kind = "none";
+    setInd(row, "none");
   }
 
   function updateRowAfterDelete(row: HTMLLIElement) {
     row.dataset.lat = "";
     row.dataset.lng = "";
+    row.dataset.kind = "missing";
+    setInd(row, "missing");
+  }
+
+  function setInd(row: HTMLLIElement, kind: "num" | "none" | "missing") {
     const ind = row.querySelector(".ind");
-    if (ind) {
-      ind.textContent = "·";
-      ind.classList.remove("ind-on");
-      ind.classList.add("ind-off");
+    if (!ind) return;
+    ind.textContent = kind === "num" ? "✓" : kind === "none" ? "⊘" : "·";
+    ind.className = `ind ind-${kind}`;
+  }
+
+  // 다음 미입력(missing) 장소로 자동 이동
+  function advanceToNextMissing(fromRow: HTMLLIElement) {
+    const idx = rows.indexOf(fromRow);
+    // fromRow 다음부터 끝까지, 그다음 처음부터 fromRow까지 순회
+    const order = [...rows.slice(idx + 1), ...rows.slice(0, idx)];
+    const next = order.find((r) => r.dataset.kind !== "num" && r.dataset.kind !== "none");
+    if (next) {
+      // 검색 필터로 숨겨져 있으면 보이게
+      if (next.hidden) { search.value = ""; applyFilter(); }
+      next.scrollIntoView({ block: "nearest" });
+      selectRow(next);
+      setStatus("다음 미입력 장소로 이동했습니다.", "ok");
+    } else {
+      setStatus("모든 장소 입력이 완료되었습니다. 🎉", "ok");
     }
   }
 
@@ -264,13 +415,10 @@ const withCoord = rows.filter((r) => r.coord).length;
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
-      updateRowAfterSave(selectedRow, lat, lng);
-      // detail 동기화
-      dCurrent.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-      removeBtn.hidden = false;
-      linkOsm.hidden = false;
-      linkOsm.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}`;
-      setStatus("저장 완료", "ok");
+      const savedRow = selectedRow;
+      updateRowAfterSave(savedRow, lat, lng);
+      recountSummary();
+      advanceToNextMissing(savedRow);
     } catch (err: any) {
       setStatus("저장 실패: " + (err?.message ?? String(err)), "err");
     } finally {
@@ -278,10 +426,34 @@ const withCoord = rows.filter((r) => r.coord).length;
     }
   });
 
+  saveNoneBtn.addEventListener("click", async () => {
+    if (!selectedRow) return;
+    const slug = selectedRow.dataset.slug!;
+    setStatus("저장 중…");
+    saveNoneBtn.disabled = true;
+    try {
+      const res = await fetch("/api/admin/places-coordinates/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, none: true }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      const savedRow = selectedRow;
+      updateRowAfterNone(savedRow);
+      recountSummary();
+      advanceToNextMissing(savedRow);
+    } catch (err: any) {
+      setStatus("저장 실패: " + (err?.message ?? String(err)), "err");
+    } finally {
+      saveNoneBtn.disabled = false;
+    }
+  });
+
   removeBtn.addEventListener("click", async () => {
     if (!selectedRow) return;
     const slug = selectedRow.dataset.slug!;
-    if (!confirm("좌표를 삭제하시겠습니까?")) return;
+    if (!confirm("좌표 설정을 삭제(미입력 상태로)하시겠습니까?")) return;
     setStatus("삭제 중…");
     removeBtn.disabled = true;
     try {
@@ -293,12 +465,14 @@ const withCoord = rows.filter((r) => r.coord).length;
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
       updateRowAfterDelete(selectedRow);
+      recountSummary();
       latInput.value = "";
       lngInput.value = "";
       dCurrent.textContent = "— (미입력)";
       removeBtn.hidden = true;
       linkOsm.hidden = true;
-      setStatus("좌표 삭제됨", "ok");
+      mapGoto(null, null);
+      setStatus("좌표 설정을 삭제했습니다.", "ok");
     } catch (err: any) {
       setStatus("삭제 실패: " + (err?.message ?? String(err)), "err");
     } finally {
@@ -387,8 +561,9 @@ const withCoord = rows.filter((r) => r.coord).length;
     font-weight: 600;
     font-size: 0.85em;
   }
-  .ind-on { color: var(--color-primary); }
-  .ind-off { color: var(--color-muted); opacity: 0.5; }
+  .ind-num { color: var(--color-primary); }
+  .ind-none { color: var(--color-secondary, #888); }
+  .ind-missing { color: var(--color-muted); opacity: 0.5; }
   .row-main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
   .row-name { font-size: 0.92rem; }
   .row-hanja { font-size: 0.75rem; color: var(--color-muted); }
@@ -430,6 +605,9 @@ const withCoord = rows.filter((r) => r.coord).length;
   .current .label { font-size: 0.8rem; color: var(--color-muted); }
   .current .value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; }
 
+  .map-wrap { margin: 0.6rem 0 0.9rem; }
+  .map-hint { margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--color-muted); }
+
   .inputs {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -451,6 +629,8 @@ const withCoord = rows.filter((r) => r.coord).length;
     font-size: 0.9rem;
   }
   .field input:focus { outline: 2px solid var(--color-primary); outline-offset: -1px; }
+  .paste-field { margin: 0 0 0.4rem; }
+  .paste-field code { font-size: 0.9em; }
 
   .actions { display: flex; align-items: center; gap: 0.5rem; margin: 0.8rem 0 0; flex-wrap: wrap; }
   .btn {

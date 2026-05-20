@@ -59,7 +59,8 @@ const places = defineCollection({
     region: z.string().optional(),
     status: z.string().optional(),
     aliases: z.array(z.string()).optional(),
-    coord: z.tuple([z.number(), z.number()]).optional(),
+    // [lat, lng] 좌표, 또는 광역·추상 장소(남조선·금강산 등)임을 명시하는 "none".
+    coord: z.union([z.tuple([z.number(), z.number()]), z.literal("none")]).optional(),
     photos: z
       .array(
         z.object({
