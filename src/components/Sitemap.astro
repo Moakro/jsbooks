@@ -8,11 +8,13 @@
  * 데이터:
  *   - 서재: scripture 컬렉션에서 등록된 경전 자동 추출 (이름·홈 URL)
  *   - 자료: 5종 hardcode
- *   - 피드·뉴스: placeholder (실제 데이터 추후 별도 작업)
+ *   - 피드: placeholder (실제 데이터 추후 별도 작업)
+ *   - 뉴스: news 컬렉션에서 최신 발행 글 3개 자동 노출
  *   - 달력: 헤더 nav·사이트맵 모두 임시 제외 (페이지는 그대로 유지)
  */
 import { getCollection } from "astro:content";
 import Icon from "./Icon.svelte";
+import { getPublishedNews } from "../lib/news";
 
 // 경전 카탈로그 (WikiHome.astro와 동일 데이터 — _meta.md collection 도입 전까지 hardcode).
 type ScriptureCard = {
@@ -39,6 +41,9 @@ for (const e of all) {
 const scriptures = SCRIPTURE_ORDER
   .filter((s) => presentSlugs.has(s.slug))
   .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+// 뉴스 — 발행된 글 최신 3개 (draft 제외, date 내림차순).
+const latestNews = (await getPublishedNews()).slice(0, 3);
 
 type SitemapCard = {
   label: string;
@@ -85,12 +90,14 @@ const SECTIONS: SitemapSection[] = [
     slug: "news",
     label: "뉴스",
     href: "/news/",
-    // TODO: content/news/ collection이 생기면 최신 3개 끌어오기.
-    cards: [
-      { label: "공지", href: "/news/category/notice/", note: "데이터 준비 중", placeholder: true },
-      { label: "업데이트", href: "/news/category/update/", note: "데이터 준비 중", placeholder: true },
-      { label: "릴리스", href: "/news/category/release/", note: "데이터 준비 중", placeholder: true },
-    ],
+    // 최신 발행 뉴스 3개를 카드로 노출 (latestNews 사용). 글이 없으면 카테고리 링크로 fallback.
+    cards: latestNews.length
+      ? latestNews.map((n) => ({ label: n.data.title, href: `/news/${n.id}/` }))
+      : [
+          { label: "공지", href: "/news/category/notice/" },
+          { label: "업데이트", href: "/news/category/update/" },
+          { label: "릴리스", href: "/news/category/release/" },
+        ],
   },
   // 달력 섹션은 데이터 로직 정비 전까지 사이트맵에서 임시 제외 (페이지·헤더 nav 모두 동일 처리).
 ];

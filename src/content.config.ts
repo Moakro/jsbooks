@@ -107,4 +107,15 @@ const dates = defineCollection({
   }),
 });
 
-export const collections = { scripture, people, places, dosu, terms, dates };
+const news = defineCollection({
+  loader: glob({ pattern: "*.md", base: `${CONTENT}/news` }),
+  schema: z.object({
+    title: z.string(),
+    date: z.coerce.date(),
+    category: z.enum(["notice", "update", "release", "roadmap"]),
+    draft: z.boolean().optional(),
+    summary: z.string().optional(),
+  }),
+});
+
+export const collections = { scripture, people, places, dosu, terms, dates, news };
