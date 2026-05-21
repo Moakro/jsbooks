@@ -1,0 +1,93 @@
+---
+import Base from "../../../layouts/Base.astro";
+import MonthGrid from "../../../components/calendar/MonthGrid.astro";
+import { getDayInfo } from "../../../lib/date";
+
+// 빌드 시점 기준 오늘.
+const now = new Date();
+const year = now.getFullYear();
+const month = now.getMonth() + 1; // 1–12
+const info = getDayInfo(now);
+const monthLabel = `${year}년 ${month}월`;
+---
+
+<Base title={`오늘 — ${info.solar.ymd}`}>
+  <header class="cal-header">
+    <h1>오늘</h1>
+    <p class="today-solar">
+      {info.solar.ymd} <span class="weekday">({info.solar.weekday})</span>
+    </p>
+    <dl class="today-meta">
+      {info.lunarKo && (
+        <div>
+          <dt>음력</dt>
+          <dd>{info.lunarKo}</dd>
+        </div>
+      )}
+      {info.lunar && (
+        <div>
+          <dt>간지</dt>
+          <dd>{info.lunar.korean_gapja} <span class="hanja">{info.lunar.chinese_gapja}</span></dd>
+        </div>
+      )}
+      <div>
+        <dt>절기</dt>
+        <dd>
+          {info.jeolgi.daysSince === 0
+            ? `오늘이 ${info.jeolgi.current.name}(${info.jeolgi.current.hanja})`
+            : `${info.jeolgi.current.name} 후 ${info.jeolgi.daysSince}일 · 다음 ${info.jeolgi.next.name}까지 ${info.jeolgi.daysUntil}일`}
+        </dd>
+      </div>
+    </dl>
+    <p class="cal-sub"><a href="/calendar/">이번 달 전체 보기</a></p>
+  </header>
+
+  <MonthGrid year={year} month={month} today={now} />
+</Base>
+
+<style>
+  .cal-header {
+    margin-bottom: 1.1rem;
+  }
+  .cal-header h1 {
+    margin: 0 0 0.3rem;
+    font-size: 1.6rem;
+  }
+  .today-solar {
+    margin: 0 0 0.7rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+  .today-solar .weekday {
+    color: var(--color-muted, #8a807a);
+    font-weight: 400;
+  }
+  .today-meta {
+    margin: 0 0 0.7rem;
+    display: grid;
+    gap: 0.35rem;
+  }
+  .today-meta div {
+    display: flex;
+    gap: 0.6rem;
+    font-size: 0.9rem;
+  }
+  .today-meta dt {
+    margin: 0;
+    min-width: 3rem;
+    color: var(--color-muted, #8a807a);
+    font-weight: 600;
+  }
+  .today-meta dd {
+    margin: 0;
+    color: var(--color-fg, #1f1c1a);
+  }
+  .today-meta .hanja {
+    color: var(--color-muted, #8a807a);
+    margin-left: 0.3rem;
+  }
+  .cal-sub {
+    margin: 0;
+    font-size: 0.92rem;
+  }
+</style>

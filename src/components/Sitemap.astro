@@ -10,7 +10,7 @@
  *   - 자료: 5종 hardcode
  *   - 피드: placeholder (실제 데이터 추후 별도 작업)
  *   - 뉴스: news 컬렉션에서 최신 발행 글 3개 자동 노출
- *   - 달력: 헤더 nav·사이트맵 모두 임시 제외 (페이지는 그대로 유지)
+ *   - 달력: 월간/오늘 뷰 (양력·음력·간지·24절기)
  */
 import { getCollection } from "astro:content";
 import Icon from "./Icon.svelte";
@@ -99,7 +99,15 @@ const SECTIONS: SitemapSection[] = [
           { label: "릴리스", href: "/news/category/release/" },
         ],
   },
-  // 달력 섹션은 데이터 로직 정비 전까지 사이트맵에서 임시 제외 (페이지·헤더 nav 모두 동일 처리).
+  {
+    slug: "calendar",
+    label: "달력",
+    href: "/calendar/",
+    cards: [
+      { label: "월간", href: "/calendar/" },
+      { label: "오늘", href: "/calendar/today/" },
+    ],
+  },
 ];
 ---
 

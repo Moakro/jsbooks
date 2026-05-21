@@ -8,9 +8,15 @@ import placesCoordinatesDev from './scripts/vite-places-coordinates.mjs';
 
 import cloudflare from '@astrojs/cloudflare';
 
+import sitemap from '@astrojs/sitemap';
+
 // https://astro.build/config
 export default defineConfig({
-  integrations: [svelte()],
+  // 운영 도메인 — sitemap·RSS 절대 URL 생성에 사용. 도메인 변경 시 여기 한 곳만 수정.
+  site: 'https://jsbooks.wiki',
+
+  // /admin/ 경로(dev 전용 매핑 도구 등)는 sitemap에서 제외.
+  integrations: [svelte(), sitemap({ filter: (page) => !page.includes('/admin/') })],
 
   vite: {
     plugins: [canonicalMappingDev(), notePromotionDev(), wikilinkQueueDev(), placesCoordinatesDev()],
