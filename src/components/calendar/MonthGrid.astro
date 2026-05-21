@@ -1,0 +1,222 @@
+---
+/**
+ * 월간 캘린더 그리드 — 각 날짜칸에 양력·음력·간지(일진)·24절기 표기.
+ *
+ * 날짜 연산은 전부 src/lib/date.ts 재사용 (getDayInfo). 기념일은
+ * src/lib/memorials.ts의 listMemorialsBetween로 forward-compat만 유지하며,
+ * MEMORIALS가 빈 배열인 동안에는 아무 마커도 렌더하지 않는다.
+ */
+import { getDayInfo } from "../../lib/date";
+import { listMemorialsBetween } from "../../lib/memorials";
+
+interface Props {
+  /** 표시할 연도 (양력). */
+  year: number;
+  /** 표시할 월 (1–12). */
+  month: number;
+  /** 오늘 날짜 — 일치하는 칸을 강조. null이면 강조 없음. */
+  today?: Date | null;
+}
+
+const { year, month, today = null } = Astro.props;
+
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const MONTH_LABELS = [
+  "1월", "2월", "3월", "4월", "5월", "6월",
+  "7월", "8월", "9월", "10월", "11월", "12월",
+];
+
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+// 월의 첫날·마지막날, 그리드 선행 빈칸(첫 주 일요일 정렬).
+const first = new Date(year, month - 1, 1);
+const daysInMonth = new Date(year, month, 0).getDate();
+const leadBlanks = first.getDay(); // 0=일
+
+type Cell = {
+  day: number;
+  lunarKo: string | null;
+  /** 일진 간지 (한글), 예: "무자". */
+  gapja: string | null;
+  /** 해당 날이 24절기면 절기명, 아니면 null. */
+  jeolgi: string | null;
+  isToday: boolean;
+  /** 기념일 (현재는 항상 비어 있음 — MEMORIALS 채워지면 자동 노출). */
+  memorialNames: string[];
+};
+
+const cells: Cell[] = [];
+for (let d = 1; d <= daysInMonth; d++) {
+  const date = new Date(year, month - 1, d);
+  const info = getDayInfo(date);
+  // 일진: "정유년 병오월 무자일" → "무자"
+  const gapjaParts = info.lunar?.korean_gapja.split(" ") ?? [];
+  const dayGapja = gapjaParts[2]?.replace(/일$/, "") ?? null;
+  // 24절기: 해당 날짜가 절기 당일이면(daysSince===0) 절기명.
+  const jeolgi = info.jeolgi.daysSince === 0 ? info.jeolgi.current.name : null;
+  const memorials = listMemorialsBetween(date, date);
+  cells.push({
+    day: d,
+    lunarKo: info.lunarKo,
+    gapja: dayGapja,
+    jeolgi,
+    isToday: today ? sameDay(date, today) : false,
+    memorialNames: memorials.map((m) => m.name),
+  });
+}
+---
+
+<div class="month-grid">
+  <div class="weekday-row" aria-hidden="true">
+    {WEEKDAYS.map((w, i) => (
+      <div class:list={["weekday", { sun: i === 0, sat: i === 6 }]}>{w}</div>
+    ))}
+  </div>
+  <div class="days" role="grid" aria-label={`${year}년 ${MONTH_LABELS[month - 1]}`}>
+    {Array.from({ length: leadBlanks }).map(() => (
+      <div class="cell blank" aria-hidden="true"></div>
+    ))}
+    {cells.map((c) => {
+      const dow = (leadBlanks + c.day - 1) % 7;
+      return (
+        <div
+          class:list={["cell", { today: c.isToday, sun: dow === 0, sat: dow === 6 }]}
+          role="gridcell"
+        >
+          <div class="cell-head">
+            <span class="solar">{c.day}</span>
+            {c.lunarKo && <span class="lunar">{c.lunarKo}</span>}
+          </div>
+          {c.gapja && <span class="gapja">{c.gapja}</span>}
+          {c.jeolgi && <span class="jeolgi">{c.jeolgi}</span>}
+          {c.memorialNames.map((n) => (
+            <span class="memorial">{n}</span>
+          ))}
+        </div>
+      );
+    })}
+  </div>
+</div>
+
+<style>
+  .month-grid {
+    border: 1px solid var(--color-rule, #e8dfd9);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--color-surface, #fff);
+  }
+  .weekday-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+    background: var(--color-bg, #fbf8f4);
+  }
+  .weekday {
+    padding: 0.55rem 0;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-muted, #8a807a);
+  }
+  .weekday.sun {
+    color: var(--color-primary, #a8352a);
+  }
+  .weekday.sat {
+    color: #3a6ea5;
+  }
+  .days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+  .cell {
+    min-height: 84px;
+    padding: 0.35rem 0.4rem 0.5rem;
+    border-right: 1px solid var(--color-rule, #e8dfd9);
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  /* 7번째 칸마다 우측 보더 제거 */
+  .cell:nth-child(7n) {
+    border-right: none;
+  }
+  .cell.blank {
+    background: var(--color-bg, #fbf8f4);
+    min-height: 84px;
+  }
+  .cell.today {
+    background: color-mix(in srgb, var(--color-primary, #a8352a) 8%, transparent);
+    box-shadow: inset 0 0 0 2px var(--color-primary, #a8352a);
+  }
+  .cell-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.3rem;
+  }
+  .solar {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-fg, #1f1c1a);
+  }
+  .cell.sun .solar {
+    color: var(--color-primary, #a8352a);
+  }
+  .cell.sat .solar {
+    color: #3a6ea5;
+  }
+  .lunar {
+    font-size: 0.68rem;
+    color: var(--color-muted, #8a807a);
+  }
+  .gapja {
+    font-size: 0.68rem;
+    color: var(--color-muted, #8a807a);
+    letter-spacing: 0.02em;
+  }
+  .jeolgi {
+    align-self: flex-start;
+    margin-top: 0.1rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-primary, #a8352a) 12%, transparent);
+    color: var(--color-primary, #a8352a);
+    font-size: 0.66rem;
+    font-weight: 600;
+  }
+  .memorial {
+    align-self: flex-start;
+    padding: 0.05rem 0.4rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, #3a6ea5 12%, transparent);
+    color: #3a6ea5;
+    font-size: 0.66rem;
+    font-weight: 600;
+  }
+  @media (max-width: 600px) {
+    .cell {
+      min-height: 62px;
+      padding: 0.25rem 0.25rem 0.35rem;
+    }
+    .cell.blank {
+      min-height: 62px;
+    }
+    .gapja {
+      display: none;
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    .weekday.sat,
+    .cell.sat .solar,
+    .memorial {
+      color: #7da9d6;
+    }
+  }
+</style>

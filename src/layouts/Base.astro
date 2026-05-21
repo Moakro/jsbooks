@@ -7,9 +7,8 @@ import FooterContact from "../components/FooterContact.svelte";
 import Sidebar from "../components/Sidebar.astro";
 import { HEADER_NAV, resolveSection } from "../data/site-nav";
 
-// 헤더에 노출할 섹션 — `calendar`는 데이터 로직 정비 전까지 메뉴에서 임시 제외.
-// (HEADER_NAV 자체는 유지: /calendar/ 직접 접근 시 resolveSection·사이드바는 계속 작동)
-const VISIBLE_NAV = HEADER_NAV.filter((s) => s.slug !== "calendar");
+// 헤더에 노출할 섹션 — 전체 노출. (달력은 월간 뷰 도입으로 재노출됨)
+const VISIBLE_NAV = HEADER_NAV;
 import { shouldShowSidebar } from "../data/sidebar-nav";
 
 interface Props {
