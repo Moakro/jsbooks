@@ -26,13 +26,7 @@ const bodyHTML = renderMarkdownBody(preface.body ?? "", manifest);
     />
     <h1>천지개벽경 서(序) <span class="badge">admin</span></h1>
     <p class="meta">{preface.data.date_lunar}</p>
-    <div
-      data-pagefind-body
-      data-pagefind-filter="scripture:cheonjigaebyeokgyeong-hangeul"
-      data-pagefind-meta="title:서(序) (백업)"
-    >
-      <span hidden data-pagefind-filter="kind:경전"></span>
-      <span hidden data-pagefind-meta="scriptureName:천지개벽경 한글본 (백업)"></span>
+    <div data-pagefind-ignore>
       <article class="prose-body" set:html={bodyHTML} />
     </div>
 
