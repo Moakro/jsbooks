@@ -108,7 +108,6 @@
           {/if}
           <span class="author">
             {item.author.display_name || "익명"}
-            {#if item.author.is_admin}<span class="badge-admin">운영자</span>{/if}
           </span>
           <time class="time" datetime={item.created_at}>{relativeTime(item.created_at)}</time>
         </div>
@@ -182,15 +181,6 @@
   .author {
     font-weight: 700;
     color: var(--color-fg, #1f1c1a);
-  }
-  .badge-admin {
-    margin-left: 0.35rem;
-    padding: 0.06em 0.45em;
-    font-size: 0.7rem;
-    background: var(--color-primary-bg, #fbf3f1);
-    color: var(--color-primary, #a8352a);
-    border-radius: 999px;
-    font-weight: 600;
   }
   .time {
     margin-left: auto;
