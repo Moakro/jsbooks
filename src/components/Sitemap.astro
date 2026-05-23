@@ -161,8 +161,10 @@ const SECTIONS: SitemapSection[] = [
         ) : (
           sec.cards?.map((c) => (
             <a class:list={["sm-card", { placeholder: c.placeholder }]} href={c.href}>
-              <span class="sm-card-label">{c.label}</span>
-              {c.count !== undefined && <span class="sm-card-count">{c.count}건</span>}
+              <span class="sm-card-label">
+                {c.label}
+                {c.count !== undefined && <span class="sm-card-count">{c.count}건</span>}
+              </span>
               {c.note && <span class="sm-card-note">{c.note}</span>}
             </a>
           ))
@@ -303,11 +305,12 @@ const SECTIONS: SitemapSection[] = [
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
   }
-  /* 자료 카드 갯수 */
+  /* 자료 카드 갯수 — 라벨과 같은 줄, 작게 */
   .sm-card-count {
+    margin-left: 0.4rem;
     font-size: 0.78rem;
+    font-weight: 400;
     color: var(--color-muted, #8a807a);
-    line-height: 1.4;
   }
   .sc-title {
     display: inline-flex;
