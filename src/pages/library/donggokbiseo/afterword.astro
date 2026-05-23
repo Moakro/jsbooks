@@ -2,7 +2,8 @@
 import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
-import { renderMarkdownBody } from "../../../lib/wikilink";
+import { renderWikilinks } from "../../../lib/wikilink";
+import { parseVerseGroups } from "../../../lib/verse-parser";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 
@@ -11,7 +12,22 @@ const after = all.find((e) => e.id === "donggokbiseo/02_후기");
 if (!after) throw new Error("donggokbiseo/02_후기.md not found");
 
 const manifest = await buildCardManifest();
-const bodyHTML = renderMarkdownBody(after.body ?? "", manifest);
+
+type Sentence = { anchor: string; html: string };
+type Group = { num: number; oldAnchor: string; sentences: Sentence[] };
+
+const groups: Group[] = parseVerseGroups(after.body ?? "").map((g) => ({
+  num: g.num,
+  oldAnchor: String(g.num).padStart(3, "0"),
+  sentences: g.sentences.map((s) => ({
+    anchor: s.anchor,
+    html: s.text
+      .split(/\n\s*\n/)
+      .filter(Boolean)
+      .map((p) => renderWikilinks(p, manifest))
+      .join("\n\n"),
+  })),
+}));
 ---
 
 <Base
@@ -26,6 +42,8 @@ const bodyHTML = renderMarkdownBody(after.body ?? "", manifest);
     scriptureHref="/library/donggokbiseo/"
     context="출간 후기"
   />
+  <h1>출간 후기</h1>
+
   <div
     data-pagefind-body
     data-pagefind-filter="scripture:donggokbiseo"
@@ -33,14 +51,36 @@ const bodyHTML = renderMarkdownBody(after.body ?? "", manifest);
   >
     <span hidden data-pagefind-filter="kind:경전"></span>
     <span hidden data-pagefind-meta="scriptureName:동곡비서"></span>
-    <article class="prose-body" set:html={bodyHTML} />
+    {groups.map((g) => (
+      <section class="verse-group">
+        <h3 class="group-heading" id={g.oldAnchor}>{g.num}절</h3>
+        {g.sentences.map((s) => (
+          <section class="verse" id={s.anchor}>
+            <div class="verse-label" data-pagefind-ignore>
+              <a href={`#${s.anchor}`}>^{s.anchor}</a>
+            </div>
+            <div class="verse-body" set:html={s.html} />
+          </section>
+        ))}
+      </section>
+    ))}
   </div>
 
   <ScriptureChapterNav scriptureSlug="donggokbiseo" currentId={after.id} />
 </Base>
 
 <style>
-  .prose-body :global(p) {
-    line-height: 1.85;
+  .verse-group { margin-bottom: 1.5rem; }
+  .group-heading {
+    margin: 1.6rem 0 0.4rem;
+    font-size: 1rem;
+    color: var(--color-primary);
+    font-weight: 600;
   }
+  .verse-group:first-child .group-heading { margin-top: 0; }
+  .verse-label a {
+    font-size: 0.8em;
+    opacity: 0.55;
+  }
+  .verse-body :global(p) { line-height: 1.85; }
 </style>
