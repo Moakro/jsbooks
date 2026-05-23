@@ -15,6 +15,7 @@
 import { getCollection } from "astro:content";
 import Icon from "./Icon.svelte";
 import { getPublishedNews } from "../lib/news";
+import scriptureVersions from "../../content/_data/scripture-versions.json";
 
 // 경전 카탈로그 (WikiHome.astro와 동일 데이터 — _meta.md collection 도입 전까지 hardcode).
 type ScriptureCard = {
@@ -45,11 +46,21 @@ const scriptures = SCRIPTURE_ORDER
 // 뉴스 — 발행된 글 최신 3개 (draft 제외, date 내림차순).
 const latestNews = (await getPublishedNews()).slice(0, 3);
 
+// 자료 카드별 항목 수 (각 archive collection 크기)
+const [peopleCount, placesCount, dosuCount, termsCount, datesCount] = await Promise.all([
+  getCollection("people").then((c) => c.length),
+  getCollection("places").then((c) => c.length),
+  getCollection("dosu").then((c) => c.length),
+  getCollection("terms").then((c) => c.length),
+  getCollection("dates").then((c) => c.length),
+]);
+
 type SitemapCard = {
   label: string;
   href: string;
   note?: string;
   placeholder?: boolean;
+  count?: number;
 };
 type SitemapSection = {
   slug: string;
@@ -70,11 +81,11 @@ const SECTIONS: SitemapSection[] = [
     label: "자료",
     href: "/archive/people/",
     cards: [
-      { label: "인물", href: "/archive/people/" },
-      { label: "장소", href: "/archive/places/" },
-      { label: "도수", href: "/archive/dosu/" },
-      { label: "용어", href: "/archive/terms/" },
-      { label: "시기", href: "/archive/dates/" },
+      { label: "인물", href: "/archive/people/", count: peopleCount },
+      { label: "장소", href: "/archive/places/", count: placesCount },
+      { label: "도수", href: "/archive/dosu/", count: dosuCount },
+      { label: "용어", href: "/archive/terms/", count: termsCount },
+      { label: "시기", href: "/archive/dates/", count: datesCount },
     ],
   },
   {
@@ -122,23 +133,30 @@ const SECTIONS: SitemapSection[] = [
       </a>
       <div class="sm-grid" data-section={sec.slug}>
         {sec.slug === "scripture" ? (
-          scriptures.map((s) => (
-            <a class="sm-card sm-card-scripture" href={`/library/${s.slug}/`}>
-              <span class="sc-title">
-                <span class="sc-name">{s.name}</span>
-                <span class="sc-hanja">{s.hanja}</span>
-              </span>
-              <span class="sc-meta">
-                <span>{s.editor}</span>
-                <span class="sc-dot" aria-hidden="true">·</span>
-                <span>{s.year}</span>
-              </span>
-            </a>
-          ))
+          scriptures.map((s) => {
+            const v = (scriptureVersions as Record<string, { version: string; iso: string }>)[s.slug];
+            return (
+              <a class="sm-card sm-card-scripture" href={`/library/${s.slug}/`}>
+                <span class="sc-title">
+                  <span class="sc-name">{s.name}</span>
+                  <span class="sc-hanja">{s.hanja}</span>
+                </span>
+                <span class="sc-meta">
+                  <span>{s.editor}</span>
+                  <span class="sc-dot" aria-hidden="true">·</span>
+                  <span>{s.year}</span>
+                </span>
+                {v && (
+                  <span class="sc-version" title={v.iso}>{v.version}</span>
+                )}
+              </a>
+            );
+          })
         ) : (
           sec.cards?.map((c) => (
             <a class:list={["sm-card", { placeholder: c.placeholder }]} href={c.href}>
               <span class="sm-card-label">{c.label}</span>
+              {c.count !== undefined && <span class="sm-card-count">{c.count}건</span>}
               {c.note && <span class="sm-card-note">{c.note}</span>}
             </a>
           ))
@@ -263,10 +281,27 @@ const SECTIONS: SitemapSection[] = [
     font-weight: 500;
   }
 
-  /* 경전 카드 — 한글명·한자명·편자·연도 노출 */
+  /* 경전 카드 — 한글명·한자명·편자·연도 노출 + 우측 하단 버전 */
   .sm-card-scripture {
+    position: relative;
     padding: 0.8rem 1rem;
     gap: 0.3rem;
+  }
+  .sc-version {
+    position: absolute;
+    bottom: 0.55rem;
+    right: 0.85rem;
+    font-size: 0.7rem;
+    color: var(--color-muted, #8a807a);
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  /* 자료 카드 갯수 */
+  .sm-card-count {
+    font-size: 0.78rem;
+    color: var(--color-muted, #8a807a);
+    line-height: 1.4;
   }
   .sc-title {
     display: inline-flex;
