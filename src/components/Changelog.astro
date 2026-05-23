@@ -14,10 +14,10 @@ import { renderWikilinks } from "../lib/wikilink";
 import Icon from "./Icon.svelte";
 
 interface Props {
-  /** Maximum number of entries to display. Default 30. */
+  /** Maximum number of entries to display. Default 5. */
   limit?: number;
 }
-const { limit = 30 } = Astro.props;
+const { limit = 5 } = Astro.props;
 
 const manifest = await buildCardManifest();
 const recent = aggregateChangelog()
