@@ -70,13 +70,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
       <span class="meta">{idx + 1} / {totalChaps}장</span>
     </div>
 
-    <div
-      data-pagefind-body
-      data-pagefind-filter="scripture:cheonjigaebyeokgyeong-hangeul"
-      data-pagefind-meta={`title:권 ${권} ${권_이름} ${장}장 (백업)`}
-    >
-      <span hidden data-pagefind-filter="kind:경전"></span>
-      <span hidden data-pagefind-meta="scriptureName:천지개벽경 한글본 (백업)"></span>
+    <div data-pagefind-ignore>
       {verses.map((v) => (
         <section class="verse">
           <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>

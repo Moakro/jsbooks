@@ -5,6 +5,7 @@ import type { CardManifest } from "../lib/wikilink";
 import { parseSentencesFlat, parseVerses } from "../lib/verse-parser";
 import { correspondencesFor } from "../lib/correspondences";
 import { getMapping } from "../lib/canonical-mapping";
+import { isUserVisibleScripture } from "../lib/scripture-visibility";
 
 export const prerender = true;
 
@@ -105,6 +106,8 @@ export const GET: APIRoute = async () => {
     const slashIdx = entry.id.indexOf("/");
     const slug = slashIdx > 0 ? entry.id.slice(0, slashIdx) : entry.id;
     const data = entry.data as Record<string, unknown>;
+    // Admin-only scriptures (e.g. 한글본 백업) get no public context entry.
+    if (!isUserVisibleScripture(slug)) continue;
     const chapterKey = chapterKeyForEntry(slug, data);
     if (!chapterKey) continue;
     const body = entry.body ?? "";
@@ -133,6 +136,8 @@ export const GET: APIRoute = async () => {
       // correspondences → 서재 탭
       for (const m of correspondencesFor(slug, v.id)) {
         if (m.status === "hidden") continue;
+        // Never surface a correspondence whose target is an admin-only scripture.
+        if (!isUserVisibleScripture(m.target_slug)) continue;
         const key = `${m.target_slug}#${m.target_anchor}`;
         if (scriptureRefSeen.has(key)) continue;
         scriptureRefSeen.add(key);

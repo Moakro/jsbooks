@@ -3,6 +3,7 @@ import { getCollection } from "astro:content";
 import { buildCardManifest } from "../lib/manifest";
 import { renderWikilinks } from "../lib/wikilink";
 import { parseVerses, parseSentencesFlat } from "../lib/verse-parser";
+import { isUserVisibleScripture } from "../lib/scripture-visibility";
 
 export const prerender = true;
 
@@ -26,6 +27,9 @@ export const GET: APIRoute = async () => {
   for (const entry of all) {
     const slashIdx = entry.id.indexOf("/");
     const slug = slashIdx > 0 ? entry.id.slice(0, slashIdx) : entry.id;
+    // Admin-only scriptures (e.g. 한글본 백업) are excluded from the public
+    // verse index that the sidecard fetches.
+    if (!isUserVisibleScripture(slug)) continue;
     const isHierarchical = !!(entry.data.권 && entry.data.장);
     const isFlatVerses = entry.data.type === "verses";
     if (!isHierarchical && !isFlatVerses) continue;

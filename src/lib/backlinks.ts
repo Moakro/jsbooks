@@ -2,6 +2,7 @@ import { getCollection } from "astro:content";
 import { buildCardManifest } from "./manifest";
 import type { CardKind } from "./wikilink";
 import { parseVerses, parseSentencesFlat } from "./verse-parser";
+import { isUserVisibleScripture } from "./scripture-visibility";
 
 /**
  * Source location of a wikilink reference.
@@ -76,6 +77,10 @@ export async function buildBacklinkIndex(): Promise<BacklinkIndex> {
     // entry.id is "<scripture-slug>/<path>" — first segment is the scripture slug
     const slashIdx = entry.id.indexOf("/");
     const scriptureSlug = slashIdx > 0 ? entry.id.slice(0, slashIdx) : entry.id;
+
+    // Admin-only scriptures (e.g. 한글본 백업) must not generate user-facing
+    // backlinks pointing into their pages.
+    if (!isUserVisibleScripture(scriptureSlug)) continue;
 
     const vol = entry.data.권;
     const chap = entry.data.장;

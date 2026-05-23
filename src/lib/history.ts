@@ -1,5 +1,6 @@
 import data from "../data/history.json";
 import displayData from "../../content/_data/changelog-display.json";
+import { isUserVisibleScripture } from "./scripture-visibility";
 
 export type HistoryEntry = {
   hash: string;
@@ -121,6 +122,8 @@ export function categorizePath(path: string): ChangelogCategory | null {
   if (rel.startsWith("scripture/")) {
     const slug = rel.slice("scripture/".length).split("/", 1)[0];
     if (!slug || slug.startsWith("_")) return null;
+    // Admin-only scriptures (e.g. 한글본 백업) never appear in the public changelog.
+    if (!isUserVisibleScripture(slug)) return null;
     const label = SCRIPTURE_LABELS[slug] ?? slug;
     return { group: "scripture", slug, label, href: `/library/${slug}/` };
   }
