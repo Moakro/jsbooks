@@ -1,16 +1,21 @@
 #!/usr/bin/env node
-// 천지개벽경 markdown 절 단위 anchor → 문장 단위 anchor 마이그레이션
+// 경전 markdown 절 단위 anchor → 문장 단위 anchor 마이그레이션
 //
 // 변환 규칙:
 //   - "## N절 ^anchor" 헤딩의 anchor 제거 (헤딩은 절 그룹 표시로 유지)
 //   - 절 본문 paragraph를 마침표/?/! 기준으로 문장 분리
-//   - 각 문장에 ^권-장-N (또는 preface-N) 일련번호 부착
-//   - 일련번호는 장 단위 (한 파일 안에서 1, 2, 3, ...)
+//   - 각 문장에 ^<prefix>-N 일련번호 부착
+//   - 일련번호는 기본 파일 단위. 슬러그가 sharedCounter 면 인접 파일과 연속.
 //   - 텍스트 절대 수정 X (마침표 추가 X, 어법 수정 X), 분리만
+//
+// 지원 경전 (슬러그 기반 자동 분기):
+//   cheonjigaebyeokgyeong — canonical 한자본, 권/장 계층, preface 별도, 파일별 카운터
+//   donggokbiseo          — 단일 권·단일 장 평면(`1-1`), 본문+후기 카운터 공유
+//   hwaeundang-silgi      — 단일 권(`1-${장}`), 장 frontmatter 만, 장별 카운터
 //
 // 사용법:
 //   node scripts/migrate-sentence-anchors.mjs --dry-run --target=path
-//   node scripts/migrate-sentence-anchors.mjs --target=content/scripture/cheonjigaebyeokgyeong
+//   node scripts/migrate-sentence-anchors.mjs --target=content/scripture/donggokbiseo
 //   node scripts/migrate-sentence-anchors.mjs --target=... --report=path/to/queue.md
 
 import fs from 'node:fs';
@@ -84,38 +89,88 @@ function parseFrontmatter(content) {
   return { fm, raw, body };
 }
 
-function processFile(filePath) {
+// 슬러그별 마이그 정책. 새 경전 추가 시 이 객체에 항목 추가.
+//
+//   slug             — content/scripture/<slug>/ 디렉토리 이름
+//   sharedCounter    — true 면 같은 슬러그의 파일들이 마이그 sentence 카운터를 공유
+//                      (예: 동곡비서 본문→후기. 평면 anchor 네임스페이스가 파일 경계를 넘음.)
+//   anchorPrefix(fm) — 한 파일의 anchor prefix. preface 분기는 fm 으로 판단.
+//   shouldSkip(fm)   — true 면 그 파일 전체 skip (preface/appendix 본문 평면 그대로 유지)
+const SCRIPTURE_CONFIGS = {
+  cheonjigaebyeokgyeong: {
+    requireCanonical: true,
+    sharedCounter: false,
+    anchorPrefix: (fm) =>
+      fm.section === 'preface' ? 'preface' : `${fm['권']}-${fm['장']}`,
+    shouldSkip: (fm) =>
+      fm.section !== 'preface' && (!fm['권'] || !fm['장']),
+  },
+  donggokbiseo: {
+    requireCanonical: false,
+    sharedCounter: true,
+    anchorPrefix: () => '1-1',
+    // type: preface 인 00_서.md 는 본문 평면(anchor 없음) → 손대지 않음.
+    // type: verses (본문) / type: afterword (후기) 만 카운터 공유로 처리.
+    shouldSkip: (fm) => fm.type === 'preface',
+  },
+  'hwaeundang-silgi': {
+    requireCanonical: false,
+    sharedCounter: false,
+    anchorPrefix: (fm) => `1-${fm['장']}`,
+    // section: preface / appendix 는 anchor 없는 평면 → 손대지 않음.
+    shouldSkip: (fm) =>
+      fm.section === 'preface' || fm.section === 'appendix' || !fm['장'],
+  },
+};
+
+function detectScripture(filePath) {
+  const rel = path.relative(VAULT, filePath);
+  const m = rel.match(/^scripture[\\/]([^\\/]+)[\\/]/);
+  if (!m) return null;
+  return m[1];
+}
+
+function processFile(filePath, sharedCounterRef) {
   const content = fs.readFileSync(filePath, 'utf-8');
   const parsed = parseFrontmatter(content);
   if (!parsed) return { filePath, skipped: true, reason: 'no frontmatter' };
 
   const { fm, raw, body } = parsed;
+  const slug = detectScripture(filePath);
+  const config = slug ? SCRIPTURE_CONFIGS[slug] : null;
 
-  // 천지개벽경 외 다른 경전은 frontmatter 형식이 다를 수 있음 → canonical만 처리
-  if (fm.canonical !== 'true') {
-    return { filePath, skipped: true, reason: 'not canonical' };
+  if (!config) {
+    // 미등록 슬러그 — 기존 canonical 게이트로 fallback
+    if (fm.canonical !== 'true') {
+      return { filePath, skipped: true, reason: 'no config + not canonical' };
+    }
+    return processCanonicalFallback(filePath, content, fm, raw, body);
   }
 
-  const isPreface = fm.section === 'preface';
-  const anchorPrefix = isPreface
-    ? 'preface'
-    : `${fm['권']}-${fm['장']}`;
+  if (config.requireCanonical && fm.canonical !== 'true') {
+    return { filePath, skipped: true, reason: 'not canonical' };
+  }
+  if (config.shouldSkip(fm)) {
+    return { filePath, skipped: true, reason: 'preface/appendix or missing hierarchy' };
+  }
 
-  if (!isPreface && (!fm['권'] || !fm['장'])) {
-    return { filePath, skipped: true, reason: 'missing 권/장' };
+  const anchorPrefix = config.anchorPrefix(fm);
+  if (!anchorPrefix) {
+    return { filePath, skipped: true, reason: 'no anchor prefix derivable' };
   }
 
   const lines = body.split('\n');
   const out = [];
   const reviewQueue = [];
-  let sentenceCounter = 0;
+  // 카운터: sharedCounter 모드면 ref.value 누적. 아니면 파일별 0 리셋.
+  const localCounter = { value: 0 };
+  const counter = config.sharedCounter ? sharedCounterRef : localCounter;
   let totalSentences = 0;
   let i = 0;
 
-  // 평면 모드 감지: body 전체에 `## N절` heading이 없으면 그룹 없는 평면 모드.
-  // 평면 모드에서는 # N장(또는 # 서) heading 통과 후, 그 뒤 paragraph들을
-  // 그대로 walk + 재분리 + 순차 anchor 부여한다.
-  const hasGroupHeadings = /^##\s+\d+절\s*$/m.test(body);
+  // 평면 모드 감지: body 전체에 `## N절` (anchor 유무 무관) heading 이 있는지.
+  // 마이그 후엔 `## N절` 만 남고, 마이그 전엔 `## N절 ^anchor` 형태. 둘 다 매치.
+  const hasGroupHeadings = /^##\s+\d+절(\s+\^[\w-]+)?\s*$/m.test(body);
 
   function flushParagraphs(paragraphs) {
     for (const para of paragraphs) {
@@ -123,9 +178,9 @@ function processFile(filePath) {
       const stripped = para.replace(/\s+\^[\w-]+\s*$/, '').trim();
       const sentences = splitSentences(stripped);
       for (const s of sentences) {
-        sentenceCounter++;
+        counter.value++;
         totalSentences++;
-        const anchor = `${anchorPrefix}-${sentenceCounter}`;
+        const anchor = `${anchorPrefix}-${counter.value}`;
         out.push(`${s} ^${anchor}`);
         out.push('');
 
@@ -205,32 +260,7 @@ function processFile(filePath) {
       }
       if (buf.length) paragraphs.push(buf.join(' ').trim());
 
-      // 각 paragraph를 문장 단위로 분리
-      for (const para of paragraphs) {
-        const sentences = splitSentences(para);
-        for (const s of sentences) {
-          sentenceCounter++;
-          totalSentences++;
-          const anchor = `${anchorPrefix}-${sentenceCounter}`;
-          out.push(`${s} ^${anchor}`);
-          out.push('');
-
-          const endings = detectEndings(s);
-          const endsWithoutPeriod = tailEndingRegex.test(s) && !/[.?!]\s*$/.test(s);
-          const reasons = [];
-          if (endsWithoutPeriod) reasons.push('end-no-period');
-          if (endings.length >= 2) reasons.push(`multi-ending(${endings.length})`);
-          if (reasons.length) {
-            reviewQueue.push({
-              file: filePath,
-              anchor,
-              sentence: s,
-              endings,
-              reasons,
-            });
-          }
-        }
-      }
+      flushParagraphs(paragraphs);
       continue;
     }
 
@@ -251,6 +281,90 @@ function processFile(filePath) {
     reviewQueue,
     changed: content !== newBody,
   };
+}
+
+// 슬러그 config 가 없을 때 (테스트 디렉토리 등): 기존 canonical 게이트 로직 그대로.
+// 사실상 사용되지 않음 — 모든 등록 경전은 SCRIPTURE_CONFIGS 에 포함.
+function processCanonicalFallback(filePath, content, fm, raw, body) {
+  const isPreface = fm.section === 'preface';
+  const anchorPrefix = isPreface ? 'preface' : `${fm['권']}-${fm['장']}`;
+  if (!isPreface && (!fm['권'] || !fm['장'])) {
+    return { filePath, skipped: true, reason: 'missing 권/장' };
+  }
+  // simplified single-file processing (per-file counter), same as legacy.
+  const lines = body.split('\n');
+  const out = [];
+  const reviewQueue = [];
+  let counter = 0;
+  let totalSentences = 0;
+  let i = 0;
+  const hasGroupHeadings = /^##\s+\d+절(\s+\^[\w-]+)?\s*$/m.test(body);
+
+  const flush = (paragraphs) => {
+    for (const para of paragraphs) {
+      const stripped = para.replace(/\s+\^[\w-]+\s*$/, '').trim();
+      const sentences = splitSentences(stripped);
+      for (const s of sentences) {
+        counter++;
+        totalSentences++;
+        const anchor = `${anchorPrefix}-${counter}`;
+        out.push(`${s} ^${anchor}`);
+        out.push('');
+        const endings = detectEndings(s);
+        const endsWithoutPeriod = tailEndingRegex.test(s) && !/[.?!]\s*$/.test(s);
+        const reasons = [];
+        if (endsWithoutPeriod) reasons.push('end-no-period');
+        if (endings.length >= 2) reasons.push(`multi-ending(${endings.length})`);
+        if (reasons.length) {
+          reviewQueue.push({ file: filePath, anchor, sentence: s, endings, reasons });
+        }
+      }
+    }
+  };
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!hasGroupHeadings && /^#\s/.test(line)) {
+      out.push(line);
+      i++;
+      out.push('');
+      while (i < lines.length && lines[i].trim() === '') i++;
+      const paragraphs = [];
+      let buf = [];
+      while (i < lines.length && !/^---\s*$/.test(lines[i])) {
+        if (lines[i].trim() === '') {
+          if (buf.length) { paragraphs.push(buf.join(' ').trim()); buf = []; }
+        } else buf.push(lines[i]);
+        i++;
+      }
+      if (buf.length) paragraphs.push(buf.join(' ').trim());
+      flush(paragraphs);
+      continue;
+    }
+    const headingMatch = line.match(/^(##\s+\d+절)\s*(\^[\w-]+)?\s*$/);
+    if (headingMatch) {
+      out.push(headingMatch[1]);
+      i++;
+      out.push('');
+      while (i < lines.length && lines[i].trim() === '') i++;
+      const paragraphs = [];
+      let buf = [];
+      while (i < lines.length && !/^##\s/.test(lines[i]) && !/^#\s/.test(lines[i]) && !/^---\s*$/.test(lines[i])) {
+        if (lines[i].trim() === '') {
+          if (buf.length) { paragraphs.push(buf.join(' ').trim()); buf = []; }
+        } else buf.push(lines[i]);
+        i++;
+      }
+      if (buf.length) paragraphs.push(buf.join(' ').trim());
+      flush(paragraphs);
+      continue;
+    }
+    out.push(line);
+    i++;
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  const newBody = `---\n${raw}\n---\n${out.join('\n')}\n`;
+  return { filePath, original: content, transformed: newBody, sentenceCount: totalSentences, reviewQueue, changed: content !== newBody };
 }
 
 function findMarkdownFiles(dir) {
@@ -293,8 +407,13 @@ let totalSentences = 0;
 let changedFiles = 0;
 let skippedFiles = 0;
 
+// sharedCounter 슬러그별로 누적 카운터 ref 유지.
+const sharedCounters = new Map();
+
 for (const f of targets) {
-  const result = processFile(f);
+  const slug = detectScripture(f);
+  if (!sharedCounters.has(slug)) sharedCounters.set(slug, { value: 0 });
+  const result = processFile(f, sharedCounters.get(slug));
   if (result.skipped) {
     skippedFiles++;
     if (isDryRun) console.log(`SKIP ${path.relative(VAULT, f)}: ${result.reason}`);
@@ -315,8 +434,6 @@ for (const f of targets) {
     console.log(`\n=== DRY RUN: ${path.relative(VAULT, f)} ===`);
     console.log(`Sentences: ${result.sentenceCount}`);
     console.log(`Review queue: ${result.reviewQueue.length}`);
-    console.log('--- TRANSFORMED ---');
-    console.log(result.transformed);
   } else {
     const rel = path.relative(VAULT, f);
     const bakPath = path.join(backupDir, rel);
@@ -328,7 +445,7 @@ for (const f of targets) {
 }
 
 if (reportPath) {
-  let md = `# 천지개벽경 문장 단위 anchor 마이그레이션 — 마침표 누락 검수 큐\n\n`;
+  let md = `# 문장 단위 anchor 마이그레이션 — 마침표 누락 검수 큐\n\n`;
   md += `생성일: ${new Date().toISOString().slice(0, 10)}\n\n`;
   md += `**총 의심 케이스: ${allReviewQueue.length}개**\n\n`;
   md += `## 룰\n\n`;

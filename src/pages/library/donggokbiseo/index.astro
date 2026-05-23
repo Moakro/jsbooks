@@ -3,7 +3,7 @@ import Base from "../../../layouts/Base.astro";
 import { getCollection } from "astro:content";
 import { buildCardManifest } from "../../../lib/manifest";
 import { renderWikilinks } from "../../../lib/wikilink";
-import { parseVerses } from "../../../lib/verse-parser";
+import { parseVerseGroups } from "../../../lib/verse-parser";
 import { correspondencesFor } from "../../../lib/correspondences";
 import CorrespondenceBadges from "../../../components/CorrespondenceBadges.astro";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
@@ -17,14 +17,23 @@ if (!verses_entry) throw new Error("donggokbiseo/01_본문.md not found");
 
 const manifest = await buildCardManifest();
 
-type Verse = { num: number; id: string; html: string };
-const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
-  const paragraphs = v.text.split(/\n\s*\n/).filter(Boolean);
-  const html = paragraphs
-    .map((p) => renderWikilinks(p, manifest))
-    .join("\n\n");
-  return { num: v.num, id: v.id, html };
-});
+type Sentence = { anchor: string; html: string };
+type Group = { num: number; oldAnchor: string; sentences: Sentence[] };
+
+// 마이그 후: `## N절` 그룹 + 그룹별 문장 anchor (`^1-1-K`).
+// 구 deeplink (`#NNN`) 호환을 위해 절 헤딩에 OLD anchor (3-digit) 도 부여.
+const groups: Group[] = parseVerseGroups(verses_entry.body ?? "").map((g) => ({
+  num: g.num,
+  oldAnchor: String(g.num).padStart(3, "0"),
+  sentences: g.sentences.map((s) => ({
+    anchor: s.anchor,
+    html: s.text
+      .split(/\n\s*\n/)
+      .filter(Boolean)
+      .map((p) => renderWikilinks(p, manifest))
+      .join("\n\n"),
+  })),
+}));
 ---
 
 <Base
@@ -44,7 +53,7 @@ const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
   <ScriptureVersionTag slug="donggokbiseo" />
 
   <p class="meta" style="font-size: 0.9rem; margin-top: 0.5rem">
-    본문 {verses.length}절. 권·장 위계 없이 평면 시퀀스로 수록되어 있습니다.
+    본문 {groups.length}절. 권·장 위계 없이 평면 시퀀스로 수록되어 있습니다.
   </p>
 
   <ScriptureChapterNav scriptureSlug="donggokbiseo" currentId={verses_entry.id} placement="top" />
@@ -60,17 +69,20 @@ const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
   >
     <span hidden data-pagefind-filter="kind:경전"></span>
     <span hidden data-pagefind-meta="scriptureName:동곡비서"></span>
-    {verses.map((v) => (
-      <section class="verse">
-        <h3 class="verse-anchor-heading" id={v.id}>{v.num}절</h3>
-        <div class="verse-label" data-pagefind-ignore>
-          <span class="verse-label-meta">
-            <a href={`#${v.id}`}>{v.num}절</a>
-            <span class="verse-anchor-hint">^{v.id}</span>
-            <CorrespondenceBadges matches={correspondencesFor("donggokbiseo", v.id)} />
-          </span>
-        </div>
-        <div class="verse-body" set:html={v.html} />
+    {groups.map((g) => (
+      <section class="verse-group">
+        <h3 class="group-heading" id={g.oldAnchor}>{g.num}절</h3>
+        {g.sentences.map((s) => (
+          <section class="verse" id={s.anchor}>
+            <div class="verse-label" data-pagefind-ignore>
+              <span class="verse-label-meta">
+                <a href={`#${s.anchor}`}>^{s.anchor}</a>
+                <CorrespondenceBadges matches={correspondencesFor("donggokbiseo", s.anchor)} />
+              </span>
+            </div>
+            <div class="verse-body" set:html={s.html} />
+          </section>
+        ))}
       </section>
     ))}
   </div>
@@ -79,9 +91,23 @@ const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
 </Base>
 
 <style>
-  /* verse-label: 좌측 메타 + 우측 댓글 뱃지 (천지개벽경과 동일) */
+  .verse-group {
+    margin-bottom: 1.5rem;
+  }
+  .group-heading {
+    margin: 1.6rem 0 0.4rem;
+    font-size: 1rem;
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+  .verse-group:first-child .group-heading {
+    margin-top: 0;
+  }
   .verse-label {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
   }
   .verse-label-meta {
     display: inline-flex;
@@ -89,19 +115,8 @@ const verses: Verse[] = parseVerses(verses_entry.body ?? "").map((v) => {
     gap: 0.4rem;
     flex-wrap: wrap;
   }
-  .verse-anchor-hint {
-    opacity: 0.5;
-  }
-  .verse-anchor-heading {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+  .verse-label a {
+    font-size: 0.8em;
+    opacity: 0.55;
   }
 </style>
-
