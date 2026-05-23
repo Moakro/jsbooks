@@ -8,12 +8,13 @@
  * 데이터:
  *   - 서재: scripture 컬렉션에서 등록된 경전 자동 추출 (이름·홈 URL)
  *   - 자료: 5종 hardcode
- *   - 피드: placeholder (실제 데이터 추후 별도 작업)
+ *   - 피드: FeedRecent.svelte 가 사이트 전체 최근 댓글 5건을 client-fetch (D1)
  *   - 뉴스: news 컬렉션에서 최신 발행 글 3개 자동 노출
  *   - 달력: 월간/오늘 뷰 (양력·음력·간지·24절기)
  */
 import { getCollection } from "astro:content";
 import Icon from "./Icon.svelte";
+import FeedRecent from "./FeedRecent.svelte";
 import { getPublishedNews } from "../lib/news";
 import scriptureVersionsRaw from "../../content/_data/scripture-versions.json";
 
@@ -97,10 +98,8 @@ const SECTIONS: SitemapSection[] = [
     slug: "feed",
     label: "피드",
     href: "/feed/",
-    cards: [
-      { label: "전체", href: "/feed/" },
-      { label: "사진", href: "/feed/photos/", note: "준비 중", placeholder: true },
-    ],
+    // 카드 자리에 FeedRecent 컴포넌트 마운트 (사이트 전체 최근 댓글 5건).
+    // 섹션 헤더 "피드 →" 클릭으로 전체 /feed/ 진입.
   },
   {
     slug: "news",
@@ -157,6 +156,8 @@ const SECTIONS: SitemapSection[] = [
               </a>
             );
           })
+        ) : sec.slug === "feed" ? (
+          <FeedRecent client:load limit={5} />
         ) : (
           sec.cards?.map((c) => (
             <a class:list={["sm-card", { placeholder: c.placeholder }]} href={c.href}>

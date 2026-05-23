@@ -694,8 +694,12 @@ async function verseFeed(req: Request, env: Env): Promise<Response> {
   return json({ verses }, 200, { "Cache-Control": "private, max-age=15" });
 }
 
+// admin-only scripture slug — 사용자 노출 surface 어디에도 보여서는 안 된다.
+// SSR 측 src/lib/scripture-visibility.ts 의 ADMIN_ONLY_SCRIPTURES 와 동일 set.
+const ADMIN_ONLY_SCRIPTURE_SLUGS = ["cheonjigaebyeokgyeong-hangeul"] as const;
+
 // 전체 피드 — 최근 발행 댓글을 타깃·작성자 메타 포함해서 반환.
-// 클라이언트가 목록 페이지(/feed/)에서 사용.
+// 클라이언트가 목록 페이지(/feed/) 와 홈 사이트맵 피드 카드에서 사용.
 async function recentFeed(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
   const limitRaw = parseInt(url.searchParams.get("limit") ?? "30", 10);
@@ -707,6 +711,11 @@ async function recentFeed(req: Request, env: Env): Promise<Response> {
   if (before) {
     where.push("c.created_at < ?");
     args.push(before);
+  }
+  // admin-only verse 댓글 제외 (target_id = "<slug>:<anchor>").
+  for (const slug of ADMIN_ONLY_SCRIPTURE_SLUGS) {
+    where.push("NOT (c.target_type='verse' AND c.target_id LIKE ? ESCAPE '\\')");
+    args.push(slug.replace(/[%_]/g, "\\$&") + ":%");
   }
   const rows = await env.DB.prepare(
     `SELECT c.id, c.target_type, c.target_id, c.body_html, c.attachments, c.created_at,
