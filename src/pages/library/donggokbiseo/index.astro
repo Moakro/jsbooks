@@ -73,7 +73,7 @@ const groups: Group[] = parseVerseGroups(verses_entry.body ?? "").map((g) => ({
       <section class="verse-group">
         <h3 class="group-heading" id={g.oldAnchor}>{g.num}절</h3>
         {g.sentences.map((s) => (
-          <section class="verse" id={s.anchor}>
+          <section class="verse" id={s.anchor} data-group-num={g.num}>
             <div class="verse-label" data-pagefind-ignore>
               <span class="verse-label-meta">
                 <a href={`#${s.anchor}`}>^{s.anchor}</a>

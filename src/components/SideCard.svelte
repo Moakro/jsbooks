@@ -314,9 +314,9 @@
     const sections = document.querySelectorAll<HTMLElement>("section.verse");
     sections.forEach((sec) => {
       if (sec.querySelector(".verse-comment-badge")) return;
-      const idEl = sec.querySelector<HTMLElement>("[id]");
-      if (!idEl) return;
-      const anchor = idEl.id;
+      // anchor 우선순위: section 자체의 id (동곡·화은당 패턴) →
+      // descendant 의 id (천지개벽경의 별도 heading-anchor 패턴).
+      const anchor = sec.id || sec.querySelector<HTMLElement>("[id]")?.id;
       if (!anchor) return;
       const badge = document.createElement("button");
       badge.type = "button";
@@ -337,9 +337,8 @@
     if (!scriptureSlug) return;
     const sections = document.querySelectorAll<HTMLElement>("section.verse");
     sections.forEach((sec) => {
-      const idEl = sec.querySelector<HTMLElement>("[id]");
-      if (!idEl) return;
-      const anchor = idEl.id;
+      const anchor = sec.id || sec.querySelector<HTMLElement>("[id]")?.id;
+      if (!anchor) return;
       const n = verseCounts[`verse:${scriptureSlug}:${anchor}`] ?? 0;
       const badge = sec.querySelector<HTMLElement>(".verse-comment-badge");
       if (!badge) return;
