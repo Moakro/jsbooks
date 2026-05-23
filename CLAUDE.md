@@ -54,6 +54,25 @@ git commit -m "... [skip ci]"  # 빌드 스킵 (백업 push 등)
 | correspondences yml/json | content/_data/ | 정적 |
 | 댓글·사용자 | Cloudflare D1 | 동적 |
 
+## 커밋 메시지 규칙 (Changelog 노출)
+
+`src/components/Changelog.astro` 는 commit body 의 `--public <메시지>` 토큰이 있는 커밋만 사이트 Changelog 에 노출한다(`src/lib/history.ts` `displayMessageForCommit`). **vault scripture·archive 변경 커밋은 AI 가 자체 판단으로 `--public` 토큰을 채워서 커밋**해야 한다(옛 메타-AI 총괄 패턴의 빈자리 대체).
+
+**적용 대상** (`--public` 필수):
+- `content/scripture/<slug>/*.md` (slug ≠ `_*`)
+- `content/{dates,dosu,people,places,terms}/<slug>.md`
+
+**제외**:
+- `content/scripture/_mappings/**`, `content/_data/**`, `cheonjigaebyeokgyeong-hangeul`(admin 백업), src/·script·설정·빌드.
+
+**메시지**: 한국어, 운영자 알림 톤, 구체적(경전명·건수). 예: `화은당실기 wikilink 보강 (121건)`, `장소 추가: 목천포 · 종남산`.
+
+**포맷** (커밋 body 안):
+```
+--public 화은당실기 인물·장소·용어 wikilink 자동 보강 (121건)
+```
+빈 줄로 분리, 다음 빈 줄/`--token`까지 multi-line 인정. 상세 룰은 메모리 `feedback_commit_public_token.md` 참조.
+
 ## 메모리
 
 자세한 결정·진행 상황은 `~/.claude/projects/-home-azgian-Vault/memory/MEMORY.md`에 인덱싱되어 있음. 특히:
