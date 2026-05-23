@@ -91,7 +91,97 @@ const records: Record[] = [];
 
 // 1a. scripture verses + preface — walk all scripture slugs under content/scripture/
 const scriptureRoot = join(CONTENT, "scripture");
-const VERSE_RE = /^## (\d+)절 \^(\S+)\s*\n([\s\S]*?)(?=^## \d+절|\Z)/gm;
+
+// Admin-only 한글 백업본은 한자본과 동일 본문이라 near-1.0 가짜 매칭을 만든다.
+// 임베딩(검색·correspondence)에서 완전히 제외. (사이트 검색·feed·AI 에서도 차단됨)
+const EXCLUDED_SCRIPTURE_SLUGS = new Set<string>([
+  "cheonjigaebyeokgyeong-hangeul",
+]);
+
+// 두 markdown 포맷의 절 추출 (src/lib/verse-parser.ts 와 동일 로직을 fs 환경으로 포팅):
+//   (A) Legacy verse-anchor: `## N절 ^anchor` 헤딩 + 본문 단락
+//        — 동곡비서(`^001`), 화은당실기(`^장-절`), 천지개벽경 한글 백업본
+//   (B) Sentence-anchor: 본문 단락 끝 인라인 `^anchor` (천지개벽경, 마이그레이션 후)
+//        — `## N절` 그룹 헤딩 유무 무관. 서문은 `^preface-N`.
+// verses.json.ts / backlinks.ts 와 동일하게: sentence 파서를 먼저 시도하고,
+// 0건이면 legacy 파서로 fallback (두 파서는 같은 body 에서 상호배타적).
+
+interface ParsedItem {
+  /** Anchor id like "1-1-1", "preface-3", "001", "1-3". */
+  id: string;
+  /** Running 1-based index for display titles. */
+  num: number;
+  text: string;
+}
+
+const LEGACY_HEADING_RE = /^## (\d+)절 \^(\S+)[^\n]*$/gm;
+const GROUP_HEADING_RE = /^## (\d+)절\s*$/gm;
+const SENTENCE_ANCHOR_RE = /\s+\^([\w.-]+)\s*$/;
+
+/** Format (B): inline sentence anchors, flattened to one item per anchor. */
+function parseSentencesFlat(body: string): ParsedItem[] {
+  if (!body) return [];
+  // collect `## N절` group headings (may be absent → flat mode)
+  const headings: { start: number; bodyStart: number }[] = [];
+  GROUP_HEADING_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = GROUP_HEADING_RE.exec(body)) !== null) {
+    headings.push({ start: m.index, bodyStart: m.index + m[0].length });
+  }
+
+  const collectFrom = (chunk: string, push: (anchor: string, text: string) => void) => {
+    for (const para of chunk.split(/\n\s*\n/)) {
+      const trimmed = para.trim();
+      if (!trimmed) continue;
+      if (/^#+\s/.test(trimmed)) continue; // skip heading lines
+      const am = trimmed.match(SENTENCE_ANCHOR_RE);
+      if (!am) continue;
+      push(am[1], trimmed.replace(SENTENCE_ANCHOR_RE, "").trim());
+    }
+  };
+
+  const out: ParsedItem[] = [];
+  let n = 0;
+  if (headings.length === 0) {
+    collectFrom(body, (anchor, text) => {
+      n++;
+      out.push({ id: anchor, num: n, text });
+    });
+  } else {
+    for (let i = 0; i < headings.length; i++) {
+      const h = headings[i];
+      const end = i + 1 < headings.length ? headings[i + 1].start : body.length;
+      collectFrom(body.slice(h.bodyStart, end), (anchor, text) => {
+        n++;
+        out.push({ id: anchor, num: n, text });
+      });
+    }
+  }
+  return out;
+}
+
+/** Format (A): `## N절 ^anchor` heading blocks. */
+function parseLegacyVerses(body: string): ParsedItem[] {
+  if (!body) return [];
+  const headings: { num: number; id: string; start: number; bodyStart: number }[] = [];
+  LEGACY_HEADING_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = LEGACY_HEADING_RE.exec(body)) !== null) {
+    headings.push({
+      num: parseInt(m[1], 10),
+      id: m[2],
+      start: m.index,
+      bodyStart: m.index + m[0].length,
+    });
+  }
+  const out: ParsedItem[] = [];
+  for (let i = 0; i < headings.length; i++) {
+    const h = headings[i];
+    const end = i + 1 < headings.length ? headings[i + 1].start : body.length;
+    out.push({ id: h.id, num: h.num, text: body.slice(h.bodyStart, end).trim() });
+  }
+  return out;
+}
 
 function processVerseFile(opts: {
   scriptureSlug: string;
@@ -105,24 +195,25 @@ function processVerseFile(opts: {
   const chap = hierarchical ? fm["장"] : undefined;
   if (hierarchical && (!vol || !chap)) return;
 
-  VERSE_RE.lastIndex = 0;
-  let mm: RegExpExecArray | null;
-  while ((mm = VERSE_RE.exec(body)) !== null) {
-    const verseNum = parseInt(mm[1], 10);
-    const verseId = mm[2];
-    const verseBody = mm[3].trim();
-    const text = stripWikilinks(verseBody);
+  // sentence-anchor first, fall back to legacy (mutually exclusive on same body)
+  const sentenceItems = parseSentencesFlat(body);
+  const items = sentenceItems.length > 0 ? sentenceItems : parseLegacyVerses(body);
+
+  for (const item of items) {
+    const verseId = item.id;
+    const verseNum = item.num;
+    const text = stripWikilinks(item.text);
     if (!text) continue;
 
     const id = hierarchical
-      ? `scripture:${scriptureSlug}:${vol}:${chap}:${verseNum}`
+      ? `scripture:${scriptureSlug}:${vol}:${chap}:${verseId}`
       : `scripture:${scriptureSlug}:${verseId}`;
     const href = hierarchical
       ? `/library/${scriptureSlug}/${vol}/${chap}/#${verseId}`
       : `/library/${scriptureSlug}/#${verseId}`;
     const title = hierarchical
-      ? `${scriptureName} 권${vol} ${fm["권_이름"] ?? ""} ${chap}장 ${verseNum}절`
-      : `${scriptureName} ${verseNum}절`;
+      ? `${scriptureName} 권${vol} ${fm["권_이름"] ?? ""} ${chap}장 ^${verseId}`
+      : `${scriptureName} ^${verseId}`;
 
     records.push({
       id,
@@ -143,6 +234,7 @@ function processVerseFile(opts: {
 for (const slug of readdirSync(scriptureRoot)) {
   const slugPath = join(scriptureRoot, slug);
   if (!statSync(slugPath).isDirectory()) continue;
+  if (EXCLUDED_SCRIPTURE_SLUGS.has(slug)) continue; // 한글 백업본 제외
 
   // First pass: collect scripture display name from any file's frontmatter
   let scriptureName = slug;
@@ -175,21 +267,46 @@ for (const slug of readdirSync(scriptureRoot)) {
     if (!item.endsWith(".md")) continue;
     const { fm, body } = readMd(itemPath);
     const type = fm.type;
+    const isPreface = type === "preface" || fm.section === "preface";
 
-    if (type === "preface") {
-      const text = stripWikilinks(body);
-      if (text) {
-        records.push({
-          id: `scripture:${slug}:preface`,
-          text,
-          metadata: {
-            kind: "scripture",
-            title: `${scriptureName} 서(序)`,
-            href: `/library/${slug}/preface/`,
-            snippet: snippet(text),
-            scriptureSlug: slug,
-          },
-        });
+    if (isPreface) {
+      // 천지개벽경 서(序)는 본문 단락 끝에 인라인 `^preface-N` 문장 anchor 를
+      // 가진다(마이그레이션 후). anchor 단위로 추출해 correspondence source 키
+      // (`cheonjigaebyeokgyeong#preface-N`)를 보존. anchor 가 없는 서문
+      // (동곡비서 등)은 본문 전체를 단일 record 로.
+      const prefaceItems = parseSentencesFlat(body);
+      if (prefaceItems.length > 0) {
+        for (const item of prefaceItems) {
+          const text = stripWikilinks(item.text);
+          if (!text) continue;
+          records.push({
+            id: `scripture:${slug}:${item.id}`,
+            text,
+            metadata: {
+              kind: "scripture",
+              title: `${scriptureName} 서(序) ^${item.id}`,
+              href: `/library/${slug}/preface/#${item.id}`,
+              snippet: snippet(text),
+              scriptureSlug: slug,
+              verseId: item.id,
+            },
+          });
+        }
+      } else {
+        const text = stripWikilinks(body);
+        if (text) {
+          records.push({
+            id: `scripture:${slug}:preface`,
+            text,
+            metadata: {
+              kind: "scripture",
+              title: `${scriptureName} 서(序)`,
+              href: `/library/${slug}/preface/`,
+              snippet: snippet(text),
+              scriptureSlug: slug,
+            },
+          });
+        }
       }
     } else if (type === "verses") {
       processVerseFile({ scriptureSlug: slug, scriptureName, fm, body, hierarchical: false });
