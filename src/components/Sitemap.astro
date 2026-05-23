@@ -15,7 +15,12 @@
 import { getCollection } from "astro:content";
 import Icon from "./Icon.svelte";
 import { getPublishedNews } from "../lib/news";
-import scriptureVersions from "../../content/_data/scripture-versions.json";
+import scriptureVersionsRaw from "../../content/_data/scripture-versions.json";
+
+// Frontmatter 에서 타이핑 (template `{...}` 안에서 \`as Record<...>\` generic 캐스팅하면
+// esbuild 가 \`<\` 를 JSX 태그 시작으로 오인해 빌드 실패).
+const scriptureVersions: Record<string, { version: string; hash: string; iso: string }> =
+  scriptureVersionsRaw;
 
 // 경전 카탈로그 (WikiHome.astro와 동일 데이터 — _meta.md collection 도입 전까지 hardcode).
 type ScriptureCard = {
@@ -134,7 +139,7 @@ const SECTIONS: SitemapSection[] = [
       <div class="sm-grid" data-section={sec.slug}>
         {sec.slug === "scripture" ? (
           scriptures.map((s) => {
-            const v = (scriptureVersions as Record<string, { version: string; iso: string }>)[s.slug];
+            const v = scriptureVersions[s.slug];
             return (
               <a class="sm-card sm-card-scripture" href={`/library/${s.slug}/`}>
                 <span class="sc-title">
