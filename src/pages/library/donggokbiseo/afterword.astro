@@ -55,9 +55,11 @@ const groups: Group[] = parseVerseGroups(after.body ?? "").map((g) => ({
       <section class="verse-group">
         <h3 class="group-heading" id={g.oldAnchor}>{g.num}절</h3>
         {g.sentences.map((s) => (
-          <section class="verse" id={s.anchor}>
+          <section class="verse" id={s.anchor} data-group-num={g.num}>
             <div class="verse-label" data-pagefind-ignore>
-              <a href={`#${s.anchor}`}>^{s.anchor}</a>
+              <span class="verse-label-meta">
+                <a href={`#${s.anchor}`}>^{s.anchor}</a>
+              </span>
             </div>
             <div class="verse-body" set:html={s.html} />
           </section>
