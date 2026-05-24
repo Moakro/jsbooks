@@ -35,8 +35,8 @@ const DEFAULT_LOC = {
   region: "서울",
 };
 
-// v3: /api/weather (IP geolocation + KMA 모델) 도입으로 region 갱신 — 옛 v2 캐시 자동 무효화.
-const CACHE_KEY = "jsbooks:weather:v3";
+// v4: 도시명 한글 매핑(Seoul→서울 등) 적용 — 옛 v3 영문 region 캐시 자동 무효화.
+const CACHE_KEY = "jsbooks:weather:v4";
 const TTL_MS = 30 * 60 * 1000;
 
 function readCache(): WeatherSnapshot | null {
