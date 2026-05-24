@@ -183,9 +183,28 @@
     font-size: 0.78rem;
     color: rgba(255, 255, 255, 0.65);
   }
+  /* 모바일: 우측 날씨 영역 숨기지 않고 컴팩트하게 표시 */
   @media (max-width: 499px) {
+    .left {
+      padding: 0.55rem 0.7rem;
+    }
     .right {
-      display: none;
+      gap: 0.4rem;
+      padding: 0.5rem 0.7rem;
+      min-width: 0;
+    }
+    .right :global(svg) {
+      width: 30px !important;
+      height: 30px !important;
+    }
+    .right .temp {
+      font-size: 1rem;
+    }
+    .right .region {
+      font-size: 0.72rem;
+    }
+    .moon-phase-label {
+      font-size: 0.6rem;
     }
   }
   .row {
