@@ -147,6 +147,11 @@
     !!today && today.getFullYear() === year && today.getMonth() + 1 === month,
   );
 
+  // '오늘' 버튼 active: 선택된 날짜가 실제 오늘일 때만 (다른 날 선택 시 inactive — 혼동 방지)
+  const selectedIsToday = $derived(
+    !!selectedDate && !!today && sameDay(selectedDate, today),
+  );
+
   type DetailView = {
     solar: string;        // "2026년 5월 30일"
     weekday: string;      // "토"
@@ -200,7 +205,7 @@
     <button
       type="button"
       class="today-btn"
-      class:active={todayInDisplay}
+      class:active={selectedIsToday}
       onclick={goToday}
     >오늘</button>
     <div class="nav-group">
@@ -518,8 +523,9 @@
     background: color-mix(in srgb, var(--color-primary, #a8352a) 8%, transparent);
     box-shadow: inset 0 0 0 2px var(--color-primary, #a8352a);
   }
+  /* 다른 날짜 선택 — 청록 계열 테두리로 오늘(빨강)과 구분 */
   .cell.selected:not(.today) {
-    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-primary, #a8352a) 45%, var(--color-rule, #e8dfd9));
+    box-shadow: inset 0 0 0 2px var(--color-secondary, #1e6e6e);
   }
 
   .cell-head {
