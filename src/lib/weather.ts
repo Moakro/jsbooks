@@ -114,15 +114,14 @@ function buildSnapshot(
   };
 }
 
-/** Fallback: API 실패 시 클라이언트에서 직접 서울 좌표로 Open-Meteo (KMA 모델). */
+/** Fallback: API 실패 시 클라이언트에서 직접 서울 좌표로 Open-Meteo (기본 best_match). */
 async function fetchDirectFallback(): Promise<WeatherSnapshot | null> {
   try {
     const url =
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${DEFAULT_LOC.lat}&longitude=${DEFAULT_LOC.lon}` +
       `&current=temperature_2m,weather_code,is_day` +
-      `&timezone=Asia%2FSeoul` +
-      `&models=kma_seamless`;
+      `&timezone=Asia%2FSeoul`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
