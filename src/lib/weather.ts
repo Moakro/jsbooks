@@ -35,8 +35,8 @@ const DEFAULT_LOC = {
   region: "서울",
 };
 
-// v3: /api/weather (IP geolocation + KMA 모델) 도입으로 region 갱신 — 옛 v2 캐시 자동 무효화.
-const CACHE_KEY = "jsbooks:weather:v3";
+// v4: KMA hourly 시각 매칭 도입(서버 endpoint 응답 동일하지만 의미가 바뀐 값 → 캐시 강제 invalidate).
+const CACHE_KEY = "jsbooks:weather:v4";
 const TTL_MS = 30 * 60 * 1000;
 
 function readCache(): WeatherSnapshot | null {
@@ -114,7 +114,10 @@ function buildSnapshot(
   };
 }
 
-/** Fallback: API 실패 시 클라이언트에서 직접 서울 좌표로 Open-Meteo (기본 best_match). */
+/**
+ * Fallback: 서버 endpoint 실패 시 클라이언트에서 직접 서울 좌표로 Open-Meteo 호출.
+ * KMA 모델은 `current` 미지원이라 fallback 은 best_match `current` 만 사용 (정확도는 떨어지지만 안정).
+ */
 async function fetchDirectFallback(): Promise<WeatherSnapshot | null> {
   try {
     const url =
