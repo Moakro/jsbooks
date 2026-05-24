@@ -1,6 +1,6 @@
 # jsbooks
 
-증산계열 경전 디지털 라이브러리. Astro + Svelte islands.
+증산계열 경전 디지털 도서관. Astro + Svelte islands.
 
 ## 콘텐츠
 
