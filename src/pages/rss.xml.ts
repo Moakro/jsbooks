@@ -1,23 +1,26 @@
 import rss from "@astrojs/rss";
 import type { APIContext } from "astro";
+import { getPublishedNews, categoryLabel } from "../lib/news";
 
 /**
  * 사이트 RSS 피드 — 공개 콘텐츠만.
  *
- * 현재 피드 소스는 공개 경전 카탈로그 3종(천지개벽경·동곡비서·화은당실기).
+ * 피드 소스:
+ *  - 공개 경전 카탈로그 3종(천지개벽경·동곡비서·화은당실기) — 항상 상단 고정.
+ *  - news 컬렉션(공지·업데이트·릴리스·로드맵) — date 내림차순, draft 제외.
+ *
  * `cheonjigaebyeokgyeong-hangeul`은 admin 전용 백업이므로 제외하며,
  * draft/placeholder 콘텐츠도 싣지 않는다.
- *
- * TODO: news 컬렉션(③)이 들어오면 아래 items에 최신 글을 합쳐 발행하기 쉽게
- * 소스를 배열로 분리해 둠. 예)
- *   const news = await getCollection("news", (e) => !e.data.draft);
- *   items.push(...news.map((n) => ({ title: n.data.title, link: `/news/${n.id}/`, ... })));
  */
+
+const NEWS_LIMIT = 30;
 
 interface FeedItem {
   title: string;
   link: string;
   description: string;
+  pubDate?: Date;
+  categories?: string[];
 }
 
 // 공개 경전 카탈로그. 새 공개 경전이 추가되면 여기에 한 줄 더한다.
@@ -43,7 +46,17 @@ const scriptureItems: FeedItem[] = [
 ];
 
 export async function GET(context: APIContext) {
-  const items: FeedItem[] = [...scriptureItems];
+  const news = await getPublishedNews();
+  const newsItems: FeedItem[] = news.slice(0, NEWS_LIMIT).map((entry) => ({
+    title: entry.data.title,
+    link: `/news/${entry.id}/`,
+    description: entry.data.summary ?? entry.data.title,
+    pubDate: entry.data.date,
+    categories: [categoryLabel(entry.data.category)],
+  }));
+
+  // 경전 카탈로그 먼저, 그 다음 news 최신순.
+  const items: FeedItem[] = [...scriptureItems, ...newsItems];
 
   return rss({
     title: "jsbooks — 증산계열 경전 디지털 서재",
@@ -54,6 +67,8 @@ export async function GET(context: APIContext) {
       title: item.title,
       link: item.link,
       description: item.description,
+      ...(item.pubDate ? { pubDate: item.pubDate } : {}),
+      ...(item.categories ? { categories: item.categories } : {}),
     })),
     customData: "<language>ko</language>",
   });
