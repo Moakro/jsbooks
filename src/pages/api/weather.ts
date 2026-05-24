@@ -1,13 +1,15 @@
 import type { APIRoute } from "astro";
 
 /**
- * Weather endpoint — IP geolocation 기반 (Cloudflare runtime cf object).
+ * Weather endpoint — IP geolocation (Cloudflare runtime cf object).
  *
- * - 한국(KR) 접속: KMA LDAPS 모델 (`models=kma_seamless`) — 한국 기상청과 거의 일치
- * - 그 외: Open-Meteo 기본 best_match (글로벌 모델)
- * - city/lat/lon: cf 객체에서 직접. 누락 시 서울 fallback.
+ * - city/lat/lon: cf 객체에서 직접. 누락 또는 접근 실패 시 서울 fallback.
+ * - country: 향후 KMA hourly 통합 시 분기용 (현재 best_match 만).
  *
- * CDN 캐시 15분(동일 IP·지역 반복 요청 줄임). 클라이언트 localStorage 30분(weather.ts).
+ * 견고성: 모든 단계 try-catch. cf 접근 실패해도 fallback 좌표로 계속 진행 → 절대 500 X.
+ * 디버깅용 `debug` 쿼리 파라미터: `/api/weather?debug=1` 시 cf 메타 + url 같이 반환.
+ *
+ * CDN 캐시 15분, 클라이언트 localStorage 30분(weather.ts).
  */
 
 export const prerender = false;
@@ -19,44 +21,58 @@ const FALLBACK = {
   country: "KR",
 };
 
+function readCf(locals: unknown): Record<string, unknown> {
+  try {
+    const runtime = (locals as { runtime?: { cf?: Record<string, unknown> } })?.runtime;
+    return runtime?.cf ?? {};
+  } catch {
+    return {};
+  }
+}
+
 export const GET: APIRoute = async (context) => {
-  // Cloudflare adapter 는 runtime cf object 를 locals.runtime.cf 에 노출.
-  const runtime = (context.locals as { runtime?: { cf?: Record<string, unknown> } }).runtime;
-  const cf = runtime?.cf ?? {};
+  const debug = new URL(context.request.url).searchParams.get("debug") === "1";
 
-  const latRaw = cf.latitude as string | number | undefined;
-  const lonRaw = cf.longitude as string | number | undefined;
-  const lat =
-    latRaw !== undefined ? Number(latRaw) || FALLBACK.lat : FALLBACK.lat;
-  const lon =
-    lonRaw !== undefined ? Number(lonRaw) || FALLBACK.lon : FALLBACK.lon;
-  const city = (cf.city as string | undefined) ?? FALLBACK.city;
-  const country = (cf.country as string | undefined) ?? FALLBACK.country;
+  const cf = readCf(context.locals);
+  const cfKeys = Object.keys(cf);
 
-  // KMA seamless 는 `current` 미지원(null 반환) → 일단 best_match 만 사용.
-  // KMA 정확도(2~4도 차이) 가 필요하면 hourly 응답을 시각 매칭해 사용해야 함 (별도 작업).
+  let lat = FALLBACK.lat;
+  let lon = FALLBACK.lon;
+  let city = FALLBACK.city;
+  let country = FALLBACK.country;
+
+  try {
+    const latRaw = cf.latitude;
+    const lonRaw = cf.longitude;
+    const latNum = latRaw !== undefined ? Number(latRaw) : NaN;
+    const lonNum = lonRaw !== undefined ? Number(lonRaw) : NaN;
+    if (Number.isFinite(latNum)) lat = latNum;
+    if (Number.isFinite(lonNum)) lon = lonNum;
+    if (typeof cf.city === "string" && cf.city) city = cf.city;
+    if (typeof cf.country === "string" && cf.country) country = cf.country;
+  } catch {
+    /* fallback 좌표 유지 */
+  }
+
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,weather_code,is_day` +
     `&timezone=Asia%2FSeoul`;
-
-  // `country` 는 향후 KMA hourly 통합 시 분기용으로 보존.
   void country;
+
+  let upstreamStatus: number | string = "init";
+  let upstreamBody: unknown = null;
 
   try {
     const res = await fetch(url);
-    if (!res.ok) {
-      return new Response(
-        JSON.stringify({ error: "upstream", status: res.status }),
-        { status: 502, headers: { "content-type": "application/json" } },
-      );
-    }
-    const data = (await res.json()) as {
-      current?: { temperature_2m?: number; weather_code?: number; is_day?: number };
-    };
-    return new Response(
-      JSON.stringify({
+    upstreamStatus = res.status;
+    if (res.ok) {
+      const data = (await res.json()) as {
+        current?: { temperature_2m?: number; weather_code?: number; is_day?: number };
+      };
+      upstreamBody = data;
+      const body: Record<string, unknown> = {
         lat,
         lon,
         city,
@@ -64,18 +80,39 @@ export const GET: APIRoute = async (context) => {
         temperature_2m: data.current?.temperature_2m ?? null,
         weather_code: data.current?.weather_code ?? null,
         is_day: data.current?.is_day ?? null,
-      }),
-      {
+      };
+      if (debug) {
+        body.debug = { cfKeys, url, upstreamStatus };
+      }
+      return new Response(JSON.stringify(body), {
         headers: {
           "content-type": "application/json",
           "cache-control": "public, max-age=900",
         },
-      },
-    );
+      });
+    }
   } catch (e) {
-    return new Response(
-      JSON.stringify({ error: "fetch", message: String(e) }),
-      { status: 500, headers: { "content-type": "application/json" } },
-    );
+    upstreamStatus = `throw: ${String(e)}`;
   }
+
+  // upstream 실패 — fallback 좌표 + 최소 응답. status 200 으로 클라이언트 graceful 처리.
+  return new Response(
+    JSON.stringify({
+      lat,
+      lon,
+      city,
+      country,
+      temperature_2m: null,
+      weather_code: null,
+      is_day: null,
+      ...(debug ? { debug: { cfKeys, url, upstreamStatus, upstreamBody } } : {}),
+    }),
+    {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      },
+    },
+  );
 };
