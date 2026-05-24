@@ -1,12 +1,11 @@
 /**
- * Open-Meteo client (Phase A — Seoul fixed location).
+ * Weather client (Phase B — IP geolocation via /api/weather).
  *
- * No auth, no rate limit registration. We fetch a tiny "current weather"
- * payload, cache it in localStorage for 30 minutes, and translate the
- * WMO weather code to a Lucide icon name + Korean label.
+ * 서버 endpoint (`src/pages/api/weather.ts`) 가 Cloudflare runtime cf 에서
+ * lat/lon/city/country 를 읽고 Open-Meteo 호출 (한반도는 KMA 모델 사용).
+ * 클라이언트는 그 결과를 받아 localStorage 에 30분 캐시 후 표시.
  *
- * Phase B will swap the location source to a `/api/weather` endpoint that
- * reads `cf-iplatitude/longitude/city` and KV-caches per-region.
+ * Fallback: API 실패 시 서울 좌표로 클라이언트에서 직접 Open-Meteo 호출.
  */
 
 export type WeatherIconName =
@@ -36,8 +35,8 @@ const DEFAULT_LOC = {
   region: "서울",
 };
 
-// v2: isDay 필드 + moon/cloud-moon 아이콘 추가로 schema 변경. 옛 v1 캐시 자동 무효화.
-const CACHE_KEY = "jsbooks:weather:v2";
+// v3: /api/weather (IP geolocation + KMA 모델) 도입으로 region 갱신 — 옛 v2 캐시 자동 무효화.
+const CACHE_KEY = "jsbooks:weather:v3";
 const TTL_MS = 30 * 60 * 1000;
 
 function readCache(): WeatherSnapshot | null {
@@ -92,40 +91,74 @@ function wmoToLabel(code: number): string {
   return "흐림";
 }
 
-export async function getWeather(): Promise<WeatherSnapshot | null> {
-  const cached = readCache();
-  if (cached) return cached;
+function dayFallback(): boolean {
+  const h = new Date().getHours();
+  return h >= 6 && h < 18;
+}
 
+function buildSnapshot(
+  code: number | null | undefined,
+  temp: number | null | undefined,
+  isDayRaw: number | null | undefined,
+  region: string,
+): WeatherSnapshot {
+  const isDay: boolean =
+    typeof isDayRaw === "number" ? isDayRaw === 1 : dayFallback();
+  return {
+    iconName: wmoToIcon(code ?? 3, isDay),
+    label: wmoToLabel(code ?? 3),
+    tempC: Math.round(temp ?? 0),
+    region,
+    isDay,
+    fetchedAt: Date.now(),
+  };
+}
+
+/** Fallback: API 실패 시 클라이언트에서 직접 서울 좌표로 Open-Meteo (KMA 모델). */
+async function fetchDirectFallback(): Promise<WeatherSnapshot | null> {
   try {
     const url =
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${DEFAULT_LOC.lat}&longitude=${DEFAULT_LOC.lon}` +
       `&current=temperature_2m,weather_code,is_day` +
-      `&timezone=Asia%2FSeoul`;
+      `&timezone=Asia%2FSeoul` +
+      `&models=kma_seamless`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
-    const code: number = data?.current?.weather_code ?? 3;
-    const temp: number = data?.current?.temperature_2m ?? 0;
-    // is_day: 1=낮, 0=밤. 필드 누락 시 로컬 시각 fallback (6시~18시 = 낮).
-    const isDay: boolean =
-      typeof data?.current?.is_day === "number"
-        ? data.current.is_day === 1
-        : (() => {
-            const h = new Date().getHours();
-            return h >= 6 && h < 18;
-          })();
-    const snap: WeatherSnapshot = {
-      iconName: wmoToIcon(code, isDay),
-      label: wmoToLabel(code),
-      tempC: Math.round(temp),
-      region: DEFAULT_LOC.region,
-      isDay,
-      fetchedAt: Date.now(),
-    };
-    writeCache(snap);
-    return snap;
+    return buildSnapshot(
+      data?.current?.weather_code,
+      data?.current?.temperature_2m,
+      data?.current?.is_day,
+      DEFAULT_LOC.region,
+    );
   } catch {
     return null;
   }
+}
+
+export async function getWeather(): Promise<WeatherSnapshot | null> {
+  const cached = readCache();
+  if (cached) return cached;
+
+  try {
+    const res = await fetch("/api/weather");
+    if (res.ok) {
+      const data = await res.json();
+      const snap = buildSnapshot(
+        data?.weather_code,
+        data?.temperature_2m,
+        data?.is_day,
+        data?.city ?? DEFAULT_LOC.region,
+      );
+      writeCache(snap);
+      return snap;
+    }
+  } catch {
+    /* fall through */
+  }
+
+  const fb = await fetchDirectFallback();
+  if (fb) writeCache(fb);
+  return fb;
 }
