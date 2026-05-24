@@ -129,4 +129,14 @@ function changelogDate(iso: string): { label: string; abs: string } {
     word-break: keep-all;
     overflow-wrap: anywhere;
   }
+  /* 모바일: 시간/내용 stacking (시간 위 작게, 내용 전폭 아래) */
+  @media (max-width: 640px) {
+    .changelog li {
+      grid-template-columns: 1fr;
+      row-gap: 0.15rem;
+    }
+    .date {
+      font-size: 0.78rem;
+    }
+  }
 </style>
