@@ -21,6 +21,66 @@ const FALLBACK = {
   country: "KR",
 };
 
+/**
+ * Cloudflare cf.city 는 영문. 주요 한국 도시는 한글로 매핑 (UI 톤 일관).
+ * 매핑 없으면 영문 그대로 (해외 도시 등).
+ */
+const CITY_KO: Record<string, string> = {
+  // 특별시·광역시
+  Seoul: "서울",
+  Busan: "부산",
+  Incheon: "인천",
+  Daegu: "대구",
+  Daejeon: "대전",
+  Gwangju: "광주",
+  Ulsan: "울산",
+  Sejong: "세종",
+  // 도청 소재지·주요 도시
+  Suwon: "수원",
+  Changwon: "창원",
+  Cheongju: "청주",
+  Jeonju: "전주",
+  Cheonan: "천안",
+  Chuncheon: "춘천",
+  Wonju: "원주",
+  Pohang: "포항",
+  Andong: "안동",
+  Mokpo: "목포",
+  Yeosu: "여수",
+  Jinju: "진주",
+  Jeju: "제주",
+  Seogwipo: "서귀포",
+  // 수도권 위성도시
+  Goyang: "고양",
+  Yongin: "용인",
+  Seongnam: "성남",
+  Bucheon: "부천",
+  Ansan: "안산",
+  Anyang: "안양",
+  Namyangju: "남양주",
+  Hwaseong: "화성",
+  Pyeongtaek: "평택",
+  Uijeongbu: "의정부",
+  Siheung: "시흥",
+  Paju: "파주",
+  Gimpo: "김포",
+  Gwangmyeong: "광명",
+  Gunpo: "군포",
+  Osan: "오산",
+  Icheon: "이천",
+  Yangju: "양주",
+  Anseong: "안성",
+  Guri: "구리",
+  Pocheon: "포천",
+  Hanam: "하남",
+  Dongducheon: "동두천",
+  Gwacheon: "과천",
+};
+
+function toKoreanCity(city: string): string {
+  return CITY_KO[city] ?? city;
+}
+
 function readCf(request: Request): Record<string, unknown> {
   // Astro v6 부터 `Astro.locals.runtime.cf` 는 제거. `Astro.request.cf` 사용.
   // Cloudflare Workers runtime 의 Request 객체는 cf 메타를 직접 노출.
@@ -66,7 +126,7 @@ export const GET: APIRoute = async (context) => {
     const lonNum = lonRaw !== undefined ? Number(lonRaw) : NaN;
     if (Number.isFinite(latNum)) lat = latNum;
     if (Number.isFinite(lonNum)) lon = lonNum;
-    if (typeof cf.city === "string" && cf.city) city = cf.city;
+    if (typeof cf.city === "string" && cf.city) city = toKoreanCity(cf.city);
     if (typeof cf.country === "string" && cf.country) country = cf.country;
   } catch {
     /* fallback 좌표 유지 */
