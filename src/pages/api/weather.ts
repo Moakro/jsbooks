@@ -33,15 +33,16 @@ export const GET: APIRoute = async (context) => {
   const city = (cf.city as string | undefined) ?? FALLBACK.city;
   const country = (cf.country as string | undefined) ?? FALLBACK.country;
 
-  // 한반도면 KMA 모델 강제(글로벌 모델 대비 2~4도 정확). 그 외 best_match.
-  const modelsParam = country === "KR" ? "&models=kma_seamless" : "";
-
+  // KMA seamless 는 `current` 미지원(null 반환) → 일단 best_match 만 사용.
+  // KMA 정확도(2~4도 차이) 가 필요하면 hourly 응답을 시각 매칭해 사용해야 함 (별도 작업).
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,weather_code,is_day` +
-    `&timezone=Asia%2FSeoul` +
-    modelsParam;
+    `&timezone=Asia%2FSeoul`;
+
+  // `country` 는 향후 KMA hourly 통합 시 분기용으로 보존.
+  void country;
 
   try {
     const res = await fetch(url);
