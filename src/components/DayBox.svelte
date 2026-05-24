@@ -203,6 +203,12 @@
     .right .region {
       font-size: 0.72rem;
     }
+    /* 모바일: 아이콘 + 온도 + 지역을 한 줄 inline (column → row) */
+    .right .info {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 0.35rem;
+    }
     .moon-phase-label {
       font-size: 0.6rem;
     }
