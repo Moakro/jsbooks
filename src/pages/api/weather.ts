@@ -21,38 +21,37 @@ const FALLBACK = {
   country: "KR",
 };
 
-function readCf(locals: unknown): Record<string, unknown> {
+function readCf(request: Request): Record<string, unknown> {
+  // Astro v6 부터 `Astro.locals.runtime.cf` 는 제거. `Astro.request.cf` 사용.
+  // Cloudflare Workers runtime 의 Request 객체는 cf 메타를 직접 노출.
   try {
-    const runtime = (locals as { runtime?: { cf?: Record<string, unknown> } })?.runtime;
-    return runtime?.cf ?? {};
+    const req = request as Request & { cf?: Record<string, unknown> };
+    return req.cf ?? {};
   } catch {
     return {};
   }
 }
 
-/** Astro Cloudflare adapter / Worker request 의 모든 가능한 cf 노출 path 진단 (debug 전용). */
-function diagnose(context: { locals: unknown; request: Request }): Record<string, unknown> {
-  const locals = context.locals as Record<string, unknown> | undefined;
-  const request = context.request as Request & { cf?: Record<string, unknown> };
-  const runtime = (locals?.runtime ?? {}) as Record<string, unknown>;
-  return {
-    hasLocals: !!locals,
-    localsKeys: locals ? Object.keys(locals) : [],
-    hasRuntime: !!locals?.runtime,
-    runtimeKeys: Object.keys(runtime),
-    runtimeCfKeys: Object.keys((runtime.cf ?? {}) as Record<string, unknown>),
-    requestCfKeys: Object.keys((request?.cf ?? {}) as Record<string, unknown>),
-    headerCfIpcountry: request?.headers?.get("cf-ipcountry") ?? null,
-    headerCfIplatitude: request?.headers?.get("cf-iplatitude") ?? null,
-    headerCfIplongitude: request?.headers?.get("cf-iplongitude") ?? null,
-    headerCfIpcity: request?.headers?.get("cf-ipcity") ?? null,
-  };
+/** debug 전용 진단 — request.cf (Astro v6+) 메타. */
+function diagnose(context: { request: Request }): Record<string, unknown> {
+  try {
+    const request = context.request as Request & { cf?: Record<string, unknown> };
+    return {
+      requestCfKeys: Object.keys((request?.cf ?? {}) as Record<string, unknown>),
+      headerCfIpcountry: request?.headers?.get("cf-ipcountry") ?? null,
+      headerCfIplatitude: request?.headers?.get("cf-iplatitude") ?? null,
+      headerCfIplongitude: request?.headers?.get("cf-iplongitude") ?? null,
+      headerCfIpcity: request?.headers?.get("cf-ipcity") ?? null,
+    };
+  } catch (e) {
+    return { error: String(e) };
+  }
 }
 
 export const GET: APIRoute = async (context) => {
   const debug = new URL(context.request.url).searchParams.get("debug") === "1";
 
-  const cf = readCf(context.locals);
+  const cf = readCf(context.request);
   const cfKeys = Object.keys(cf);
 
   let lat = FALLBACK.lat;
