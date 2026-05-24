@@ -1,23 +1,18 @@
 ---
 import Base from "../../layouts/Base.astro";
-import MonthGrid from "../../components/calendar/MonthGrid.astro";
+import Calendar from "../../components/calendar/Calendar.svelte";
 import { getDayInfo } from "../../lib/date";
 
-// 빌드 시점 기준 현재 월.
+// 빌드 시점 기준 — 클라이언트에서 URL query(?y=&m=) 우선으로 덮어씀.
 const now = new Date();
 const year = now.getFullYear();
-const month = now.getMonth() + 1; // 1–12
+const month = now.getMonth() + 1;
 const info = getDayInfo(now);
-const monthLabel = `${year}년 ${month}월`;
 ---
 
-<Base title={`달력 — ${monthLabel}`}>
+<Base title={`달력 — ${year}년 ${month}월`}>
   <header class="cal-header">
-    <h1>{monthLabel}</h1>
-    <p class="cal-sub">
-      양력·음력·간지(일진)·24절기를 함께 보는 월간 달력.
-      <a href="/calendar/today/">오늘</a>
-    </p>
+    <h1>달력</h1>
     <p class="cal-jeolgi">
       이번 절기 <strong>{info.jeolgi.current.name}</strong>
       <span class="hanja">({info.jeolgi.current.hanja})</span>
@@ -25,7 +20,7 @@ const monthLabel = `${year}년 ${month}월`;
     </p>
   </header>
 
-  <MonthGrid year={year} month={month} today={now} />
+  <Calendar client:load initialYear={year} initialMonth={month} />
 
   <p class="cal-note">절기는 평균일 기준으로 ±1일 오차가 있을 수 있습니다.</p>
 </Base>
@@ -37,11 +32,6 @@ const monthLabel = `${year}년 ${month}월`;
   .cal-header h1 {
     margin: 0 0 0.3rem;
     font-size: 1.6rem;
-  }
-  .cal-sub {
-    margin: 0 0 0.3rem;
-    color: var(--color-muted, #8a807a);
-    font-size: 0.92rem;
   }
   .cal-jeolgi {
     margin: 0;
