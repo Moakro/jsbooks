@@ -183,31 +183,32 @@
     font-size: 0.78rem;
     color: rgba(255, 255, 255, 0.65);
   }
-  /* 모바일: 우측 날씨 영역 숨기지 않고 컴팩트하게 표시 */
+  /* 모바일: 아이콘 위 / 온도·지역 같은 줄 아래 (좌측 wrap 방지 위해 우측 폭 최소) */
   @media (max-width: 499px) {
     .left {
       padding: 0.55rem 0.7rem;
     }
     .right {
-      gap: 0.4rem;
-      padding: 0.5rem 0.7rem;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0.45rem 0.7rem;
       min-width: 0;
     }
     .right :global(svg) {
-      width: 30px !important;
-      height: 30px !important;
+      width: 28px !important;
+      height: 28px !important;
     }
-    .right .temp {
-      font-size: 1rem;
-    }
-    .right .region {
-      font-size: 0.72rem;
-    }
-    /* 모바일: 아이콘 + 온도 + 지역을 한 줄 inline (column → row) */
     .right .info {
       flex-direction: row;
       align-items: baseline;
-      gap: 0.35rem;
+      gap: 0.3rem;
+    }
+    .right .temp {
+      font-size: 0.95rem;
+    }
+    .right .region {
+      font-size: 0.72rem;
     }
     .moon-phase-label {
       font-size: 0.6rem;
