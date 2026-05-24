@@ -30,6 +30,25 @@ function readCf(locals: unknown): Record<string, unknown> {
   }
 }
 
+/** Astro Cloudflare adapter / Worker request 의 모든 가능한 cf 노출 path 진단 (debug 전용). */
+function diagnose(context: { locals: unknown; request: Request }): Record<string, unknown> {
+  const locals = context.locals as Record<string, unknown> | undefined;
+  const request = context.request as Request & { cf?: Record<string, unknown> };
+  const runtime = (locals?.runtime ?? {}) as Record<string, unknown>;
+  return {
+    hasLocals: !!locals,
+    localsKeys: locals ? Object.keys(locals) : [],
+    hasRuntime: !!locals?.runtime,
+    runtimeKeys: Object.keys(runtime),
+    runtimeCfKeys: Object.keys((runtime.cf ?? {}) as Record<string, unknown>),
+    requestCfKeys: Object.keys((request?.cf ?? {}) as Record<string, unknown>),
+    headerCfIpcountry: request?.headers?.get("cf-ipcountry") ?? null,
+    headerCfIplatitude: request?.headers?.get("cf-iplatitude") ?? null,
+    headerCfIplongitude: request?.headers?.get("cf-iplongitude") ?? null,
+    headerCfIpcity: request?.headers?.get("cf-ipcity") ?? null,
+  };
+}
+
 export const GET: APIRoute = async (context) => {
   const debug = new URL(context.request.url).searchParams.get("debug") === "1";
 
@@ -82,7 +101,7 @@ export const GET: APIRoute = async (context) => {
         is_day: data.current?.is_day ?? null,
       };
       if (debug) {
-        body.debug = { cfKeys, url, upstreamStatus };
+        body.debug = { cfKeys, url, upstreamStatus, paths: diagnose(context) };
       }
       return new Response(JSON.stringify(body), {
         headers: {
