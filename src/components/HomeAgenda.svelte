@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Icon from "./Icon.svelte";
   import {
     expandOccurrences,
     categoryBadgeClass,
@@ -8,8 +9,8 @@
     type OccurrenceEvent,
   } from "../lib/calendar-events";
 
-  let todayEvents = $state<OccurrenceEvent[]>([]);
   let monthEvents = $state<OccurrenceEvent[]>([]);
+  let todayIso = $state<string>("");
   let loading = $state(true);
 
   function isoDate(d: Date): string {
@@ -27,6 +28,7 @@
       const from = `${y}-${String(m).padStart(2, "0")}-01`;
       const lastDay = new Date(y, m, 0).getDate();
       const to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      todayIso = isoDate(now);
       const res = await fetch(`/api/events?from=${from}&to=${to}&scope=all`, {
         credentials: "same-origin",
       });
@@ -35,21 +37,11 @@
         return;
       }
       const data = (await res.json()) as { events: CalendarEvent[] };
-      // 홈 배너는 기념일만 노출 (일정/기타는 사이드바·달력에서)
+      // 홈 배너·달력 상세박스 = 월간 기념일 전용. 일정/기타는 사이드바에서만.
       const annivOnly = (data.events ?? []).filter((e) => e.category === "기념일");
-      const all = expandOccurrences(annivOnly, y, m);
-      const todayIso = isoDate(now);
-      todayEvents = all.filter((o) => o.occursOn === todayIso);
-      // 월간(오늘 제외) — 미래 우선, 과거 다음. 간결 N건 cap.
-      monthEvents = all
-        .filter((o) => o.occursOn !== todayIso)
-        .sort((a, b) => {
-          const aFuture = a.occursOn >= todayIso ? 0 : 1;
-          const bFuture = b.occursOn >= todayIso ? 0 : 1;
-          if (aFuture !== bFuture) return aFuture - bFuture;
-          return a.occursOn < b.occursOn ? -1 : 1;
-        })
-        .slice(0, 6);
+      // '오늘' 별도 row 없이 한 목록으로. 발생일 오름차순, 오늘 항목은 체크 아이콘으로 마킹.
+      monthEvents = expandOccurrences(annivOnly, y, m)
+        .sort((a, b) => (a.occursOn < b.occursOn ? -1 : a.occursOn > b.occursOn ? 1 : 0));
     } catch {
       /* silent */
     } finally {
@@ -63,39 +55,33 @@
   }
 </script>
 
-{#if !loading && (todayEvents.length > 0 || monthEvents.length > 0)}
+{#if !loading && monthEvents.length > 0}
   <div class="ha">
-    {#if todayEvents.length > 0}
-      <div class="ha-row">
-        <span class="ha-label">오늘</span>
-        <div class="ha-list">
-          {#each todayEvents as occ (occ.source.id + "@" + occ.occursOn)}
-            <span class="ha-pill {categoryBadgeClass(occ.source.category)}" title={occ.source.title}>
-              <span class="ha-title">{occ.source.title}</span>
-            </span>
-          {/each}
-        </div>
+    <div class="ha-row">
+      <span class="ha-label">이번 달</span>
+      <div class="ha-list">
+        {#each monthEvents as occ (occ.source.id + "@" + occ.occursOn)}
+          {@const lunar = lunarShortFromSource(occ.source)}
+          {@const isToday = occ.occursOn === todayIso}
+          <span
+            class="ha-pill {categoryBadgeClass(occ.source.category)}"
+            class:today={isToday}
+            title={`${occ.source.title} · ${occ.occursOn}${isToday ? " (오늘)" : ""}`}
+          >
+            {#if isToday}
+              <span class="ha-check" aria-label="오늘"><Icon icon="badge-check" size={13} strokeWidth={2} /></span>
+            {/if}
+            <span class="ha-date">{shortDate(occ.occursOn)}{#if lunar}<span class="ha-lunar">(음{lunar})</span>{/if}</span>
+            <span class="ha-title">{occ.source.title}</span>
+          </span>
+        {/each}
       </div>
-    {/if}
-    {#if monthEvents.length > 0}
-      <div class="ha-row">
-        <span class="ha-label">이번 달</span>
-        <div class="ha-list">
-          {#each monthEvents as occ (occ.source.id + "@" + occ.occursOn)}
-            {@const lunar = lunarShortFromSource(occ.source)}
-            <span class="ha-pill {categoryBadgeClass(occ.source.category)}" title={`${occ.source.title} · ${occ.occursOn}`}>
-              <span class="ha-date">{shortDate(occ.occursOn)}{#if lunar}<span class="ha-lunar">(음{lunar})</span>{/if}</span>
-              <span class="ha-title">{occ.source.title}</span>
-            </span>
-          {/each}
-        </div>
-      </div>
-    {/if}
+    </div>
   </div>
 {/if}
 
 <style>
-  /* DayBox 안 하단 영역 — 어두운 배너 배경 위 흰 톤. 항목 여러 개면 column 으로 stack. */
+  /* DayBox 안 하단 영역 — 어두운 배너 배경 위 흰 톤. 월간 기념일을 column stack. */
   .ha {
     display: flex;
     flex-direction: column;
@@ -117,7 +103,6 @@
     min-width: 3.2em;
     line-height: 1.6;
   }
-  /* 여러 기념일은 column (세로 stack) */
   .ha-list {
     display: flex;
     flex-direction: column;
@@ -135,6 +120,16 @@
     text-decoration: none;
     line-height: 1.3;
     max-width: 100%;
+  }
+  /* 오늘 발생 항목 — 흰 outline 으로 마킹 */
+  .ha-pill.today {
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.55);
+  }
+  .ha-check {
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+    flex-shrink: 0;
   }
   .ha-pill .ha-lunar {
     font-size: 0.72rem;
@@ -155,13 +150,5 @@
   .ha-pill:global(.cat-anniversary) {
     background: var(--color-primary, #a8352a);
     color: #fff;
-  }
-  .ha-pill:global(.cat-event) {
-    background: var(--color-secondary, #1e6e6e);
-    color: #fff;
-  }
-  .ha-pill:global(.cat-etc) {
-    background: var(--color-rule, #d4cbc4);
-    color: #2a2622;
   }
 </style>
