@@ -96,6 +96,16 @@ export default {
       if (path === "/api/visits/touch" && req.method === "POST") return touchVisit(req, env);
       if (path === "/api/visits/badges" && req.method === "GET") return visitsBadges(req, env);
 
+      // ──── Events (사용자 개인 일정) ────
+      if (path === "/api/events" && req.method === "GET") return listEvents(req, env);
+      if (path === "/api/events" && req.method === "POST") return createEvent(req, env);
+      const evMatch = path.match(/^\/api\/events\/([^/]+)$/);
+      if (evMatch) {
+        const id = evMatch[1];
+        if (req.method === "PUT") return updateEvent(req, env, id);
+        if (req.method === "DELETE") return deleteEvent(req, env, id);
+      }
+
       return json({ error: "not found" }, 404);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1473,4 +1483,193 @@ async function checkUpload(req: Request, env: Env): Promise<Response> {
   ).bind(uid, hash.toLowerCase()).first<{ url: string; width: number; height: number }>();
   if (!row) return json({ exists: false });
   return json({ exists: true, url: row.url, width: row.width, height: row.height });
+}
+
+// ───────────────────── events (사용자 개인 일정) ─────────────────────
+
+interface EventRow {
+  id: string;
+  user_id: string;
+  title: string;
+  start_date: string;
+  end_date: string | null;
+  all_day: number;
+  category: string | null;
+  memo: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const EVENT_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const EVENT_TITLE_MAX = 200;
+const EVENT_CATEGORY_MAX = 40;
+const EVENT_MEMO_MAX = 2000;
+
+function normalizeEventInput(raw: unknown): {
+  title?: string;
+  start_date?: string;
+  end_date?: string | null;
+  all_day?: number;
+  category?: string | null;
+  memo?: string | null;
+  error?: string;
+} {
+  if (!raw || typeof raw !== "object") return { error: "invalid body" };
+  const b = raw as Record<string, unknown>;
+  const out: ReturnType<typeof normalizeEventInput> = {};
+
+  if (b.title !== undefined) {
+    if (typeof b.title !== "string") return { error: "title must be string" };
+    const t = b.title.trim();
+    if (!t) return { error: "title required" };
+    if (t.length > EVENT_TITLE_MAX) return { error: `title too long (max ${EVENT_TITLE_MAX})` };
+    out.title = t;
+  }
+  if (b.start_date !== undefined) {
+    if (typeof b.start_date !== "string" || !EVENT_DATE_RE.test(b.start_date)) {
+      return { error: "start_date must be YYYY-MM-DD" };
+    }
+    out.start_date = b.start_date;
+  }
+  if (b.end_date !== undefined) {
+    if (b.end_date === null || b.end_date === "") {
+      out.end_date = null;
+    } else if (typeof b.end_date === "string" && EVENT_DATE_RE.test(b.end_date)) {
+      out.end_date = b.end_date;
+    } else {
+      return { error: "end_date must be YYYY-MM-DD or null" };
+    }
+  }
+  if (b.all_day !== undefined) {
+    out.all_day = b.all_day ? 1 : 0;
+  }
+  if (b.category !== undefined) {
+    if (b.category === null) {
+      out.category = null;
+    } else if (typeof b.category === "string") {
+      const c = b.category.trim();
+      if (c.length > EVENT_CATEGORY_MAX) return { error: `category too long (max ${EVENT_CATEGORY_MAX})` };
+      out.category = c || null;
+    } else {
+      return { error: "category must be string or null" };
+    }
+  }
+  if (b.memo !== undefined) {
+    if (b.memo === null) {
+      out.memo = null;
+    } else if (typeof b.memo === "string") {
+      if (b.memo.length > EVENT_MEMO_MAX) return { error: `memo too long (max ${EVENT_MEMO_MAX})` };
+      out.memo = b.memo;
+    } else {
+      return { error: "memo must be string or null" };
+    }
+  }
+
+  // 종료일은 시작일 이후여야 한다.
+  if (out.start_date && out.end_date && out.end_date < out.start_date) {
+    return { error: "end_date must be on or after start_date" };
+  }
+  return out;
+}
+
+// GET /api/events?from=YYYY-MM-DD&to=YYYY-MM-DD
+// from/to 모두 inclusive. 둘 다 없으면 사용자의 전체 일정 반환(최대 500).
+// 범위에 일부라도 걸치는 multi-day 이벤트도 포함(start_date <= to AND (end_date ?? start_date) >= from).
+async function listEvents(req: Request, env: Env): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "not authenticated" }, 401);
+  const url = new URL(req.url);
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  if (from && !EVENT_DATE_RE.test(from)) return json({ error: "from must be YYYY-MM-DD" }, 400);
+  if (to && !EVENT_DATE_RE.test(to)) return json({ error: "to must be YYYY-MM-DD" }, 400);
+
+  let sql = "SELECT id, user_id, title, start_date, end_date, all_day, category, memo, created_at, updated_at FROM events WHERE user_id=?";
+  const binds: unknown[] = [uid];
+  if (from) {
+    sql += " AND COALESCE(end_date, start_date) >= ?";
+    binds.push(from);
+  }
+  if (to) {
+    sql += " AND start_date <= ?";
+    binds.push(to);
+  }
+  sql += " ORDER BY start_date ASC, created_at ASC LIMIT 500";
+
+  const rs = await env.DB.prepare(sql).bind(...binds).all<EventRow>();
+  return json({ events: rs.results ?? [] });
+}
+
+async function createEvent(req: Request, env: Env): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "not authenticated" }, 401);
+  const raw = await req.json().catch(() => ({}));
+  const parsed = normalizeEventInput(raw);
+  if (parsed.error) return json({ error: parsed.error }, 400);
+  if (!parsed.title || !parsed.start_date) {
+    return json({ error: "title and start_date required" }, 400);
+  }
+  const id = uuid();
+  await env.DB.prepare(
+    `INSERT INTO events (id, user_id, title, start_date, end_date, all_day, category, memo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    id,
+    uid,
+    parsed.title,
+    parsed.start_date,
+    parsed.end_date ?? null,
+    parsed.all_day ?? 1,
+    parsed.category ?? null,
+    parsed.memo ?? null,
+  ).run();
+
+  const row = await env.DB.prepare(
+    "SELECT id, user_id, title, start_date, end_date, all_day, category, memo, created_at, updated_at FROM events WHERE id=?",
+  ).bind(id).first<EventRow>();
+  return json({ event: row }, 201);
+}
+
+async function updateEvent(req: Request, env: Env, id: string): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "not authenticated" }, 401);
+  const existing = await env.DB.prepare(
+    "SELECT user_id FROM events WHERE id=?",
+  ).bind(id).first<{ user_id: string }>();
+  if (!existing) return json({ error: "not found" }, 404);
+  if (existing.user_id !== uid) return json({ error: "forbidden" }, 403);
+
+  const raw = await req.json().catch(() => ({}));
+  const parsed = normalizeEventInput(raw);
+  if (parsed.error) return json({ error: parsed.error }, 400);
+
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  if (parsed.title !== undefined) { sets.push("title=?"); binds.push(parsed.title); }
+  if (parsed.start_date !== undefined) { sets.push("start_date=?"); binds.push(parsed.start_date); }
+  if (parsed.end_date !== undefined) { sets.push("end_date=?"); binds.push(parsed.end_date); }
+  if (parsed.all_day !== undefined) { sets.push("all_day=?"); binds.push(parsed.all_day); }
+  if (parsed.category !== undefined) { sets.push("category=?"); binds.push(parsed.category); }
+  if (parsed.memo !== undefined) { sets.push("memo=?"); binds.push(parsed.memo); }
+  if (sets.length === 0) return json({ error: "nothing to update" }, 400);
+  sets.push("updated_at=datetime('now')");
+  binds.push(id);
+  await env.DB.prepare(`UPDATE events SET ${sets.join(", ")} WHERE id=?`).bind(...binds).run();
+
+  const row = await env.DB.prepare(
+    "SELECT id, user_id, title, start_date, end_date, all_day, category, memo, created_at, updated_at FROM events WHERE id=?",
+  ).bind(id).first<EventRow>();
+  return json({ event: row });
+}
+
+async function deleteEvent(req: Request, env: Env, id: string): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "not authenticated" }, 401);
+  const existing = await env.DB.prepare(
+    "SELECT user_id FROM events WHERE id=?",
+  ).bind(id).first<{ user_id: string }>();
+  if (!existing) return json({ error: "not found" }, 404);
+  if (existing.user_id !== uid) return json({ error: "forbidden" }, 403);
+  await env.DB.prepare("DELETE FROM events WHERE id=?").bind(id).run();
+  return json({ ok: true });
 }

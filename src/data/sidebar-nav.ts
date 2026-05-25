@@ -14,6 +14,9 @@ export type SidebarBlock =
       type: "scriptures-list";
     }
   | {
+      type: "calendar-month-events";
+    }
+  | {
       type: "section";
       label: string;
       items: { label: string; path: string; auth?: boolean }[];
@@ -114,14 +117,7 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
   ],
 
   calendar: [
-    {
-      type: "section",
-      label: "보기",
-      items: [
-        { label: "월간", path: "/calendar/" },
-        { label: "오늘", path: "/calendar/today/" },
-      ],
-    },
+    { type: "calendar-month-events" },
     {
       type: "link",
       label: "내 일정",
