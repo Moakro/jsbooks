@@ -108,9 +108,17 @@
     history.pushState({ y, m }, "", `${location.pathname}?${params}`);
   }
 
-  /** 월/년 nav 후 상세박스가 이전 달 날짜를 잡고 있지 않도록 해당 월 1일로 재설정. */
+  /**
+   * 월/년 nav 후 상세박스 재설정.
+   *  - 새 (year, month) 가 오늘이 속한 달이면 오늘 날짜로 (다른 달 갔다 돌아오면 오늘 강조)
+   *  - 아니면 그 달 1일로
+   */
   function jumpToFirstOfMonth() {
-    selectedDate = new Date(year, month - 1, 1);
+    if (today && today.getFullYear() === year && today.getMonth() + 1 === month) {
+      selectedDate = startOfDay(today);
+    } else {
+      selectedDate = new Date(year, month - 1, 1);
+    }
   }
 
   function shiftMonth(delta: number) {
