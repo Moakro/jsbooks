@@ -7,7 +7,6 @@
     expandOccurrences,
     monthRange,
     categoryBadgeClass,
-    categoryShortLabel,
     categoryFullLabel,
     lunarShortFromSource,
   } from "../../lib/calendar-events";
@@ -21,8 +20,6 @@
 
   let modalOpen = $state(false);
   let editing = $state<CalendarEvent | null>(null);
-
-  const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
   async function checkAuth() {
     try {
@@ -114,19 +111,13 @@
     }
   }
 
-  function dayLabel(iso: string): string {
-    const parts = iso.split("-");
-    if (parts.length !== 3) return iso;
-    const d = Number(parts[2]);
-    const date = new Date(Number(parts[0]), Number(parts[1]) - 1, d);
-    return `${d}일 (${WEEKDAYS[date.getDay()]})`;
-  }
-
-  function rangeLabel(occ: OccurrenceEvent): string {
-    const start = dayLabel(occ.occursOn);
+  /** 상세박스 알약 스타일 — 'M.D' 짧은 양력 prefix. 종료일 있으면 'M.D-DD'. */
+  function shortDateRange(occ: OccurrenceEvent): string {
+    const [, sm, sd] = occ.occursOn.split("-").map(Number);
+    const start = `${sm}.${sd}`;
     if (!occ.endOn || occ.endOn === occ.occursOn) return start;
-    const endParts = occ.endOn.split("-");
-    return `${start} – ${Number(endParts[2])}일`;
+    const endParts = occ.endOn.split("-").map(Number);
+    return `${start}-${endParts[2]}`;
   }
 
 </script>
@@ -152,6 +143,7 @@
       {#each occurrences as occ (occ.source.id + "@" + occ.occursOn)}
         {@const src = occ.source}
         {@const own = src.is_mine !== 0}
+        {@const lunar = lunarShortFromSource(src)}
         <li class="cme-item" class:foreign={!own}>
           <button
             type="button"
@@ -159,26 +151,12 @@
             onclick={() => openEdit(occ)}
             disabled={!own}
             title={own ? "편집" : "공개 일정 (편집 불가)"}
+            aria-label={categoryFullLabel(src.category)}
           >
-            <span class="cme-date">{rangeLabel(occ)}</span>
-            {#if src.is_annual === 1}
-              <span class="cme-flag" title="매년 반복">연례</span>
-            {/if}
-            {#if src.is_lunar === 1}
-              {@const lunar = lunarShortFromSource(src)}
-              <span class="cme-flag flag-lunar" title="음력 기준">
-                음{#if lunar}&nbsp;{lunar}{/if}
-              </span>
-            {/if}
-            {#if src.is_public === 1}
-              <span class="cme-flag flag-public" title="사이트 공개">공개</span>
-            {/if}
-            <span
-              class="cme-cat {categoryBadgeClass(src.category)}"
-              title={categoryFullLabel(src.category)}
-              aria-label={categoryFullLabel(src.category)}
-            >{categoryShortLabel(src.category)}</span>
-            <span class="cme-title-text">{src.title}</span>
+            <span class="cme-pill {categoryBadgeClass(src.category)}">
+              <span class="cme-pill-date">{shortDateRange(occ)}{#if lunar}<span class="cme-pill-lunar">(음{lunar})</span>{/if}</span>
+              <span class="cme-pill-title">{src.title}</span>
+            </span>
             {#if src.memo}
               <span class="cme-memo">{src.memo}</span>
             {/if}
@@ -252,15 +230,14 @@
   .cme-item.foreign {
     opacity: 0.92;
   }
-  /* 한 항목 = 한 row. 날짜·뱃지·카테고리·제목·메모 모두 한 줄에 inline 배치, 메모 길면 wrap. */
+  /* 한 항목 = 위 row(상세박스 알약 스타일 제목) + 아래 row(메모 전체, wrap). */
   .cme-item-btn {
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.3rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
     width: 100%;
-    padding: 0.4rem 0.5rem;
+    padding: 0.45rem 0.5rem;
     background: transparent;
     border: none;
     border-radius: 4px;
@@ -276,55 +253,43 @@
   .cme-item-btn:not(:disabled):hover {
     background: var(--color-primary-bg);
   }
-  .cme-date {
+  /* 상세박스·HomeAgenda 와 동일 둥근 알약 — `M.D(음M.D) 제목` */
+  .cme-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    line-height: 1.3;
+    max-width: 100%;
+  }
+  .cme-pill-date {
     font-size: 0.74rem;
-    color: var(--color-muted);
-    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
     flex-shrink: 0;
   }
-  .cme-flag {
-    padding: 0.02rem 0.32rem;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--color-secondary, #1e6e6e) 14%, transparent);
-    color: var(--color-secondary, #1e6e6e);
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    line-height: 1.2;
+  .cme-pill-lunar {
+    font-size: 0.7rem;
+    opacity: 0.78;
+    margin-left: 0.1rem;
   }
-  .flag-lunar {
-    background: color-mix(in srgb, #6b4ca6 16%, transparent);
-    color: #6b4ca6;
+  .cme-pill-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .flag-public {
-    background: color-mix(in srgb, #1e7a3b 14%, transparent);
-    color: #1e7a3b;
-  }
-  .cme-title-text {
-    font-size: 0.9rem;
-    word-break: break-word;
-  }
-  /* 제목 옆에 inline 으로 메모 전체 노출 — 길면 wrap 허용 (사이드바 좁아도 잘림 X) */
+  /* 아래 행 — 메모 전체. 길면 wrap. */
   .cme-memo {
     color: var(--color-muted);
     font-size: 0.82rem;
-    line-height: 1.4;
+    line-height: 1.45;
     white-space: normal;
     word-break: break-word;
     overflow-wrap: anywhere;
-    flex: 1 1 100%;
-  }
-  .cme-cat {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.05rem;
-    height: 1.05rem;
-    border-radius: 3px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    line-height: 1;
-    flex-shrink: 0;
+    padding-left: 0.15rem;
   }
   /* ─── Category palette — 셀·사이드바·상세박스 통일 ─── */
   .cat-anniversary {
