@@ -240,9 +240,10 @@
           <span>음력 <small>(입력일을 음력 기준으로)</small></span>
         </label>
       </div>
-      {#if isLunar}
-        <p class="em-lunar-note">날짜는 양력으로 입력하세요. 저장 시 자동으로 음력으로 변환됩니다.</p>
-      {/if}
+      <p class="em-lunar-note">
+        연례 체크 시 시작 연도를 기준으로 입력하세요. 음력 기념일은 <strong>양력 날짜 입력 후 음력 체크</strong> — 저장 시 자동으로 음력으로 변환됩니다.<br />
+        <small>예: 천강절 = 1871년 11월 1일 입력 + 음력 체크 (= 음력 1871.9.19)</small>
+      </p>
     {:else}
       <div class="em-checkgroup">
         <label>
