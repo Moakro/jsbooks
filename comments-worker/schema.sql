@@ -125,22 +125,32 @@ CREATE INDEX IF NOT EXISTS idx_user_visits_user
   ON user_visits(user_id, scripture_slug);
 
 -- ──────────────── events (사용자 개인 일정) ────────────────
--- 달력 사이드바 "N월 일정" 섹션 데이터 소스.
--- start_date / end_date 는 ISO 'YYYY-MM-DD'. end_date NULL 이면 단일 일자.
--- category 는 자유 텍스트 (클라이언트 enum: 업무·개인·교단·기타).
+-- 달력 사이드바 "N월 일정" 섹션 데이터 소스 + 사이트 전체 공개 일정.
+-- start_date / end_date 는 ISO 'YYYY-MM-DD'.
+--   is_lunar=0 → 양력 / is_lunar=1 → 음력 (start_date 자체가 음력)
+--   end_date NULL 이면 단일 일자
+-- category enum: 기념일·일정·기타
+-- is_annual: 매년 반복(기념일+연례). 양력/음력 기준은 is_lunar 가 결정.
+-- is_public: 사이트 전체 공개(일정/기타+공개). 작성자만 수정·삭제.
+-- all_day: 호환 컬럼 — 폼에서 제거되어 신규 row 는 사용 안 함.
 CREATE TABLE IF NOT EXISTS events (
   id          TEXT PRIMARY KEY,
   user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title       TEXT NOT NULL,
-  start_date  TEXT NOT NULL,                        -- 'YYYY-MM-DD'
+  start_date  TEXT NOT NULL,                        -- 'YYYY-MM-DD' (양력 or 음력, is_lunar 기준)
   end_date    TEXT,                                 -- NULL → 단일 일자
-  all_day     INTEGER NOT NULL DEFAULT 1,
-  category    TEXT,
+  all_day     INTEGER NOT NULL DEFAULT 1,           -- (deprecated, kept for compat)
+  category    TEXT,                                 -- 기념일·일정·기타
+  is_annual   INTEGER NOT NULL DEFAULT 0,           -- 매년 반복
+  is_lunar    INTEGER NOT NULL DEFAULT 0,           -- 음력 기준
+  is_public   INTEGER NOT NULL DEFAULT 0,           -- 사이트 전체 공개
   memo        TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_events_user_month ON events(user_id, start_date);
+CREATE INDEX IF NOT EXISTS idx_events_public_month ON events(is_public, start_date) WHERE is_public = 1;
+CREATE INDEX IF NOT EXISTS idx_events_user_annual ON events(user_id, is_annual) WHERE is_annual = 1;
 
 -- ──────────────── sessions ────────────────
 -- Auth.js 세션 (JWT 사용 시엔 비워둠. DB 세션 모드 대비)

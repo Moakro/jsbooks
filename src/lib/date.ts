@@ -138,6 +138,25 @@ export function getLunar(date: Date): LunarInfo | null {
   };
 }
 
+/** 음력 (lunarYear, lunarMonth, lunarDay) → 양력 Date. 변환 실패 시 null. */
+export function lunarToSolar(
+  lunarYear: number,
+  lunarMonth: number,
+  lunarDay: number,
+  isIntercalation = false,
+): Date | null {
+  const cal = new KoreanLunarCalendar();
+  const ok = cal.setLunarDate(lunarYear, lunarMonth, lunarDay, isIntercalation);
+  if (!ok) return null;
+  const sc = cal.getSolarCalendar();
+  return new Date(sc.year, sc.month - 1, sc.day);
+}
+
+/** '음 M.D' 형태 짧은 표기. 윤달은 '(윤)' 표기. */
+export function formatLunarShort(month: number, day: number, leap = false): string {
+  return `음 ${month}.${day}${leap ? "(윤)" : ""}`;
+}
+
 // ─────────────────────────── 양력 표시 헬퍼 ───────────────────────────
 
 const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"];

@@ -3,6 +3,8 @@
   import EventModal from "./EventModal.svelte";
   import {
     type CalendarEvent,
+    type OccurrenceEvent,
+    expandOccurrences,
     monthRange,
   } from "../../lib/calendar-events";
 
@@ -78,11 +80,16 @@
     fetchEvents();
   });
 
+  /** 그 달에 표시될 occurrence (연례·음력 전개 후) */
+  const occurrences = $derived<OccurrenceEvent[]>(expandOccurrences(events, year, month));
+
   onMount(() => {
     checkAuth();
     window.addEventListener("jsbooks:calendar-month", onMonthChange);
+    window.addEventListener("jsbooks:events-updated", fetchEvents as EventListener);
     return () => {
       window.removeEventListener("jsbooks:calendar-month", onMonthChange);
+      window.removeEventListener("jsbooks:events-updated", fetchEvents as EventListener);
     };
   });
 
@@ -90,12 +97,17 @@
     editing = null;
     modalOpen = true;
   }
-  function openEdit(ev: CalendarEvent) {
-    editing = ev;
+  function openEdit(occ: OccurrenceEvent) {
+    if (occ.source.is_mine === 0) return; // 타인 공개 일정 — 편집 불가
+    editing = occ.source;
     modalOpen = true;
   }
   function onSaved() {
     fetchEvents();
+    // 달력 셀 뱃지 (별도 island) 도 갱신 트리거
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("jsbooks:events-updated"));
+    }
   }
 
   function dayLabel(iso: string): string {
@@ -106,11 +118,18 @@
     return `${d}일 (${WEEKDAYS[date.getDay()]})`;
   }
 
-  function rangeLabel(ev: CalendarEvent): string {
-    const start = dayLabel(ev.start_date);
-    if (!ev.end_date || ev.end_date === ev.start_date) return start;
-    const endParts = ev.end_date.split("-");
+  function rangeLabel(occ: OccurrenceEvent): string {
+    const start = dayLabel(occ.occursOn);
+    if (!occ.endOn || occ.endOn === occ.occursOn) return start;
+    const endParts = occ.endOn.split("-");
     return `${start} – ${Number(endParts[2])}일`;
+  }
+
+  function categoryClass(cat: string | null): string {
+    if (cat === "기념일") return "cat-anniversary";
+    if (cat === "일정")   return "cat-plan";
+    if (cat === "기타")   return "cat-other";
+    return "cat-other";
   }
 </script>
 
@@ -126,21 +145,43 @@
     <p class="cme-empty">불러오는 중…</p>
   {:else if isAuthed === false}
     <p class="cme-empty">로그인하시면 개인 일정을 등록·조회할 수 있습니다.</p>
-  {:else if loading && events.length === 0}
+  {:else if loading && occurrences.length === 0}
     <p class="cme-empty">불러오는 중…</p>
-  {:else if events.length === 0}
+  {:else if occurrences.length === 0}
     <p class="cme-empty">등록된 일정이 없습니다.</p>
   {:else}
     <ul class="cme-list">
-      {#each events as ev (ev.id)}
-        <li class="cme-item">
-          <button type="button" class="cme-item-btn" onclick={() => openEdit(ev)}>
-            <div class="cme-date">{rangeLabel(ev)}</div>
-            <div class="cme-title">
-              {#if ev.category}
-                <span class="cme-cat">{ev.category}</span>
+      {#each occurrences as occ (occ.source.id + "@" + occ.occursOn)}
+        {@const src = occ.source}
+        {@const own = src.is_mine !== 0}
+        <li class="cme-item" class:foreign={!own}>
+          <button
+            type="button"
+            class="cme-item-btn"
+            onclick={() => openEdit(occ)}
+            disabled={!own}
+            title={own ? "편집" : `${src.owner_name ?? "다른 사용자"} 의 공개 일정`}
+          >
+            <div class="cme-date">
+              {rangeLabel(occ)}
+              {#if src.is_annual === 1}
+                <span class="cme-flag" title="매년 반복">연례</span>
               {/if}
-              <span>{ev.title}</span>
+              {#if src.is_lunar === 1}
+                <span class="cme-flag flag-lunar" title="음력 기준">음</span>
+              {/if}
+              {#if src.is_public === 1}
+                <span class="cme-flag flag-public" title="사이트 공개">공개</span>
+              {/if}
+            </div>
+            <div class="cme-title">
+              {#if src.category}
+                <span class="cme-cat {categoryClass(src.category)}">{src.category}</span>
+              {/if}
+              <span class="cme-title-text">{src.title}</span>
+              {#if !own && src.owner_name}
+                <span class="cme-owner">· {src.owner_name}</span>
+              {/if}
             </div>
           </button>
         </li>
@@ -209,6 +250,9 @@
     flex-direction: column;
     gap: 0.15rem;
   }
+  .cme-item.foreign {
+    opacity: 0.92;
+  }
   .cme-item-btn {
     display: flex;
     flex-direction: column;
@@ -224,29 +268,72 @@
     cursor: pointer;
     font: inherit;
   }
-  .cme-item-btn:hover {
+  .cme-item-btn:disabled {
+    cursor: default;
+  }
+  .cme-item-btn:not(:disabled):hover {
     background: var(--color-primary-bg);
   }
   .cme-date {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
     font-size: 0.74rem;
     color: var(--color-muted);
     line-height: 1.2;
+  }
+  .cme-flag {
+    padding: 0.02rem 0.32rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--color-secondary, #1e6e6e) 14%, transparent);
+    color: var(--color-secondary, #1e6e6e);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+  .flag-lunar {
+    background: color-mix(in srgb, #6b4ca6 16%, transparent);
+    color: #6b4ca6;
+  }
+  .flag-public {
+    background: color-mix(in srgb, #1e7a3b 14%, transparent);
+    color: #1e7a3b;
   }
   .cme-title {
     display: flex;
     align-items: center;
     gap: 0.35rem;
+    flex-wrap: wrap;
     font-size: 0.9rem;
     line-height: 1.3;
   }
+  .cme-title-text {
+    word-break: break-word;
+  }
+  .cme-owner {
+    color: var(--color-muted);
+    font-size: 0.78rem;
+  }
   .cme-cat {
-    padding: 0.05rem 0.35rem;
+    padding: 0.05rem 0.4rem;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--color-primary, #a8352a) 12%, transparent);
-    color: var(--color-primary, #a8352a);
     font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     flex-shrink: 0;
+  }
+  .cat-anniversary {
+    background: color-mix(in srgb, var(--color-primary, #a8352a) 14%, transparent);
+    color: var(--color-primary, #a8352a);
+  }
+  .cat-plan {
+    background: color-mix(in srgb, var(--color-secondary, #1e6e6e) 14%, transparent);
+    color: var(--color-secondary, #1e6e6e);
+  }
+  .cat-other {
+    background: color-mix(in srgb, var(--color-muted, #8a807a) 14%, transparent);
+    color: var(--color-muted, #8a807a);
   }
 </style>
