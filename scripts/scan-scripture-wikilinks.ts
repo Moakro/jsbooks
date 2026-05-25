@@ -301,8 +301,12 @@ function scanFile(filePath: string, manifest: Map<string, CardEntry>): Match[] {
         } else if (!KOREAN_CHAR.test(after[0])) {
           // 비한글 — OK
         } else {
-          // 한글 다음 — 조사여야 인정
-          if (!PARTICLE_RE.test(after)) continue;
+          // 한글 다음 — 조사여야 인정. 또한 조사 뒤가 한글 음절이면
+          // 합성어(예: '증산도인' = 증산 + 도 + 인) 가능성이라 reject.
+          const pm = PARTICLE_RE.exec(after);
+          if (!pm) continue;
+          const tail = after.slice(pm[0].length);
+          if (tail.length > 0 && KOREAN_CHAR.test(tail[0])) continue;
         }
 
         const entry = manifest.get(key)!;
