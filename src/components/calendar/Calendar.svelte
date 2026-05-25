@@ -108,6 +108,11 @@
     history.pushState({ y, m }, "", `${location.pathname}?${params}`);
   }
 
+  /** 월/년 nav 후 상세박스가 이전 달 날짜를 잡고 있지 않도록 해당 월 1일로 재설정. */
+  function jumpToFirstOfMonth() {
+    selectedDate = new Date(year, month - 1, 1);
+  }
+
   function shiftMonth(delta: number) {
     let m = month + delta;
     let y = year;
@@ -115,20 +120,24 @@
     while (m > 12) { m -= 12; y += 1; }
     year = y;
     month = m;
+    jumpToFirstOfMonth();
     pushState(y, m);
   }
 
   function shiftYear(delta: number) {
     year += delta;
+    jumpToFirstOfMonth();
     pushState(year, month);
   }
 
   function setYear(y: number) {
     year = y;
+    jumpToFirstOfMonth();
     pushState(year, month);
   }
   function setMonth(m: number) {
     month = m;
+    jumpToFirstOfMonth();
     pushState(year, month);
   }
 
