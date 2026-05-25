@@ -27,6 +27,35 @@ export interface CalendarEvent {
 
 export type EventCategory = "기념일" | "일정" | "기타";
 
+/** 카테고리 한 글자 라벨 — 컴팩트 뱃지(셀·사이드바)용. */
+export function categoryShortLabel(cat: string | null | undefined): string {
+  if (cat === "일정") return "일";
+  // '기념일' · '기타' · 미지정 모두 '기'. 색상으로 구분.
+  return "기";
+}
+
+/** 카테고리 풀 라벨 — 툴팁·접근성용. */
+export function categoryFullLabel(cat: string | null | undefined): string {
+  if (cat === "기념일") return "기념일";
+  if (cat === "일정") return "일정";
+  return "기타";
+}
+
+/** 카테고리 CSS 클래스 — 셀·사이드바·상세박스 통일. */
+export function categoryBadgeClass(cat: string | null | undefined): string {
+  if (cat === "기념일") return "cat-anniversary";
+  if (cat === "일정") return "cat-plan";
+  return "cat-other";
+}
+
+/** 음력 일정의 음력 M.D 짧은 라벨 (예: '9.19'). is_lunar=1 일 때만 사용. */
+export function lunarShortFromSource(ev: CalendarEvent): string | null {
+  if (ev.is_lunar !== 1) return null;
+  const parts = ev.start_date.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n))) return null;
+  return `${parts[1]}.${parts[2]}`;
+}
+
 /** 'YYYY-MM-DD' 포맷. 로컬 타임존 기준. */
 export function isoDate(d: Date): string {
   const yyyy = d.getFullYear();
