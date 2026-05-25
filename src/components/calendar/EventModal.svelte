@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { tick } from "svelte";
   import type { CalendarEvent } from "../../lib/calendar-events";
+  import Modal from "../Modal.svelte";
 
   interface Props {
     open: boolean;
@@ -14,20 +15,6 @@
   }
 
   let { open = $bindable(), event = null, defaultDate, onClose, onSaved }: Props = $props();
-
-  /**
-   * 부모(사이드바)가 transform 가져 stacking context 만들면 자식의 position: fixed
-   * 가 거기 confined 됨 → 모달이 사이드바 안에 작게 뜨는 문제. document.body 로
-   * teleport 해서 사이드바 stacking context 탈출.
-   */
-  function portal(node: HTMLElement) {
-    document.body.appendChild(node);
-    return {
-      destroy() {
-        if (node.parentNode === document.body) document.body.removeChild(node);
-      },
-    };
-  }
 
   const CATEGORIES: { id: string; label: string }[] = [
     { id: "업무", label: "업무" },
@@ -162,184 +149,99 @@
       isSubmitting = false;
     }
   }
-
-  function onBackdropKey(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      handleClose();
-    }
-  }
-
-  onMount(() => {
-    function onDocKey(e: KeyboardEvent) {
-      if (!open) return;
-      if (e.key === "Escape") {
-        e.preventDefault();
-        handleClose();
-      }
-    }
-    document.addEventListener("keydown", onDocKey);
-    return () => document.removeEventListener("keydown", onDocKey);
-  });
 </script>
 
-{#if open}
-  <div
-    class="em-backdrop"
-    role="presentation"
-    onclick={handleClose}
-    onkeydown={onBackdropKey}
-    use:portal
+<Modal
+  {open}
+  title={isEditMode ? "일정 수정" : "일정 추가"}
+  onClose={handleClose}
+  maxWidth="460px"
+  closeOnBackdrop={!isSubmitting}
+  closeOnEsc={!isSubmitting}
+>
+  <form
+    class="em-body"
+    onsubmit={(e) => {
+      e.preventDefault();
+      handleSubmit();
+    }}
   >
-    <div
-      class="em-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="em-title"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
-      <div class="em-header">
-        <h2 id="em-title">{isEditMode ? "일정 수정" : "일정 추가"}</h2>
-        <button type="button" class="em-close" onclick={handleClose} aria-label="닫기">✕</button>
-      </div>
-
-      <form
-        class="em-body"
-        onsubmit={(e) => {
-          e.preventDefault();
-          handleSubmit();
-        }}
-      >
-        <div class="em-field">
-          <label for="em-input-title">제목</label>
-          <input
-            id="em-input-title"
-            type="text"
-            bind:value={title}
-            bind:this={titleInputEl}
-            placeholder="일정 제목"
-            maxlength="200"
-            required
-          />
-        </div>
-
-        <div class="em-field">
-          <label for="em-start">시작일</label>
-          <input id="em-start" type="date" bind:value={startDate} required />
-        </div>
-
-        <div class="em-checkbox">
-          <label>
-            <input type="checkbox" bind:checked={hasEndDate} />
-            <span>종료일 있음</span>
-          </label>
-        </div>
-
-        {#if hasEndDate}
-          <div class="em-field">
-            <label for="em-end">종료일</label>
-            <input id="em-end" type="date" bind:value={endDate} min={startDate} />
-          </div>
-        {/if}
-
-        <div class="em-checkbox">
-          <label>
-            <input type="checkbox" bind:checked={allDay} />
-            <span>종일</span>
-          </label>
-        </div>
-
-        <div class="em-field">
-          <label for="em-cat">카테고리</label>
-          <select id="em-cat" bind:value={category}>
-            {#each CATEGORIES as c}
-              <option value={c.id}>{c.label}</option>
-            {/each}
-          </select>
-        </div>
-
-        <div class="em-field">
-          <label for="em-memo">메모</label>
-          <textarea id="em-memo" rows="3" bind:value={memo} placeholder="메모 (선택)" maxlength="2000"></textarea>
-        </div>
-
-        {#if errorMessage}
-          <div class="em-error" role="alert">{errorMessage}</div>
-        {/if}
-
-        <div class="em-actions">
-          {#if isEditMode}
-            <button
-              type="button"
-              class="em-btn em-delete"
-              onclick={handleDelete}
-              disabled={isSubmitting}
-            >삭제</button>
-          {/if}
-          <button type="button" class="em-btn em-cancel" onclick={handleClose} disabled={isSubmitting}>취소</button>
-          <button type="submit" class="em-btn em-submit" disabled={isSubmitting}>
-            {isSubmitting ? "저장 중…" : "저장"}
-          </button>
-        </div>
-      </form>
+    <div class="em-field">
+      <label for="em-input-title">제목</label>
+      <input
+        id="em-input-title"
+        type="text"
+        bind:value={title}
+        bind:this={titleInputEl}
+        placeholder="일정 제목"
+        maxlength="200"
+        required
+      />
     </div>
-  </div>
-{/if}
+
+    <div class="em-field">
+      <label for="em-start">시작일</label>
+      <input id="em-start" type="date" bind:value={startDate} required />
+    </div>
+
+    <div class="em-checkbox">
+      <label>
+        <input type="checkbox" bind:checked={hasEndDate} />
+        <span>종료일 있음</span>
+      </label>
+    </div>
+
+    {#if hasEndDate}
+      <div class="em-field">
+        <label for="em-end">종료일</label>
+        <input id="em-end" type="date" bind:value={endDate} min={startDate} />
+      </div>
+    {/if}
+
+    <div class="em-checkbox">
+      <label>
+        <input type="checkbox" bind:checked={allDay} />
+        <span>종일</span>
+      </label>
+    </div>
+
+    <div class="em-field">
+      <label for="em-cat">카테고리</label>
+      <select id="em-cat" bind:value={category}>
+        {#each CATEGORIES as c}
+          <option value={c.id}>{c.label}</option>
+        {/each}
+      </select>
+    </div>
+
+    <div class="em-field">
+      <label for="em-memo">메모</label>
+      <textarea id="em-memo" rows="3" bind:value={memo} placeholder="메모 (선택)" maxlength="2000"></textarea>
+    </div>
+
+    {#if errorMessage}
+      <div class="em-error" role="alert">{errorMessage}</div>
+    {/if}
+
+    <div class="em-actions">
+      {#if isEditMode}
+        <button
+          type="button"
+          class="em-btn em-delete"
+          onclick={handleDelete}
+          disabled={isSubmitting}
+        >삭제</button>
+      {/if}
+      <button type="button" class="em-btn em-cancel" onclick={handleClose} disabled={isSubmitting}>취소</button>
+      <button type="submit" class="em-btn em-submit" disabled={isSubmitting}>
+        {isSubmitting ? "저장 중…" : "저장"}
+      </button>
+    </div>
+  </form>
+</Modal>
 
 <style>
-  .em-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1100;
-    padding: 1rem;
-  }
-  .em-modal {
-    background: var(--color-surface, #fff);
-    border-radius: 14px;
-    width: 100%;
-    max-width: 460px;
-    max-height: 92vh;
-    overflow-y: auto;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-  }
-  .em-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.95rem 1.1rem;
-    border-bottom: 1px solid var(--color-rule, #e8dfd9);
-  }
-  .em-header h2 {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--color-fg, #1f1c1a);
-  }
-  .em-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: var(--color-muted, #8a807a);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 1rem;
-  }
-  .em-close:hover {
-    background: var(--color-primary-bg, color-mix(in srgb, var(--color-primary, #a8352a) 10%, transparent));
-    color: var(--color-primary, #a8352a);
-  }
   .em-body {
-    padding: 1rem 1.1rem 1.1rem;
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
@@ -445,9 +347,6 @@
   }
 
   @media (max-width: 480px) {
-    .em-modal {
-      max-width: 100%;
-    }
     .em-actions {
       flex-wrap: wrap;
     }
