@@ -325,7 +325,6 @@
               class="ev-pill {categoryBadgeClass(cat)}"
               title={`${categoryFullLabel(cat)} · ${occ.source.title}`}
             >
-              <span class="ev-cat">{categoryFullLabel(cat)}</span>
               <span class="ev-title">{occ.source.title}</span>
               {#if lunar}
                 <span class="ev-lunar">(음 {lunar})</span>
