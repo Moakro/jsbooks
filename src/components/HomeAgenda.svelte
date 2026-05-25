@@ -35,7 +35,9 @@
         return;
       }
       const data = (await res.json()) as { events: CalendarEvent[] };
-      const all = expandOccurrences(data.events ?? [], y, m);
+      // 홈 배너는 기념일만 노출 (일정/기타는 사이드바·달력에서)
+      const annivOnly = (data.events ?? []).filter((e) => e.category === "기념일");
+      const all = expandOccurrences(annivOnly, y, m);
       const todayIso = isoDate(now);
       todayEvents = all.filter((o) => o.occursOn === todayIso);
       // 월간(오늘 제외) — 미래 우선, 과거 다음. 간결 N건 cap.
@@ -68,12 +70,8 @@
         <span class="ha-label">오늘</span>
         <div class="ha-list">
           {#each todayEvents as occ (occ.source.id + "@" + occ.occursOn)}
-            {@const lunar = lunarShortFromSource(occ.source)}
-            <span class="ha-pill {categoryBadgeClass(occ.source.category)}" title={occ.source.memo ?? occ.source.title}>
+            <span class="ha-pill {categoryBadgeClass(occ.source.category)}" title={occ.source.title}>
               <span class="ha-title">{occ.source.title}</span>
-              {#if occ.source.memo}
-                <span class="ha-memo">{occ.source.memo}</span>
-              {/if}
             </span>
           {/each}
         </div>
@@ -85,12 +83,9 @@
         <div class="ha-list">
           {#each monthEvents as occ (occ.source.id + "@" + occ.occursOn)}
             {@const lunar = lunarShortFromSource(occ.source)}
-            <span class="ha-pill {categoryBadgeClass(occ.source.category)}" title={occ.source.memo ?? `${occ.source.title} · ${occ.occursOn}`}>
+            <span class="ha-pill {categoryBadgeClass(occ.source.category)}" title={`${occ.source.title} · ${occ.occursOn}`}>
               <span class="ha-date">{shortDate(occ.occursOn)}{#if lunar}<span class="ha-lunar">(음{lunar})</span>{/if}</span>
               <span class="ha-title">{occ.source.title}</span>
-              {#if occ.source.memo}
-                <span class="ha-memo">{occ.source.memo}</span>
-              {/if}
             </span>
           {/each}
         </div>
@@ -100,42 +95,40 @@
 {/if}
 
 <style>
-  /* DayBox 안 하단 영역 — 어두운 배너 배경 위에 흰 톤 */
+  /* DayBox 안 하단 영역 — 어두운 배너 배경 위 흰 톤. 항목 여러 개면 column 으로 stack. */
   .ha {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
-    padding: 0.4rem 0.95rem 0.6rem;
+    gap: 0.35rem;
+    padding: 0.5rem 0.95rem 0.6rem;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.85);
   }
-  .ha-label {
-    color: rgba(255, 255, 255, 0.55) !important;
-  }
   .ha-row {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
-    flex-wrap: wrap;
   }
   .ha-label {
     font-size: 0.78rem;
-    color: var(--color-muted, #8a807a);
+    color: rgba(255, 255, 255, 0.55);
     font-weight: 600;
     flex-shrink: 0;
     min-width: 3.2em;
+    line-height: 1.6;
   }
+  /* 여러 기념일은 column (세로 stack) */
   .ha-list {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
     min-width: 0;
   }
   .ha-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.35rem;
     padding: 0.18rem 0.55rem;
     border-radius: 999px;
     font-size: 0.82rem;
@@ -147,15 +140,6 @@
     font-size: 0.72rem;
     opacity: 0.85;
     margin-left: 0.1rem;
-  }
-  .ha-pill .ha-memo {
-    font-size: 0.78rem;
-    opacity: 0.85;
-    margin-left: 0.3rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 12em;
   }
   .ha-pill .ha-date {
     font-size: 0.78rem;

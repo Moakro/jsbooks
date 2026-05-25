@@ -719,11 +719,13 @@
     line-height: 1.2;
   }
 
-  /* ─── Detail-box events row ────────────────────────── */
+  /* ─── Detail-box events list — 홈 배너(HomeAgenda) 와 동일 톤 ─── */
+  /* 일정/기념일/기타 모두 column stack, 둥근 알약. */
   .detail-events {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
     margin-top: 0.15rem;
     padding-top: 0.45rem;
     border-top: 1px dashed color-mix(in srgb, var(--color-rule, #e8dfd9) 80%, transparent);
@@ -731,11 +733,12 @@
   .ev-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.1rem 0.5rem 0.12rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
+    gap: 0.35rem;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
     line-height: 1.3;
+    max-width: 100%;
   }
   .ev-pill .ev-cat {
     font-size: 0.66rem;

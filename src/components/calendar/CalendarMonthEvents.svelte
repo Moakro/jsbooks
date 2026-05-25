@@ -160,32 +160,31 @@
             disabled={!own}
             title={own ? "편집" : `${src.owner_name ?? "다른 사용자"} 의 공개 일정`}
           >
-            <div class="cme-date">
-              {rangeLabel(occ)}
-              {#if src.is_annual === 1}
-                <span class="cme-flag" title="매년 반복">연례</span>
-              {/if}
-              {#if src.is_lunar === 1}
-                {@const lunar = lunarShortFromSource(src)}
-                <span class="cme-flag flag-lunar" title="음력 기준">
-                  음{#if lunar}&nbsp;{lunar}{/if}
-                </span>
-              {/if}
-              {#if src.is_public === 1}
-                <span class="cme-flag flag-public" title="사이트 공개">공개</span>
-              {/if}
-            </div>
-            <div class="cme-title">
-              <span
-                class="cme-cat {categoryBadgeClass(src.category)}"
-                title={categoryFullLabel(src.category)}
-                aria-label={categoryFullLabel(src.category)}
-              >{categoryShortLabel(src.category)}</span>
-              <span class="cme-title-text">{src.title}</span>
-              {#if !own && src.owner_name}
-                <span class="cme-owner">· {src.owner_name}</span>
-              {/if}
-            </div>
+            <span class="cme-date">{rangeLabel(occ)}</span>
+            {#if src.is_annual === 1}
+              <span class="cme-flag" title="매년 반복">연례</span>
+            {/if}
+            {#if src.is_lunar === 1}
+              {@const lunar = lunarShortFromSource(src)}
+              <span class="cme-flag flag-lunar" title="음력 기준">
+                음{#if lunar}&nbsp;{lunar}{/if}
+              </span>
+            {/if}
+            {#if src.is_public === 1}
+              <span class="cme-flag flag-public" title="사이트 공개">공개</span>
+            {/if}
+            <span
+              class="cme-cat {categoryBadgeClass(src.category)}"
+              title={categoryFullLabel(src.category)}
+              aria-label={categoryFullLabel(src.category)}
+            >{categoryShortLabel(src.category)}</span>
+            <span class="cme-title-text">{src.title}</span>
+            {#if src.memo}
+              <span class="cme-memo">{src.memo}</span>
+            {/if}
+            {#if !own && src.owner_name}
+              <span class="cme-owner">· {src.owner_name}</span>
+            {/if}
           </button>
         </li>
       {/each}
@@ -256,11 +255,13 @@
   .cme-item.foreign {
     opacity: 0.92;
   }
+  /* 한 항목 = 한 row. 날짜·뱃지·카테고리·제목·메모 모두 한 줄에 inline 배치, 메모 길면 wrap. */
   .cme-item-btn {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.1rem;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
     width: 100%;
     padding: 0.4rem 0.5rem;
     background: transparent;
@@ -270,6 +271,7 @@
     color: var(--color-fg);
     cursor: pointer;
     font: inherit;
+    line-height: 1.3;
   }
   .cme-item-btn:disabled {
     cursor: default;
@@ -278,13 +280,10 @@
     background: var(--color-primary-bg);
   }
   .cme-date {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    flex-wrap: wrap;
     font-size: 0.74rem;
     color: var(--color-muted);
     line-height: 1.2;
+    flex-shrink: 0;
   }
   .cme-flag {
     padding: 0.02rem 0.32rem;
@@ -304,16 +303,19 @@
     background: color-mix(in srgb, #1e7a3b 14%, transparent);
     color: #1e7a3b;
   }
-  .cme-title {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-    font-size: 0.9rem;
-    line-height: 1.3;
-  }
   .cme-title-text {
+    font-size: 0.9rem;
     word-break: break-word;
+  }
+  /* 제목 옆에 inline 으로 메모 전체 노출 — 길면 wrap 허용 (사이드바 좁아도 잘림 X) */
+  .cme-memo {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+    line-height: 1.4;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    flex: 1 1 100%;
   }
   .cme-owner {
     color: var(--color-muted);
