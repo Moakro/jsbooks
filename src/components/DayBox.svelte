@@ -5,6 +5,7 @@
   import { moonPhaseFromLunarDay } from "../lib/moon";
   import Icon from "./Icon.svelte";
   import MoonIcon from "./MoonIcon.svelte";
+  import HomeAgenda from "./HomeAgenda.svelte";
 
   let info = $state<DayInfo | null>(null);
   let weather = $state<WeatherSnapshot | null>(null);
@@ -44,6 +45,7 @@
 </script>
 
 <a class="daybox" href="/calendar/" aria-label="달력으로 이동">
+  <div class="daybox-main">
   {#if info}
     <div class="left">
       <div class="row top">
@@ -93,11 +95,14 @@
       </div>
     {/if}
   {/if}
+  </div>
+  <HomeAgenda />
 </a>
 
 <style>
   .daybox {
     display: flex;
+    flex-direction: column;
     align-items: stretch;
     gap: 0;
     padding: 0;
@@ -130,6 +135,11 @@
         0 2px 6px rgba(0, 0, 0, 0.3),
         0 8px 24px rgba(0, 0, 0, 0.4);
     }
+  }
+  .daybox-main {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
   }
   .left {
     flex: 1;

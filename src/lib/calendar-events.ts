@@ -124,6 +124,11 @@ function computeOccurrence(ev: CalendarEvent, displayYear: number): OccurrenceEv
   if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n))) return null;
   const [sy, sm, sd] = parts;
 
+  // 연례/음력 기념일: 등록 시작 연도(sy) 이전은 표시 X — "1947년 등록 기념일" 이 1946년 달력에 나타나는 버그 차단.
+  if ((ev.is_annual === 1 || ev.is_lunar === 1) && displayYear < sy) {
+    return null;
+  }
+
   // 음력 기준
   if (ev.is_lunar === 1) {
     const lunarYear = ev.is_annual === 1 ? displayYear : sy;
