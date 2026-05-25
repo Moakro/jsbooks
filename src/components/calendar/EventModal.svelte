@@ -119,9 +119,19 @@
     isSubmitting = true;
     errorMessage = null;
     try {
+      // 음력 체크 시 양력 input 을 음력 형식으로 변환해 저장 (occurrence 코드는 DB 가 음력 형식이라 가정).
+      let savedStart = startDate;
+      if (category === "기념일" && isLunar) {
+        const [sy, sm, sd] = startDate.split("-").map(Number);
+        const { getLunar } = await import("../../lib/date");
+        const l = getLunar(new Date(sy, sm - 1, sd));
+        if (l) {
+          savedStart = `${l.year}-${String(l.month).padStart(2, "0")}-${String(l.day).padStart(2, "0")}`;
+        }
+      }
       const body = {
         title: t,
-        start_date: startDate,
+        start_date: savedStart,
         end_date: hasEndDate && endDate ? endDate : null,
         category,
         is_annual: category === "기념일" && isAnnual ? 1 : 0,
@@ -198,6 +208,19 @@
     }}
   >
     <div class="em-field">
+      <label for="em-input-title">제목</label>
+      <input
+        id="em-input-title"
+        type="text"
+        bind:value={title}
+        bind:this={titleInputEl}
+        placeholder="일정 제목"
+        maxlength="200"
+        required
+      />
+    </div>
+
+    <div class="em-field">
       <label for="em-cat">카테고리</label>
       <select id="em-cat" bind:value={category}>
         {#each CATEGORIES as c}
@@ -217,6 +240,10 @@
           <span>음력 <small>(입력일을 음력 기준으로)</small></span>
         </label>
       </div>
+      <p class="em-lunar-note">
+        연례 체크 시 시작 연도를 기준으로 입력하세요. 음력 기념일은 <strong>양력 날짜 입력 후 음력 체크</strong> — 저장 시 자동으로 음력으로 변환됩니다.<br />
+        <small>예: 천강절 = 1871년 11월 1일 입력 + 음력 체크 (= 음력 1871.9.19)</small>
+      </p>
     {:else}
       <div class="em-checkgroup">
         <label>
@@ -225,19 +252,6 @@
         </label>
       </div>
     {/if}
-
-    <div class="em-field">
-      <label for="em-input-title">제목</label>
-      <input
-        id="em-input-title"
-        type="text"
-        bind:value={title}
-        bind:this={titleInputEl}
-        placeholder="일정 제목"
-        maxlength="200"
-        required
-      />
-    </div>
 
     <div class="em-field">
       <label for="em-start">
@@ -310,6 +324,15 @@
     font-weight: 500;
     color: var(--color-secondary, #1e6e6e);
     font-size: 0.78rem;
+  }
+  .em-lunar-note {
+    margin: 0 0 0.2rem;
+    font-size: 0.78rem;
+    color: var(--color-muted, #8a807a);
+    background: color-mix(in srgb, var(--color-primary, #a8352a) 4%, transparent);
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    border-left: 2px solid color-mix(in srgb, var(--color-primary, #a8352a) 30%, transparent);
   }
   .em-field input[type="text"],
   .em-field input[type="date"],
