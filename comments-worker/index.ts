@@ -1585,9 +1585,11 @@ function normalizeEventInput(raw: unknown): {
   if (out.start_date && out.end_date && out.end_date < out.start_date) {
     return { error: "end_date must be on or after start_date" };
   }
-  // 카테고리·옵션 정합성: 기념일 + 공개 X, 일정/기타 + 연례/음력 X
+  // 카테고리·옵션 정합성:
+  //  - 기념일: 항상 전체 공개 (증산교단 연례 기념일 등). is_public 입력 무시하고 1 로 강제.
+  //  - 일정/기타: 사용자 선택. 연례/음력 옵션은 사용 불가.
   if (out.category === "기념일") {
-    if (out.is_public === 1) return { error: "기념일 카테고리는 공개 옵션을 사용할 수 없습니다" };
+    out.is_public = 1;
   } else if (out.category === "일정" || out.category === "기타") {
     if (out.is_annual === 1) return { error: "일정/기타 카테고리는 연례 옵션을 사용할 수 없습니다" };
     if (out.is_lunar === 1) return { error: "일정/기타 카테고리는 음력 옵션을 사용할 수 없습니다" };

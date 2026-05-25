@@ -158,7 +158,7 @@
             class="cme-item-btn"
             onclick={() => openEdit(occ)}
             disabled={!own}
-            title={own ? "편집" : `${src.owner_name ?? "다른 사용자"} 의 공개 일정`}
+            title={own ? "편집" : "공개 일정 (편집 불가)"}
           >
             <span class="cme-date">{rangeLabel(occ)}</span>
             {#if src.is_annual === 1}
@@ -181,9 +181,6 @@
             <span class="cme-title-text">{src.title}</span>
             {#if src.memo}
               <span class="cme-memo">{src.memo}</span>
-            {/if}
-            {#if !own && src.owner_name}
-              <span class="cme-owner">· {src.owner_name}</span>
             {/if}
           </button>
         </li>
@@ -316,10 +313,6 @@
     word-break: break-word;
     overflow-wrap: anywhere;
     flex: 1 1 100%;
-  }
-  .cme-owner {
-    color: var(--color-muted);
-    font-size: 0.78rem;
   }
   .cme-cat {
     display: inline-flex;

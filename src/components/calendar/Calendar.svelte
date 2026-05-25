@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getDayInfo, formatLunarKo } from "../../lib/date";
+  import Icon from "../Icon.svelte";
   import {
     type CalendarEvent,
     type OccurrenceEvent,
@@ -252,10 +253,21 @@
     };
   });
 
-  /** 선택 날짜에 해당하는 occurrence 들 — 상세박스 하단 events row 용. */
+  /**
+   * 상세박스 하단 — 선택일 무관, 해당 월의 기념일 전체 (HomeAgenda 와 동일 데이터).
+   * 일정/기타는 사이드바(CalendarMonthEvents)에서만 노출.
+   */
   const detailEvents = $derived<OccurrenceEvent[]>(
-    selectedDate ? (occurrencesByDate.get(isoFor(selectedDate)) ?? []) : [],
+    expandOccurrences(monthEvents.filter((e) => e.category === "기념일"), year, month)
+      .sort((a, b) => (a.occursOn < b.occursOn ? -1 : a.occursOn > b.occursOn ? 1 : 0)),
   );
+
+  /** 오늘 ISO — 상세박스에서 오늘 발생 기념일 마킹용. */
+  const todayIsoStr = $derived(today ? isoFor(today) : "");
+  function shortDate(iso: string): string {
+    const [, m, d] = iso.split("-").map(Number);
+    return `${m}.${d}`;
+  }
 </script>
 
 <div class="calendar">
@@ -319,16 +331,18 @@
       {#if detailEvents.length > 0}
         <div class="detail-events">
           {#each detailEvents as occ (occ.source.id + "@" + occ.occursOn)}
-            {@const cat = occ.source.category}
             {@const lunar = lunarShortFromSource(occ.source)}
+            {@const isToday = occ.occursOn === todayIsoStr}
             <span
-              class="ev-pill {categoryBadgeClass(cat)}"
-              title={`${categoryFullLabel(cat)} · ${occ.source.title}`}
+              class="ev-pill {categoryBadgeClass(occ.source.category)}"
+              class:today={isToday}
+              title={`${categoryFullLabel(occ.source.category)} · ${occ.source.title} · ${occ.occursOn}${isToday ? " (오늘)" : ""}`}
             >
-              <span class="ev-title">{occ.source.title}</span>
-              {#if lunar}
-                <span class="ev-lunar">(음 {lunar})</span>
+              {#if isToday}
+                <span class="ev-check" aria-label="오늘"><Icon icon="badge-check" size={13} strokeWidth={2} /></span>
               {/if}
+              <span class="ev-date">{shortDate(occ.occursOn)}{#if lunar}<span class="ev-lunar">(음{lunar})</span>{/if}</span>
+              <span class="ev-title">{occ.source.title}</span>
             </span>
           {/each}
         </div>
@@ -740,6 +754,22 @@
     line-height: 1.3;
     max-width: 100%;
   }
+  /* 오늘 발생 기념일 — 진한 outline 마킹 */
+  .ev-pill.today {
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-fg, #1f1c1a) 30%, transparent);
+  }
+  .ev-pill .ev-check {
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+    flex-shrink: 0;
+  }
+  .ev-pill .ev-date {
+    font-size: 0.74rem;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
+    flex-shrink: 0;
+  }
   .ev-pill .ev-cat {
     font-size: 0.66rem;
     font-weight: 700;
@@ -752,6 +782,7 @@
   .ev-pill .ev-lunar {
     font-size: 0.7rem;
     opacity: 0.78;
+    margin-left: 0.1rem;
   }
 
   /* ─── Category palette — 셀·상세박스 통일 ─────────── */
