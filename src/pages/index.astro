@@ -1,6 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 import DayBox from "../components/DayBox.svelte";
+import HomeAgenda from "../components/HomeAgenda.svelte";
 import Changelog from "../components/Changelog.astro";
 import AINoticeBar from "../components/AINoticeBar.svelte";
 import Sitemap from "../components/Sitemap.astro";
@@ -11,6 +12,7 @@ import Sitemap from "../components/Sitemap.astro";
 <Base title="jsbooks — 증산사상 디지털 도서관" bare>
   <Fragment slot="pre-main">
     <DayBox client:load />
+    <HomeAgenda client:load />
     <Changelog />
     <AINoticeBar client:load />
     <Sitemap />
