@@ -15,6 +15,20 @@
 
   let { open = $bindable(), event = null, defaultDate, onClose, onSaved }: Props = $props();
 
+  /**
+   * 부모(사이드바)가 transform 가져 stacking context 만들면 자식의 position: fixed
+   * 가 거기 confined 됨 → 모달이 사이드바 안에 작게 뜨는 문제. document.body 로
+   * teleport 해서 사이드바 stacking context 탈출.
+   */
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return {
+      destroy() {
+        if (node.parentNode === document.body) document.body.removeChild(node);
+      },
+    };
+  }
+
   const CATEGORIES: { id: string; label: string }[] = [
     { id: "업무", label: "업무" },
     { id: "개인", label: "개인" },
@@ -175,6 +189,7 @@
     role="presentation"
     onclick={handleClose}
     onkeydown={onBackdropKey}
+    use:portal
   >
     <div
       class="em-modal"
