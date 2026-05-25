@@ -2,8 +2,8 @@
   import { onMount } from "svelte";
   import {
     expandOccurrences,
-    categoryShortLabel,
     categoryBadgeClass,
+    lunarShortFromSource,
     type CalendarEvent,
     type OccurrenceEvent,
   } from "../lib/calendar-events";
@@ -68,10 +68,13 @@
         <span class="ha-label">오늘</span>
         <div class="ha-list">
           {#each todayEvents as occ (occ.source.id + "@" + occ.occursOn)}
-            <a class="ha-pill {categoryBadgeClass(occ.source.category)}" href="/calendar/" title={occ.source.title}>
-              <span class="ha-cat">{categoryShortLabel(occ.source.category)}</span>
+            {@const lunar = lunarShortFromSource(occ.source)}
+            <span class="ha-pill {categoryBadgeClass(occ.source.category)}" title={occ.source.memo ?? occ.source.title}>
               <span class="ha-title">{occ.source.title}</span>
-            </a>
+              {#if occ.source.memo}
+                <span class="ha-memo">{occ.source.memo}</span>
+              {/if}
+            </span>
           {/each}
         </div>
       </div>
@@ -81,11 +84,14 @@
         <span class="ha-label">이번 달</span>
         <div class="ha-list">
           {#each monthEvents as occ (occ.source.id + "@" + occ.occursOn)}
-            <a class="ha-pill {categoryBadgeClass(occ.source.category)}" href="/calendar/" title={`${occ.source.title} · ${occ.occursOn}`}>
-              <span class="ha-date">{shortDate(occ.occursOn)}</span>
-              <span class="ha-cat">{categoryShortLabel(occ.source.category)}</span>
+            {@const lunar = lunarShortFromSource(occ.source)}
+            <span class="ha-pill {categoryBadgeClass(occ.source.category)}" title={occ.source.memo ?? `${occ.source.title} · ${occ.occursOn}`}>
+              <span class="ha-date">{shortDate(occ.occursOn)}{#if lunar}<span class="ha-lunar">(음{lunar})</span>{/if}</span>
               <span class="ha-title">{occ.source.title}</span>
-            </a>
+              {#if occ.source.memo}
+                <span class="ha-memo">{occ.source.memo}</span>
+              {/if}
+            </span>
           {/each}
         </div>
       </div>
@@ -94,18 +100,13 @@
 {/if}
 
 <style>
+  /* DayBox 직하단 inline 영역 — 별도 박스 디자인 없이 자연스럽게 이어짐 */
   .ha {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    margin: 0.5rem 0 1rem;
-    padding: 0.6rem 0.85rem;
-    background: linear-gradient(180deg, #ffffff 0%, var(--color-bg, #fbf8f4) 100%);
-    border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 10px;
-    box-shadow:
-      0 1px 2px rgba(60, 40, 25, 0.04),
-      0 2px 8px rgba(60, 40, 25, 0.06);
+    gap: 0.3rem;
+    margin: -0.5rem 0 1rem;
+    padding: 0.4rem 0.2rem 0;
   }
   .ha-row {
     display: flex;
@@ -138,13 +139,19 @@
     line-height: 1.3;
     max-width: 100%;
   }
-  .ha-pill .ha-cat {
+  .ha-pill .ha-lunar {
     font-size: 0.72rem;
-    font-weight: 700;
-    padding: 0 0.3rem;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.28);
-    flex-shrink: 0;
+    opacity: 0.85;
+    margin-left: 0.1rem;
+  }
+  .ha-pill .ha-memo {
+    font-size: 0.78rem;
+    opacity: 0.85;
+    margin-left: 0.3rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 12em;
   }
   .ha-pill .ha-date {
     font-size: 0.78rem;
