@@ -30,6 +30,14 @@
     selectedDate = startOfDay(now);
   });
 
+  // 사이드바 "N월 일정" 패널은 같은 페이지의 다른 island 라 props 공유가 안 된다.
+  // window CustomEvent 로 현재 표시 월을 브로드캐스트해서 사이드바가 동기화한다.
+  $effect(() => {
+    if (typeof window === "undefined") return;
+    const detail = { year, month };
+    window.dispatchEvent(new CustomEvent("jsbooks:calendar-month", { detail }));
+  });
+
   function pushState(y: number, m: number) {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(location.search);

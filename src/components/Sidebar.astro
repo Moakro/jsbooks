@@ -2,6 +2,7 @@
 import { resolveSection } from "../data/site-nav";
 import { SIDEBAR_BY_SECTION, shouldShowSidebar } from "../data/sidebar-nav";
 import ScripturesList from "./ScripturesList.svelte";
+import CalendarMonthEvents from "./calendar/CalendarMonthEvents.svelte";
 import Icon from "./Icon.svelte";
 import { getCollection } from "astro:content";
 
@@ -81,6 +82,9 @@ function isActiveLink(itemPath: string): boolean {
     {blocks.map((b) => {
       if (b.type === "scriptures-list") {
         return <ScripturesList client:load all={scriptureMeta} currentSlug={currentScriptureSlug} />;
+      }
+      if (b.type === "calendar-month-events") {
+        return <CalendarMonthEvents client:load />;
       }
       if (b.type === "section") {
         return (
