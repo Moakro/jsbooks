@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import type { CalendarEvent, EventCategory } from "../../lib/calendar-events";
-  import { getLunar, formatLunarShort } from "../../lib/date";
+  import { getLunar, formatLunarShort, lunarToSolar } from "../../lib/date";
   import Modal from "../Modal.svelte";
 
   interface Props {
@@ -52,7 +52,22 @@
     if (!open) return;
     if (event) {
       title = event.title;
-      startDate = event.start_date;
+      // 음력 저장된 일정 수정 모드: DB 의 음력 start_date 를 양력으로 변환해 input 에 세팅
+      // (저장 시 다시 양력→음력 변환됨. POST 흐름과 정합.)
+      if (event.is_lunar === 1) {
+        const [ly, lm, ld] = event.start_date.split("-").map(Number);
+        const solar = lunarToSolar(ly, lm, ld, false);
+        if (solar) {
+          const yyyy = solar.getFullYear();
+          const mm = String(solar.getMonth() + 1).padStart(2, "0");
+          const dd = String(solar.getDate()).padStart(2, "0");
+          startDate = `${yyyy}-${mm}-${dd}`;
+        } else {
+          startDate = event.start_date;
+        }
+      } else {
+        startDate = event.start_date;
+      }
       hasEndDate = !!event.end_date && event.end_date !== event.start_date;
       endDate = event.end_date ?? "";
       const cat = (event.category as EventCategory) ?? "기념일";
