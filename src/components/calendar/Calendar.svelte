@@ -1,6 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getDayInfo, formatLunarKo } from "../../lib/date";
+  import {
+    type CalendarEvent,
+    type OccurrenceEvent,
+    expandOccurrences,
+    monthRange,
+  } from "../../lib/calendar-events";
 
   interface Props {
     initialYear: number;
@@ -13,6 +19,7 @@
   let month = $state(initialMonth);
   let today = $state<Date | null>(null);
   let selectedDate = $state<Date | null>(null);
+  let monthEvents = $state<CalendarEvent[]>([]);
 
   const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
   const YEAR_OPTIONS = Array.from({ length: 301 }, (_, i) => 1800 + i);
@@ -28,7 +35,58 @@
     if (Number.isInteger(qy) && qy >= 1800 && qy <= 2100) year = qy;
     if (Number.isInteger(qm) && qm >= 1 && qm <= 12) month = qm;
     selectedDate = startOfDay(now);
+    void fetchMonthEvents();
+    window.addEventListener("jsbooks:events-updated", onEventsUpdated);
+    return () => {
+      window.removeEventListener("jsbooks:events-updated", onEventsUpdated);
+    };
   });
+
+  function onEventsUpdated() {
+    void fetchMonthEvents();
+  }
+
+  $effect(() => {
+    // year, month 가 바뀌면 셀 뱃지용 events 도 다시 조회.
+    year; month;
+    if (today === null) return; // mount 전엔 skip
+    void fetchMonthEvents();
+  });
+
+  async function fetchMonthEvents() {
+    try {
+      const { from, to } = monthRange(year, month);
+      const res = await fetch(`/api/events?from=${from}&to=${to}`, {
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        monthEvents = [];
+        return;
+      }
+      const data = await res.json() as { events: CalendarEvent[] };
+      monthEvents = data.events ?? [];
+    } catch {
+      monthEvents = [];
+    }
+  }
+
+  /** 셀 뱃지용 — '양력 YYYY-MM-DD' → 그날 발생하는 occurrence 들. */
+  const occurrencesByDate = $derived.by<Map<string, OccurrenceEvent[]>>(() => {
+    const map = new Map<string, OccurrenceEvent[]>();
+    for (const occ of expandOccurrences(monthEvents, year, month)) {
+      const list = map.get(occ.occursOn) ?? [];
+      list.push(occ);
+      map.set(occ.occursOn, list);
+    }
+    return map;
+  });
+
+  function isoFor(d: Date): string {
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
+  }
 
   // 사이드바 "N월 일정" 패널은 같은 페이지의 다른 island 라 props 공유가 안 된다.
   // window CustomEvent 로 현재 표시 월을 브로드캐스트해서 사이드바가 동기화한다.
@@ -122,6 +180,8 @@
     chineseDay: string | null;
     jeolgiName: string | null;
     jeolgiHanja: string | null;
+    /** 그 날 표시할 occurrence 들 (사용자 일정 + 공개 일정 전개 후) */
+    events: OccurrenceEvent[];
   };
 
   // 6주 풀 그리드 (42셀) — 첫 주 일요일 정렬, prev/next 달 셀 포함.
@@ -133,6 +193,7 @@
     for (let i = 0; i < 42; i++) {
       const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
       const info = getDayInfo(d);
+      const iso = isoFor(d);
       out.push({
         date: d,
         day: d.getDate(),
@@ -146,6 +207,7 @@
         chineseDay: chineseDayGanji(info.lunar?.chinese_gapja),
         jeolgiName: info.jeolgi.daysSince === 0 ? info.jeolgi.current.name : null,
         jeolgiHanja: info.jeolgi.daysSince === 0 ? info.jeolgi.current.hanja : null,
+        events: occurrencesByDate.get(iso) ?? [],
       });
     }
     return out;
@@ -283,6 +345,22 @@
             {/if}
             {#if c.jeolgiName}
               <span class="jeolgi" title={c.jeolgiHanja ?? ""}>{c.jeolgiName}</span>
+            {/if}
+            {#if c.events.length > 0}
+              <div class="ev-dots" aria-label={`일정 ${c.events.length}건`}>
+                {#each c.events.slice(0, 3) as occ (occ.source.id + "@" + occ.occursOn)}
+                  <span
+                    class="ev-dot"
+                    class:dot-anniversary={occ.source.category === "기념일"}
+                    class:dot-plan={occ.source.category === "일정"}
+                    class:dot-other={occ.source.category === "기타" || !occ.source.category}
+                    title={`${occ.source.category ?? ""} · ${occ.source.title}`}
+                  ></span>
+                {/each}
+                {#if c.events.length > 3}
+                  <span class="ev-more">+{c.events.length - 3}</span>
+                {/if}
+              </div>
             {/if}
           </button>
         {/each}
@@ -589,6 +667,38 @@
   .cell.out .jeolgi {
     background: color-mix(in srgb, var(--color-primary, #a8352a) 8%, transparent);
     color: color-mix(in srgb, var(--color-primary, #a8352a) 65%, var(--color-muted, #8a807a));
+  }
+  .ev-dots {
+    margin-top: auto;
+    padding-top: 0.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.18rem;
+    flex-wrap: wrap;
+  }
+  .ev-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-muted, #8a807a);
+    display: inline-block;
+  }
+  .dot-anniversary {
+    background: var(--color-primary, #a8352a);
+  }
+  .dot-plan {
+    background: var(--color-secondary, #1e6e6e);
+  }
+  .dot-other {
+    background: var(--color-muted, #8a807a);
+  }
+  .cell.out .ev-dot {
+    opacity: 0.55;
+  }
+  .ev-more {
+    font-size: 0.6rem;
+    color: var(--color-muted, #8a807a);
+    line-height: 1;
   }
 
   /* ─── Mobile ──────────────────────────────────────── */

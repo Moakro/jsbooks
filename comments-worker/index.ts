@@ -1495,15 +1495,24 @@ interface EventRow {
   end_date: string | null;
   all_day: number;
   category: string | null;
+  is_annual: number;
+  is_lunar: number;
+  is_public: number;
   memo: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface EventRowWithOwner extends EventRow {
+  owner_name: string | null;
+  is_mine: number;
 }
 
 const EVENT_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const EVENT_TITLE_MAX = 200;
 const EVENT_CATEGORY_MAX = 40;
 const EVENT_MEMO_MAX = 2000;
+const EVENT_CATEGORIES = new Set(["기념일", "일정", "기타"]);
 
 function normalizeEventInput(raw: unknown): {
   title?: string;
@@ -1511,6 +1520,9 @@ function normalizeEventInput(raw: unknown): {
   end_date?: string | null;
   all_day?: number;
   category?: string | null;
+  is_annual?: number;
+  is_lunar?: number;
+  is_public?: number;
   memo?: string | null;
   error?: string;
 } {
@@ -1549,11 +1561,15 @@ function normalizeEventInput(raw: unknown): {
     } else if (typeof b.category === "string") {
       const c = b.category.trim();
       if (c.length > EVENT_CATEGORY_MAX) return { error: `category too long (max ${EVENT_CATEGORY_MAX})` };
+      if (c && !EVENT_CATEGORIES.has(c)) return { error: `category must be one of: ${[...EVENT_CATEGORIES].join(", ")}` };
       out.category = c || null;
     } else {
       return { error: "category must be string or null" };
     }
   }
+  if (b.is_annual !== undefined) out.is_annual = b.is_annual ? 1 : 0;
+  if (b.is_lunar !== undefined) out.is_lunar = b.is_lunar ? 1 : 0;
+  if (b.is_public !== undefined) out.is_public = b.is_public ? 1 : 0;
   if (b.memo !== undefined) {
     if (b.memo === null) {
       out.memo = null;
@@ -1569,34 +1585,71 @@ function normalizeEventInput(raw: unknown): {
   if (out.start_date && out.end_date && out.end_date < out.start_date) {
     return { error: "end_date must be on or after start_date" };
   }
+  // 카테고리·옵션 정합성: 기념일 + 공개 X, 일정/기타 + 연례/음력 X
+  if (out.category === "기념일") {
+    if (out.is_public === 1) return { error: "기념일 카테고리는 공개 옵션을 사용할 수 없습니다" };
+  } else if (out.category === "일정" || out.category === "기타") {
+    if (out.is_annual === 1) return { error: "일정/기타 카테고리는 연례 옵션을 사용할 수 없습니다" };
+    if (out.is_lunar === 1) return { error: "일정/기타 카테고리는 음력 옵션을 사용할 수 없습니다" };
+  }
   return out;
 }
 
-// GET /api/events?from=YYYY-MM-DD&to=YYYY-MM-DD
-// from/to 모두 inclusive. 둘 다 없으면 사용자의 전체 일정 반환(최대 500).
-// 범위에 일부라도 걸치는 multi-day 이벤트도 포함(start_date <= to AND (end_date ?? start_date) >= from).
+const EVENT_SELECT_OWN = `
+  SELECT id, user_id, title, start_date, end_date, all_day, category,
+         is_annual, is_lunar, is_public, memo, created_at, updated_at
+    FROM events
+`;
+
+const EVENT_SELECT_WITH_OWNER = `
+  SELECT ev.id, ev.user_id, ev.title, ev.start_date, ev.end_date, ev.all_day,
+         ev.category, ev.is_annual, ev.is_lunar, ev.is_public, ev.memo,
+         ev.created_at, ev.updated_at,
+         u.display_name AS owner_name,
+         CASE WHEN ev.user_id = ? THEN 1 ELSE 0 END AS is_mine
+    FROM events ev
+    JOIN users u ON u.id = ev.user_id
+`;
+
+// GET /api/events?from=YYYY-MM-DD&to=YYYY-MM-DD[&scope=mine|all]
+// 응답: { events } — 사용자 own + scope=all 시 공개 일정도 포함.
+// is_annual 인 일정은 from/to 범위 무시하고 항상 반환 (클라이언트가 매년 발생일 계산).
+// is_lunar=1 이면 start_date 가 음력 'YYYY-MM-DD' 로 저장됨. 양력 변환·전개는 클라이언트 책임.
 async function listEvents(req: Request, env: Env): Promise<Response> {
   const uid = await currentUserId(req, env);
   if (!uid) return json({ error: "not authenticated" }, 401);
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  const scope = url.searchParams.get("scope") ?? "all"; // 기본 all
   if (from && !EVENT_DATE_RE.test(from)) return json({ error: "from must be YYYY-MM-DD" }, 400);
   if (to && !EVENT_DATE_RE.test(to)) return json({ error: "to must be YYYY-MM-DD" }, 400);
 
-  let sql = "SELECT id, user_id, title, start_date, end_date, all_day, category, memo, created_at, updated_at FROM events WHERE user_id=?";
-  const binds: unknown[] = [uid];
+  const conds: string[] = [];
+  const binds: unknown[] = [uid]; // CASE WHEN ev.user_id = ? 용
+  if (scope === "mine") {
+    conds.push("ev.user_id = ?");
+    binds.push(uid);
+  } else {
+    conds.push("(ev.user_id = ? OR ev.is_public = 1)");
+    binds.push(uid);
+  }
+  const rangeConds: string[] = ["ev.is_annual = 1"];
   if (from) {
-    sql += " AND COALESCE(end_date, start_date) >= ?";
+    rangeConds.push("COALESCE(ev.end_date, ev.start_date) >= ?");
     binds.push(from);
   }
   if (to) {
-    sql += " AND start_date <= ?";
+    rangeConds.push("ev.start_date <= ?");
     binds.push(to);
   }
-  sql += " ORDER BY start_date ASC, created_at ASC LIMIT 500";
+  // 연례 or 범위 통과
+  if (rangeConds.length > 1) {
+    conds.push(`(${rangeConds[0]} OR (${rangeConds.slice(1).join(" AND ")}))`);
+  }
+  const sql = `${EVENT_SELECT_WITH_OWNER} WHERE ${conds.join(" AND ")} ORDER BY ev.start_date ASC, ev.created_at ASC LIMIT 1000`;
 
-  const rs = await env.DB.prepare(sql).bind(...binds).all<EventRow>();
+  const rs = await env.DB.prepare(sql).bind(...binds).all<EventRowWithOwner>();
   return json({ events: rs.results ?? [] });
 }
 
@@ -1611,8 +1664,9 @@ async function createEvent(req: Request, env: Env): Promise<Response> {
   }
   const id = uuid();
   await env.DB.prepare(
-    `INSERT INTO events (id, user_id, title, start_date, end_date, all_day, category, memo)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO events (id, user_id, title, start_date, end_date, all_day,
+                          category, is_annual, is_lunar, is_public, memo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     id,
     uid,
@@ -1621,11 +1675,14 @@ async function createEvent(req: Request, env: Env): Promise<Response> {
     parsed.end_date ?? null,
     parsed.all_day ?? 1,
     parsed.category ?? null,
+    parsed.is_annual ?? 0,
+    parsed.is_lunar ?? 0,
+    parsed.is_public ?? 0,
     parsed.memo ?? null,
   ).run();
 
   const row = await env.DB.prepare(
-    "SELECT id, user_id, title, start_date, end_date, all_day, category, memo, created_at, updated_at FROM events WHERE id=?",
+    `${EVENT_SELECT_OWN} WHERE id=?`,
   ).bind(id).first<EventRow>();
   return json({ event: row }, 201);
 }
@@ -1650,6 +1707,9 @@ async function updateEvent(req: Request, env: Env, id: string): Promise<Response
   if (parsed.end_date !== undefined) { sets.push("end_date=?"); binds.push(parsed.end_date); }
   if (parsed.all_day !== undefined) { sets.push("all_day=?"); binds.push(parsed.all_day); }
   if (parsed.category !== undefined) { sets.push("category=?"); binds.push(parsed.category); }
+  if (parsed.is_annual !== undefined) { sets.push("is_annual=?"); binds.push(parsed.is_annual); }
+  if (parsed.is_lunar !== undefined) { sets.push("is_lunar=?"); binds.push(parsed.is_lunar); }
+  if (parsed.is_public !== undefined) { sets.push("is_public=?"); binds.push(parsed.is_public); }
   if (parsed.memo !== undefined) { sets.push("memo=?"); binds.push(parsed.memo); }
   if (sets.length === 0) return json({ error: "nothing to update" }, 400);
   sets.push("updated_at=datetime('now')");
@@ -1657,7 +1717,7 @@ async function updateEvent(req: Request, env: Env, id: string): Promise<Response
   await env.DB.prepare(`UPDATE events SET ${sets.join(", ")} WHERE id=?`).bind(...binds).run();
 
   const row = await env.DB.prepare(
-    "SELECT id, user_id, title, start_date, end_date, all_day, category, memo, created_at, updated_at FROM events WHERE id=?",
+    `${EVENT_SELECT_OWN} WHERE id=?`,
   ).bind(id).first<EventRow>();
   return json({ event: row });
 }

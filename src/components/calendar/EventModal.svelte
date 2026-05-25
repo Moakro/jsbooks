@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import type { CalendarEvent } from "../../lib/calendar-events";
+  import type { CalendarEvent, EventCategory } from "../../lib/calendar-events";
+  import { getLunar, formatLunarShort } from "../../lib/date";
   import Modal from "../Modal.svelte";
 
   interface Props {
@@ -16,25 +17,36 @@
 
   let { open = $bindable(), event = null, defaultDate, onClose, onSaved }: Props = $props();
 
-  const CATEGORIES: { id: string; label: string }[] = [
-    { id: "업무", label: "업무" },
-    { id: "개인", label: "개인" },
-    { id: "교단", label: "교단" },
-    { id: "기타", label: "기타" },
+  const CATEGORIES: { id: EventCategory; label: string }[] = [
+    { id: "기념일", label: "기념일" },
+    { id: "일정",   label: "일정" },
+    { id: "기타",   label: "기타" },
   ];
 
   let title = $state("");
   let startDate = $state("");
   let hasEndDate = $state(false);
   let endDate = $state("");
-  let allDay = $state(true);
-  let category = $state("개인");
+  let category = $state<EventCategory>("기념일");
+  let isAnnual = $state(false);
+  let isLunar = $state(false);
+  let isPublic = $state(false);
   let memo = $state("");
   let isSubmitting = $state(false);
   let errorMessage = $state<string | null>(null);
   let titleInputEl = $state<HTMLInputElement | undefined>();
 
   const isEditMode = $derived(!!event);
+
+  // 카테고리 변경 시 무관 옵션 자동 해제 (서버 정합성 보장 + UX)
+  $effect(() => {
+    if (category === "기념일") {
+      isPublic = false;
+    } else {
+      isAnnual = false;
+      isLunar = false;
+    }
+  });
 
   $effect(() => {
     if (!open) return;
@@ -43,16 +55,21 @@
       startDate = event.start_date;
       hasEndDate = !!event.end_date && event.end_date !== event.start_date;
       endDate = event.end_date ?? "";
-      allDay = event.all_day === 1;
-      category = event.category ?? "개인";
+      const cat = (event.category as EventCategory) ?? "기념일";
+      category = CATEGORIES.some((c) => c.id === cat) ? cat : "기념일";
+      isAnnual = event.is_annual === 1;
+      isLunar = event.is_lunar === 1;
+      isPublic = event.is_public === 1;
       memo = event.memo ?? "";
     } else {
       title = "";
       startDate = defaultDate || todayIso();
       hasEndDate = false;
       endDate = "";
-      allDay = true;
-      category = "개인";
+      category = "기념일";
+      isAnnual = false;
+      isLunar = false;
+      isPublic = false;
       memo = "";
     }
     errorMessage = null;
@@ -67,6 +84,18 @@
     return `${yyyy}-${mm}-${dd}`;
   }
 
+  /** 입력된 양력 startDate 의 음력 표기 — 라벨 옆 실시간 보조. */
+  const lunarHint = $derived.by(() => {
+    if (!startDate) return null;
+    const parts = startDate.split("-");
+    if (parts.length !== 3) return null;
+    const [y, m, d] = parts.map(Number);
+    if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null;
+    const info = getLunar(new Date(y, m - 1, d));
+    if (!info) return null;
+    return formatLunarShort(info.month, info.day, info.intercalation);
+  });
+
   function handleClose() {
     if (isSubmitting) return;
     open = false;
@@ -80,7 +109,7 @@
       return;
     }
     if (!startDate) {
-      errorMessage = "시작일을 선택해주세요.";
+      errorMessage = "일자를 선택해주세요.";
       return;
     }
     if (hasEndDate && endDate && endDate < startDate) {
@@ -94,8 +123,10 @@
         title: t,
         start_date: startDate,
         end_date: hasEndDate && endDate ? endDate : null,
-        all_day: allDay ? 1 : 0,
-        category: category || null,
+        category,
+        is_annual: category === "기념일" && isAnnual ? 1 : 0,
+        is_lunar:  category === "기념일" && isLunar  ? 1 : 0,
+        is_public: category !== "기념일" && isPublic ? 1 : 0,
         memo: memo.trim() || null,
       };
       const url = isEditMode && event ? `/api/events/${event.id}` : "/api/events";
@@ -167,6 +198,35 @@
     }}
   >
     <div class="em-field">
+      <label for="em-cat">카테고리</label>
+      <select id="em-cat" bind:value={category}>
+        {#each CATEGORIES as c}
+          <option value={c.id}>{c.label}</option>
+        {/each}
+      </select>
+    </div>
+
+    {#if category === "기념일"}
+      <div class="em-checkgroup">
+        <label>
+          <input type="checkbox" bind:checked={isAnnual} />
+          <span>연례 <small>(매년 같은 날)</small></span>
+        </label>
+        <label>
+          <input type="checkbox" bind:checked={isLunar} />
+          <span>음력 <small>(입력일을 음력 기준으로)</small></span>
+        </label>
+      </div>
+    {:else}
+      <div class="em-checkgroup">
+        <label>
+          <input type="checkbox" bind:checked={isPublic} />
+          <span>공개 <small>(전체 사용자에게 노출)</small></span>
+        </label>
+      </div>
+    {/if}
+
+    <div class="em-field">
       <label for="em-input-title">제목</label>
       <input
         id="em-input-title"
@@ -180,14 +240,19 @@
     </div>
 
     <div class="em-field">
-      <label for="em-start">시작일</label>
+      <label for="em-start">
+        일자
+        {#if lunarHint}
+          <span class="em-lunar-hint">({lunarHint})</span>
+        {/if}
+      </label>
       <input id="em-start" type="date" bind:value={startDate} required />
     </div>
 
     <div class="em-checkbox">
       <label>
         <input type="checkbox" bind:checked={hasEndDate} />
-        <span>종료일 있음</span>
+        <span>기간 있음</span>
       </label>
     </div>
 
@@ -197,22 +262,6 @@
         <input id="em-end" type="date" bind:value={endDate} min={startDate} />
       </div>
     {/if}
-
-    <div class="em-checkbox">
-      <label>
-        <input type="checkbox" bind:checked={allDay} />
-        <span>종일</span>
-      </label>
-    </div>
-
-    <div class="em-field">
-      <label for="em-cat">카테고리</label>
-      <select id="em-cat" bind:value={category}>
-        {#each CATEGORIES as c}
-          <option value={c.id}>{c.label}</option>
-        {/each}
-      </select>
-    </div>
 
     <div class="em-field">
       <label for="em-memo">메모</label>
@@ -256,6 +305,12 @@
     color: var(--color-muted, #8a807a);
     font-weight: 600;
   }
+  .em-lunar-hint {
+    margin-left: 0.4rem;
+    font-weight: 500;
+    color: var(--color-secondary, #1e6e6e);
+    font-size: 0.78rem;
+  }
   .em-field input[type="text"],
   .em-field input[type="date"],
   .em-field select,
@@ -280,7 +335,8 @@
     resize: vertical;
     min-height: 70px;
   }
-  .em-checkbox label {
+  .em-checkbox label,
+  .em-checkgroup label {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -288,7 +344,19 @@
     font-size: 0.92rem;
     color: var(--color-fg, #1f1c1a);
   }
-  .em-checkbox input[type="checkbox"] {
+  .em-checkgroup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.1rem;
+    padding: 0.3rem 0.1rem;
+  }
+  .em-checkgroup small {
+    color: var(--color-muted, #8a807a);
+    font-weight: 400;
+    margin-left: 0.15rem;
+  }
+  .em-checkbox input[type="checkbox"],
+  .em-checkgroup input[type="checkbox"] {
     width: 18px;
     height: 18px;
     accent-color: var(--color-primary, #a8352a);
