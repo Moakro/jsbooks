@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import Icon from "../Icon.svelte";
+  import Modal from "../Modal.svelte";
   import { uploadResizedImage } from "../../lib/resize-image";
 
   type Attachment =
@@ -91,25 +92,8 @@
     });
   });
 
-  $effect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !posting) {
-        e.preventDefault();
-        close();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
-
   function close() {
     onClose?.();
-  }
-
-  function login() {
-    const next = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.href = `/api/auth/login?next=${next}`;
   }
 
   async function onPickFiles(e: Event) {
@@ -186,110 +170,99 @@
   const headerLabel = $derived(
     mode === "edit" ? "댓글 수정" : mode === "reply" ? `↳ @${replyToName ?? ""}에게 답글` : "댓글 쓰기",
   );
-
-  // SideCard(aside.overflow:hidden) 안에 mount 되면 모달이 갇히므로 document.body 로 portal.
-  function portal(node: HTMLElement) {
-    document.body.appendChild(node);
-    return { destroy() { node.remove(); } };
-  }
 </script>
 
-{#if open}
-  <div class="cm-portal" use:portal>
-    <div class="cm-backdrop" onclick={close} role="presentation"></div>
-    <div class="cm-modal" role="dialog" aria-modal="true" aria-label={headerLabel}>
-      <header class="cm-head">
-        <span class="cm-title">{headerLabel}</span>
-        {#if userName}
-          <span class="cm-asuser">· <strong>{userName}</strong></span>
-        {/if}
-        <button type="button" class="cm-close" onclick={close} aria-label="닫기" disabled={posting}>✕</button>
-      </header>
+<Modal
+  {open}
+  variant="custom"
+  onClose={close}
+  closeOnEsc={!posting}
+  closeOnBackdrop={!posting}
+  zIndex={9000}
+  ariaLabel={headerLabel}
+  dialogClass="cm-modal"
+>
+  <header class="cm-head">
+    <span class="cm-title">{headerLabel}</span>
+    {#if userName}
+      <span class="cm-asuser">· <strong>{userName}</strong></span>
+    {/if}
+    <button type="button" class="cm-close" onclick={close} aria-label="닫기" disabled={posting}>✕</button>
+  </header>
 
-      <!-- 액션바: textarea 위 — 키보드 올라와도 항상 보임 -->
-      <div class="cm-actions">
-        <input
-          bind:this={fileInputEl}
-          type="file"
-          accept="image/*"
-          multiple
-          onchange={onPickFiles}
-          style="display: none"
-        />
-        <button
-          type="button"
-          class="cm-att-btn"
-          onclick={() => fileInputEl?.click()}
-          disabled={uploading || posting || attachments.length >= MAX_ATTACHMENTS}
-          title={`사진 첨부 (최대 ${MAX_ATTACHMENTS}장)`}
-        >
-          {#if uploading}…{:else}<Icon icon="paperclip" size={14} strokeWidth={1.8} /> {attachments.length}/{MAX_ATTACHMENTS}{/if}
-        </button>
-        <span class="cm-count">{draft.length}/{MAX_LEN}</span>
-        <span class="cm-spacer"></span>
-        <button type="button" class="cm-cancel" onclick={close} disabled={posting}>취소</button>
-        <button
-          type="button"
-          class="cm-submit"
-          onclick={submit}
-          disabled={posting || uploading || (!draft.trim() && attachments.length === 0)}
-        >
-          {#if posting}{mode === "edit" ? "저장 중…" : "등록 중…"}{:else}{mode === "edit" ? "저장" : "등록"}{/if}
-        </button>
-      </div>
-
-      <div class="cm-body">
-        <textarea
-          bind:this={textareaEl}
-          bind:value={draft}
-          class="cm-textarea"
-          placeholder="댓글을 남기세요."
-          maxlength={MAX_LEN}
-          disabled={posting}
-        ></textarea>
-
-        {#if attachments.length > 0}
-          <div class="cm-atts">
-            {#each attachments as att, i (att.type === "image" ? att.url + i : `${att.lat},${att.lng}-${i}`)}
-              {#if att.type === "image"}
-                <div class="cm-att">
-                  <img src={att.url} alt="" />
-                  <button type="button" class="cm-att-x" onclick={() => removeAttachment(i)} aria-label="첨부 제거">✕</button>
-                </div>
-              {/if}
-            {/each}
-          </div>
-        {/if}
-
-        {#if error}
-          <p class="cm-error" role="alert">{error}</p>
-        {/if}
-      </div>
-    </div>
+  <!-- 액션바: textarea 위 — 키보드 올라와도 항상 보임 -->
+  <div class="cm-actions">
+    <input
+      bind:this={fileInputEl}
+      type="file"
+      accept="image/*"
+      multiple
+      onchange={onPickFiles}
+      style="display: none"
+    />
+    <button
+      type="button"
+      class="cm-att-btn"
+      onclick={() => fileInputEl?.click()}
+      disabled={uploading || posting || attachments.length >= MAX_ATTACHMENTS}
+      title={`사진 첨부 (최대 ${MAX_ATTACHMENTS}장)`}
+    >
+      {#if uploading}…{:else}<Icon icon="paperclip" size={14} strokeWidth={1.8} /> {attachments.length}/{MAX_ATTACHMENTS}{/if}
+    </button>
+    <span class="cm-count">{draft.length}/{MAX_LEN}</span>
+    <span class="cm-spacer"></span>
+    <button type="button" class="cm-cancel" onclick={close} disabled={posting}>취소</button>
+    <button
+      type="button"
+      class="cm-submit"
+      onclick={submit}
+      disabled={posting || uploading || (!draft.trim() && attachments.length === 0)}
+    >
+      {#if posting}{mode === "edit" ? "저장 중…" : "등록 중…"}{:else}{mode === "edit" ? "저장" : "등록"}{/if}
+    </button>
   </div>
-{/if}
+
+  <div class="cm-body">
+    <textarea
+      bind:this={textareaEl}
+      bind:value={draft}
+      class="cm-textarea"
+      placeholder="댓글을 남기세요."
+      maxlength={MAX_LEN}
+      disabled={posting}
+    ></textarea>
+
+    {#if attachments.length > 0}
+      <div class="cm-atts">
+        {#each attachments as att, i (att.type === "image" ? att.url + i : `${att.lat},${att.lng}-${i}`)}
+          {#if att.type === "image"}
+            <div class="cm-att">
+              <img src={att.url} alt="" />
+              <button type="button" class="cm-att-x" onclick={() => removeAttachment(i)} aria-label="첨부 제거">✕</button>
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+
+    {#if error}
+      <p class="cm-error" role="alert">{error}</p>
+    {/if}
+  </div>
+</Modal>
 
 <style>
-  .cm-portal { /* portal 마운트 컨테이너 — z-index 만 책임 */ }
-  .cm-backdrop {
+  /* CommentModal — 데스크톱: 우측 사이드 패널, 모바일: 풀스크린. Modal variant=custom */
+  :global(.cm-modal) {
     position: fixed;
-    inset: 0;
-    background: rgba(20, 18, 16, 0.4);
-    z-index: 9000;
-    animation: cm-fade-in 0.15s ease;
-  }
-  .cm-modal {
-    position: fixed;
-    z-index: 9001;
     background: var(--color-bg, #fbf8f4);
     display: flex;
     flex-direction: column;
     animation: cm-slide-down 0.22s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: -16px 0 40px rgba(0, 0, 0, 0.2);
   }
-  /* 데스크톱: SideCard 와 동일 폭 (우측 fixed) */
   @media (min-width: 1024px) {
-    .cm-modal {
+    :global(.cm-modal) {
       top: 0;
       right: 0;
       bottom: 0;
@@ -297,9 +270,8 @@
       max-width: 36vw;
     }
   }
-  /* 모바일: 화면 최상단부터 풀스크린 (위쪽 여백 없음) */
   @media (max-width: 1023px) {
-    .cm-modal {
+    :global(.cm-modal) {
       top: 0;
       left: 0;
       right: 0;
@@ -472,10 +444,6 @@
     font-size: 0.85rem;
   }
 
-  @keyframes cm-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
   @keyframes cm-slide-down {
     from { transform: translateY(-30px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }

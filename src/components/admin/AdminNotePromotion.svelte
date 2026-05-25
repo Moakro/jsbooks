@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Modal from "../Modal.svelte";
 
   type Comment = {
     id: string;
@@ -244,76 +245,82 @@
   </ol>
 {/if}
 
-{#if editing}
-  <div class="modal-bg" onclick={cancelEdit} role="presentation">
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog">
-      <h2>댓글을 자료 주석으로 승격</h2>
-      <p class="meta">
-        대상 vault 파일 경로(content/&lt;…&gt;.md 의 prefix)와 inline 삽입 위치를
-        지정합니다. 두 위치 옵션 중 하나만 지정해도 됩니다. 둘 다 비우면 본문 마지막 문단에 추가.
-      </p>
+<Modal
+  open={!!editing}
+  title="댓글을 자료 주석으로 승격"
+  onClose={cancelEdit}
+  maxWidth="720px"
+  closeOnBackdrop={working === null}
+  closeOnEsc={working === null}
+>
+  {#if editing}
+    <p class="meta">
+      대상 vault 파일 경로(content/&lt;…&gt;.md 의 prefix)와 inline 삽입 위치를
+      지정합니다. 두 위치 옵션 중 하나만 지정해도 됩니다. 둘 다 비우면 본문 마지막 문단에 추가.
+    </p>
 
+    <label class="row">
+      <span>target 파일 (확장자 없이)</span>
+      <input
+        type="text"
+        bind:value={editFile}
+        placeholder="people/객망리 · scripture/cheonjigaebyeokgyeong/01_신축편/01-01_장"
+      />
+    </label>
+
+    <div class="row-split">
       <label class="row">
-        <span>target 파일 (확장자 없이)</span>
+        <span>sentence anchor (옵션)</span>
         <input
           type="text"
-          bind:value={editFile}
-          placeholder="people/객망리 · scripture/cheonjigaebyeokgyeong/01_신축편/01-01_장"
+          bind:value={editAnchor}
+          placeholder="1-1-3"
         />
       </label>
-
-      <div class="row-split">
-        <label class="row">
-          <span>sentence anchor (옵션)</span>
-          <input
-            type="text"
-            bind:value={editAnchor}
-            placeholder="1-1-3"
-          />
-        </label>
-        <label class="row">
-          <span>heading 단서 (옵션)</span>
-          <input
-            type="text"
-            bind:value={editHeading}
-            placeholder="명호"
-          />
-        </label>
-      </div>
-
       <label class="row">
-        <span>footnote id</span>
-        <input type="text" bind:value={editFootnoteId} pattern="uc-\d{'{'}4{'}'}-\d{'{'}2{'}'}-\d{'{'}2{'}'}-\d+" />
+        <span>heading 단서 (옵션)</span>
+        <input
+          type="text"
+          bind:value={editHeading}
+          placeholder="명호"
+        />
       </label>
-
-      <label class="row">
-        <span>주석 본문 (마크다운 1줄)</span>
-        <textarea bind:value={editBody} rows="3"></textarea>
-      </label>
-
-      <div class="preview">
-        <div class="preview-label">미리보기</div>
-        <code>{`[^${editFootnoteId}]`}</code>
-        <span class="preview-arrow">→</span>
-        <code class="preview-def">
-          {`[^${editFootnoteId}]: ${editBody.trim()} — 사용자 ${editing.display_name ?? "익명"} (${fmtDateDot(editing.created_at)}) [원댓글](/feed/comments/?id=${editing.id})`}
-        </code>
-      </div>
-
-      <div class="actions">
-        <button type="button" class="btn-secondary" onclick={cancelEdit}>취소</button>
-        <button
-          type="button"
-          class="btn"
-          disabled={working === editing.id}
-          onclick={confirmPromote}
-        >
-          {working === editing.id ? "처리 중…" : "확정 — 파일에 쓰기"}
-        </button>
-      </div>
     </div>
-  </div>
-{/if}
+
+    <label class="row">
+      <span>footnote id</span>
+      <input type="text" bind:value={editFootnoteId} pattern="uc-\d{'{'}4{'}'}-\d{'{'}2{'}'}-\d{'{'}2{'}'}-\d+" />
+    </label>
+
+    <label class="row">
+      <span>주석 본문 (마크다운 1줄)</span>
+      <textarea bind:value={editBody} rows="3"></textarea>
+    </label>
+
+    <div class="preview">
+      <div class="preview-label">미리보기</div>
+      <code>{`[^${editFootnoteId}]`}</code>
+      <span class="preview-arrow">→</span>
+      <code class="preview-def">
+        {`[^${editFootnoteId}]: ${editBody.trim()} — 사용자 ${editing.display_name ?? "익명"} (${fmtDateDot(editing.created_at)}) [원댓글](/feed/comments/?id=${editing.id})`}
+      </code>
+    </div>
+  {/if}
+
+  {#snippet footer()}
+    {#if editing}
+      <button type="button" class="btn-secondary" onclick={cancelEdit}>취소</button>
+      <button
+        type="button"
+        class="btn"
+        disabled={working === editing.id}
+        onclick={confirmPromote}
+      >
+        {working === editing.id ? "처리 중…" : "확정 — 파일에 쓰기"}
+      </button>
+    {/if}
+  {/snippet}
+</Modal>
 
 <style>
   .filters {
@@ -417,24 +424,7 @@
   }
   .btn-secondary:hover:not(:disabled) { background: var(--color-surface-2); }
 
-  .modal-bg {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.45);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 1000;
-  }
-  .modal {
-    background: var(--color-bg);
-    border: 1px solid var(--color-rule);
-    border-radius: 8px;
-    padding: 1.2rem;
-    max-width: 720px;
-    width: 92%;
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-  .modal h2 { margin: 0 0 0.4rem; font-size: 1.1rem; }
-  .modal .meta { color: var(--color-muted); font-size: 0.85rem; margin: 0 0 0.8rem; }
+  .meta { color: var(--color-muted); font-size: 0.85rem; margin: 0 0 0.8rem; }
   .row { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.5rem 0; }
   .row > span { font-size: 0.82rem; color: var(--color-muted); }
   .row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }

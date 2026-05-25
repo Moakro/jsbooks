@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import Modal from "./Modal.svelte";
 
   type Resolve = (ok: boolean) => void;
   type Pending = {
@@ -35,15 +36,14 @@
       danger: !!d.danger,
       resolve: d.resolve,
     };
+    // Modal 기본 포커스(첫 focusable)는 취소 버튼이지만, 확인 위주 UX 라 confirm 으로 옮김.
     tick().then(() => confirmBtnEl?.focus());
   }
 
-  function onKey(e: KeyboardEvent) {
+  // Enter 단축키 — Modal 의 ESC 핸들러와 충돌 없이 별도 처리.
+  function onEnterKey(e: KeyboardEvent) {
     if (!pending) return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      decide(false);
-    } else if (e.key === "Enter") {
+    if (e.key === "Enter") {
       e.preventDefault();
       decide(true);
     }
@@ -51,109 +51,64 @@
 
   onMount(() => {
     window.addEventListener("jsbooks:confirm", onConfirmEvent);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onEnterKey);
     return () => {
       window.removeEventListener("jsbooks:confirm", onConfirmEvent);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onEnterKey);
     };
   });
 </script>
 
-{#if pending}
-  <div
-    class="cd-backdrop"
-    role="presentation"
-    onclick={() => decide(false)}
-    onkeydown={null}
-  >
-    <div
-      class="cd-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={pending.title ? "cd-title" : undefined}
-      aria-describedby="cd-message"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={null}
-    >
-      {#if pending.title}
-        <h2 id="cd-title" class="cd-title">{pending.title}</h2>
-      {/if}
-      <p id="cd-message" class="cd-message">{pending.message}</p>
-      <div class="cd-actions">
-        <button type="button" class="cd-btn cd-cancel" onclick={() => decide(false)}>
-          {pending.cancelLabel}
-        </button>
-        <button
-          bind:this={confirmBtnEl}
-          type="button"
-          class="cd-btn cd-confirm"
-          class:danger={pending.danger}
-          onclick={() => decide(true)}
-        >
-          {pending.confirmLabel}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
+<Modal
+  open={!!pending}
+  onClose={() => decide(false)}
+  maxWidth="420px"
+  zIndex={1300}
+  ariaLabel={pending?.title ?? "확인"}
+>
+  {#snippet header()}
+    {#if pending?.title}
+      <h2 class="cd-title">{pending.title}</h2>
+    {:else}
+      <span></span>
+    {/if}
+  {/snippet}
+
+  {#if pending}
+    <p class="cd-message">{pending.message}</p>
+  {/if}
+
+  {#snippet footer()}
+    {#if pending}
+      <button type="button" class="cd-btn cd-cancel" onclick={() => decide(false)}>
+        {pending.cancelLabel}
+      </button>
+      <button
+        bind:this={confirmBtnEl}
+        type="button"
+        class="cd-btn cd-confirm"
+        class:danger={pending.danger}
+        onclick={() => decide(true)}
+      >
+        {pending.confirmLabel}
+      </button>
+    {/if}
+  {/snippet}
+</Modal>
 
 <style>
-  .cd-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(20, 18, 16, 0.5);
-    z-index: 300;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-    animation: cd-fade 0.15s ease;
-  }
-  @keyframes cd-fade {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  .cd-modal {
-    background: var(--color-bg, #fbf8f4);
-    border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 10px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
-    width: min(420px, 100%);
-    padding: 1.4rem 1.4rem 1.1rem;
-    color: var(--color-fg, #1f1c1a);
-    animation: cd-pop 0.15s ease;
-  }
-  @keyframes cd-pop {
-    from {
-      opacity: 0;
-      transform: translateY(-6px) scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
   .cd-title {
-    margin: 0 0 0.5rem;
+    margin: 0;
     font-size: 1.05rem;
     font-weight: 700;
     color: var(--color-primary, #a8352a);
   }
   .cd-message {
-    margin: 0 0 1.2rem;
+    margin: 0;
     font-size: 0.95rem;
     line-height: 1.55;
     color: var(--color-fg, #1f1c1a);
     white-space: pre-line;
-  }
-  .cd-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
   }
   .cd-btn {
     font: inherit;
