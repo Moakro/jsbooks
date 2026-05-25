@@ -151,7 +151,9 @@
         category,
         is_annual: category === "기념일" && isAnnual ? 1 : 0,
         is_lunar:  category === "기념일" && isLunar  ? 1 : 0,
-        is_public: category !== "기념일" && isPublic ? 1 : 0,
+        // 기념일은 자동 공개 (증산교단 연례 기념일 등 사이트 전체 노출 의도).
+        // 일정/기타는 사용자 선택(isPublic 체크박스).
+        is_public: category === "기념일" ? 1 : (isPublic ? 1 : 0),
         memo: memo.trim() || null,
       };
       const url = isEditMode && event ? `/api/events/${event.id}` : "/api/events";
