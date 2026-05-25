@@ -100,13 +100,17 @@
 {/if}
 
 <style>
-  /* DayBox 직하단 inline 영역 — 별도 박스 디자인 없이 자연스럽게 이어짐 */
+  /* DayBox 안 하단 영역 — 어두운 배너 배경 위에 흰 톤 */
   .ha {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    margin: -0.5rem 0 1rem;
-    padding: 0.4rem 0.2rem 0;
+    padding: 0.4rem 0.95rem 0.6rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .ha-label {
+    color: rgba(255, 255, 255, 0.55) !important;
   }
   .ha-row {
     display: flex;
