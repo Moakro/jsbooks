@@ -6,6 +6,9 @@
     type OccurrenceEvent,
     expandOccurrences,
     monthRange,
+    categoryBadgeClass,
+    categoryFullLabel,
+    lunarShortFromSource,
   } from "../../lib/calendar-events";
 
   interface Props {
@@ -213,13 +216,9 @@
     return out;
   });
 
+  // '오늘' 버튼 active: 현재 표시 월에 오늘이 포함될 때만. (선택 날짜와 무관 — 다른 달 이동 시 무조건 비활성)
   const todayInDisplay = $derived(
     !!today && today.getFullYear() === year && today.getMonth() + 1 === month,
-  );
-
-  // '오늘' 버튼 active: 선택된 날짜가 실제 오늘일 때만 (다른 날 선택 시 inactive — 혼동 방지)
-  const selectedIsToday = $derived(
-    !!selectedDate && !!today && sameDay(selectedDate, today),
   );
 
   type DetailView = {
@@ -252,6 +251,11 @@
       isToday: !!today && sameDay(selectedDate, today),
     };
   });
+
+  /** 선택 날짜에 해당하는 occurrence 들 — 상세박스 하단 events row 용. */
+  const detailEvents = $derived<OccurrenceEvent[]>(
+    selectedDate ? (occurrencesByDate.get(isoFor(selectedDate)) ?? []) : [],
+  );
 </script>
 
 <div class="calendar">
@@ -275,7 +279,7 @@
     <button
       type="button"
       class="today-btn"
-      class:active={selectedIsToday}
+      class:active={todayInDisplay}
       onclick={goToday}
     >오늘</button>
     <div class="nav-group">
@@ -312,6 +316,24 @@
       {#if detail.gapja}
         <div class="detail-line gapja">{detail.gapja}</div>
       {/if}
+      {#if detailEvents.length > 0}
+        <div class="detail-events">
+          {#each detailEvents as occ (occ.source.id + "@" + occ.occursOn)}
+            {@const cat = occ.source.category}
+            {@const lunar = lunarShortFromSource(occ.source)}
+            <span
+              class="ev-pill {categoryBadgeClass(cat)}"
+              title={`${categoryFullLabel(cat)} · ${occ.source.title}`}
+            >
+              <span class="ev-cat">{categoryFullLabel(cat)}</span>
+              <span class="ev-title">{occ.source.title}</span>
+              {#if lunar}
+                <span class="ev-lunar">(음 {lunar})</span>
+              {/if}
+            </span>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -347,18 +369,15 @@
               <span class="jeolgi" title={c.jeolgiHanja ?? ""}>{c.jeolgiName}</span>
             {/if}
             {#if c.events.length > 0}
-              <div class="ev-dots" aria-label={`일정 ${c.events.length}건`}>
-                {#each c.events.slice(0, 3) as occ (occ.source.id + "@" + occ.occursOn)}
+              <div class="ev-titles" aria-label={`일정 ${c.events.length}건`}>
+                {#each c.events.slice(0, 2) as occ (occ.source.id + "@" + occ.occursOn)}
                   <span
-                    class="ev-dot"
-                    class:dot-anniversary={occ.source.category === "기념일"}
-                    class:dot-plan={occ.source.category === "일정"}
-                    class:dot-other={occ.source.category === "기타" || !occ.source.category}
-                    title={`${occ.source.category ?? ""} · ${occ.source.title}`}
-                  ></span>
+                    class="ev-title-pill {categoryBadgeClass(occ.source.category)}"
+                    title={`${categoryFullLabel(occ.source.category)} · ${occ.source.title}`}
+                  >{occ.source.title}</span>
                 {/each}
-                {#if c.events.length > 3}
-                  <span class="ev-more">+{c.events.length - 3}</span>
+                {#if c.events.length > 2}
+                  <span class="ev-more">+{c.events.length - 2}</span>
                 {/if}
               </div>
             {/if}
@@ -668,37 +687,83 @@
     background: color-mix(in srgb, var(--color-primary, #a8352a) 8%, transparent);
     color: color-mix(in srgb, var(--color-primary, #a8352a) 65%, var(--color-muted, #8a807a));
   }
-  .ev-dots {
+  /* ─── Cell event titles (replace dots) ─────────────── */
+  .ev-titles {
     margin-top: auto;
     padding-top: 0.2rem;
     display: flex;
-    align-items: center;
-    gap: 0.18rem;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
   }
-  .ev-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--color-muted, #8a807a);
-    display: inline-block;
+  .ev-title-pill {
+    display: block;
+    width: 100%;
+    padding: 0.05rem 0.32rem;
+    border-radius: 3px;
+    font-size: 0.64rem;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.01em;
   }
-  .dot-anniversary {
-    background: var(--color-primary, #a8352a);
-  }
-  .dot-plan {
-    background: var(--color-secondary, #1e6e6e);
-  }
-  .dot-other {
-    background: var(--color-muted, #8a807a);
-  }
-  .cell.out .ev-dot {
-    opacity: 0.55;
+  .cell.out .ev-title-pill {
+    opacity: 0.6;
   }
   .ev-more {
+    align-self: flex-start;
+    padding: 0 0.2rem;
     font-size: 0.6rem;
     color: var(--color-muted, #8a807a);
-    line-height: 1;
+    line-height: 1.2;
+  }
+
+  /* ─── Detail-box events row ────────────────────────── */
+  .detail-events {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.15rem;
+    padding-top: 0.45rem;
+    border-top: 1px dashed color-mix(in srgb, var(--color-rule, #e8dfd9) 80%, transparent);
+  }
+  .ev-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0.5rem 0.12rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    line-height: 1.3;
+  }
+  .ev-pill .ev-cat {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+  }
+  .ev-pill .ev-title {
+    font-weight: 600;
+  }
+  .ev-pill .ev-lunar {
+    font-size: 0.7rem;
+    opacity: 0.78;
+  }
+
+  /* ─── Category palette — 셀·상세박스 통일 ─────────── */
+  .cat-anniversary {
+    background: var(--color-primary, #a8352a);
+    color: #fff;
+  }
+  .cat-plan {
+    background: var(--color-secondary, #1e6e6e);
+    color: #fff;
+  }
+  .cat-other {
+    background: color-mix(in srgb, var(--color-muted, #8a807a) 30%, #fff);
+    color: #1f1c1a;
   }
 
   /* ─── Mobile ──────────────────────────────────────── */
@@ -757,6 +822,23 @@
     .jeolgi {
       font-size: 0.58rem;
       padding: 0.03rem 0.32rem;
+    }
+    .ev-title-pill {
+      font-size: 0.58rem;
+      padding: 0.03rem 0.24rem;
+    }
+    .ev-more {
+      font-size: 0.54rem;
+    }
+    .ev-pill {
+      font-size: 0.72rem;
+      padding: 0.08rem 0.4rem;
+    }
+    .ev-pill .ev-cat {
+      font-size: 0.6rem;
+    }
+    .ev-pill .ev-lunar {
+      font-size: 0.64rem;
     }
   }
 

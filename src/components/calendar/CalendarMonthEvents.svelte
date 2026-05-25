@@ -6,6 +6,10 @@
     type OccurrenceEvent,
     expandOccurrences,
     monthRange,
+    categoryBadgeClass,
+    categoryShortLabel,
+    categoryFullLabel,
+    lunarShortFromSource,
   } from "../../lib/calendar-events";
 
   // 현재 표시 중인 월. Calendar.svelte 가 `jsbooks:calendar-month` 이벤트로 알린다.
@@ -125,12 +129,6 @@
     return `${start} – ${Number(endParts[2])}일`;
   }
 
-  function categoryClass(cat: string | null): string {
-    if (cat === "기념일") return "cat-anniversary";
-    if (cat === "일정")   return "cat-plan";
-    if (cat === "기타")   return "cat-other";
-    return "cat-other";
-  }
 </script>
 
 <div class="cme-block">
@@ -168,16 +166,21 @@
                 <span class="cme-flag" title="매년 반복">연례</span>
               {/if}
               {#if src.is_lunar === 1}
-                <span class="cme-flag flag-lunar" title="음력 기준">음</span>
+                {@const lunar = lunarShortFromSource(src)}
+                <span class="cme-flag flag-lunar" title="음력 기준">
+                  음{#if lunar}&nbsp;{lunar}{/if}
+                </span>
               {/if}
               {#if src.is_public === 1}
                 <span class="cme-flag flag-public" title="사이트 공개">공개</span>
               {/if}
             </div>
             <div class="cme-title">
-              {#if src.category}
-                <span class="cme-cat {categoryClass(src.category)}">{src.category}</span>
-              {/if}
+              <span
+                class="cme-cat {categoryBadgeClass(src.category)}"
+                title={categoryFullLabel(src.category)}
+                aria-label={categoryFullLabel(src.category)}
+              >{categoryShortLabel(src.category)}</span>
               <span class="cme-title-text">{src.title}</span>
               {#if !own && src.owner_name}
                 <span class="cme-owner">· {src.owner_name}</span>
@@ -317,23 +320,28 @@
     font-size: 0.78rem;
   }
   .cme-cat {
-    padding: 0.05rem 0.4rem;
-    border-radius: 999px;
-    font-size: 0.66rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.05rem;
+    height: 1.05rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    line-height: 1;
     flex-shrink: 0;
   }
+  /* ─── Category palette — 셀·사이드바·상세박스 통일 ─── */
   .cat-anniversary {
-    background: color-mix(in srgb, var(--color-primary, #a8352a) 14%, transparent);
-    color: var(--color-primary, #a8352a);
+    background: var(--color-primary, #a8352a);
+    color: #fff;
   }
   .cat-plan {
-    background: color-mix(in srgb, var(--color-secondary, #1e6e6e) 14%, transparent);
-    color: var(--color-secondary, #1e6e6e);
+    background: var(--color-secondary, #1e6e6e);
+    color: #fff;
   }
   .cat-other {
-    background: color-mix(in srgb, var(--color-muted, #8a807a) 14%, transparent);
-    color: var(--color-muted, #8a807a);
+    background: color-mix(in srgb, var(--color-muted, #8a807a) 30%, #fff);
+    color: #1f1c1a;
   }
 </style>
