@@ -24,10 +24,14 @@ const { anchor, label = "URL 복사" } = Astro.props;
 >{label}</button>
 
 <style>
+  /* 컴포넌트 자체에 외부 margin 부여 — 각 경전 페이지의 .verse-label-meta gap
+     설정과 무관하게 anchor link 와 일관된 간격 보장. (동곡비서가 다른 경전보다
+     좁아 보이는 차이 해소.) */
   .verse-copy-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.2rem;
+    margin-left: 0.4rem;
     padding: 0.04rem 0.45rem 0.06rem;
     background: transparent;
     border: 1px solid var(--color-rule, #e8dfd9);
