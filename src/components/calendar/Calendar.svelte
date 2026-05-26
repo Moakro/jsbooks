@@ -670,6 +670,10 @@
     position: relative;
     cursor: pointer;
     background: var(--color-surface, #fff);
+    /* 좁은 폭에서 알약 라벨이 옆 셀까지 침범하지 않도록 가드. 알약 자체에도
+       max-width: 100% + ellipsis 적용해 잘림을 시각화. */
+    overflow: hidden;
+    min-width: 0;
   }
   .cell:focus-visible {
     outline: 2px solid var(--color-primary, #a8352a);
@@ -743,6 +747,10 @@
     font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.02em;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .cell.out .jeolgi {
     background: color-mix(in srgb, var(--color-primary, #a8352a) 8%, transparent);
@@ -759,6 +767,10 @@
     font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.02em;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .cell.out .holiday {
     background: color-mix(in srgb, var(--color-secondary, #1e6e6e) 8%, transparent);
