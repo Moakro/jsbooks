@@ -10,6 +10,7 @@
     categoryFullLabel,
     lunarShortFromSource,
   } from "../../lib/calendar-events";
+  import { linkifyPlain } from "../../lib/linkify";
 
   // 현재 표시 중인 월. Calendar.svelte 가 `jsbooks:calendar-month` 이벤트로 알린다.
   let year = $state(new Date().getFullYear());
@@ -158,7 +159,8 @@
               <span class="cme-pill-title">{src.title}</span>
             </span>
             {#if src.memo}
-              <span class="cme-memo">{src.memo}</span>
+              <!-- URL 자동 변환: 내부=pill 상대경로, 외부=새창 + ↗. comments-worker 와 동일 정책. -->
+              <span class="cme-memo">{@html linkifyPlain(src.memo)}</span>
             {/if}
           </button>
         </li>
