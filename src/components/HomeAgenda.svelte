@@ -4,7 +4,6 @@
   import {
     expandOccurrences,
     categoryBadgeClass,
-    lunarShortFromSource,
     type CalendarEvent,
     type OccurrenceEvent,
   } from "../lib/calendar-events";
@@ -49,10 +48,6 @@
     }
   });
 
-  function shortDate(iso: string): string {
-    const [, m, d] = iso.split("-").map(Number);
-    return `${m}.${d}`;
-  }
 </script>
 
 {#if !loading && monthEvents.length > 0}
@@ -61,7 +56,6 @@
       <span class="ha-label">이번 달</span>
       <div class="ha-list">
         {#each monthEvents as occ (occ.source.id + "@" + occ.occursOn)}
-          {@const lunar = lunarShortFromSource(occ.source)}
           {@const isToday = occ.occursOn === todayIso}
           <span
             class="ha-pill {categoryBadgeClass(occ.source.category)}"
@@ -71,7 +65,6 @@
             {#if isToday}
               <span class="ha-check" aria-label="오늘"><Icon icon="badge-check" size={13} strokeWidth={2} /></span>
             {/if}
-            <span class="ha-date">{shortDate(occ.occursOn)}{#if lunar}<span class="ha-lunar">(음{lunar})</span>{/if}</span>
             <span class="ha-title">{occ.source.title}</span>
           </span>
         {/each}
@@ -103,11 +96,13 @@
     min-width: 3.2em;
     line-height: 1.6;
   }
+  /* 여러 기념일은 row 가로 wrap. 폭 모자라면 다음 줄로 흐름. */
   .ha-list {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
     min-width: 0;
   }
   .ha-pill {
@@ -129,17 +124,6 @@
     display: inline-flex;
     align-items: center;
     color: inherit;
-    flex-shrink: 0;
-  }
-  .ha-pill .ha-lunar {
-    font-size: 0.72rem;
-    opacity: 0.85;
-    margin-left: 0.1rem;
-  }
-  .ha-pill .ha-date {
-    font-size: 0.78rem;
-    font-variant-numeric: tabular-nums;
-    opacity: 0.85;
     flex-shrink: 0;
   }
   .ha-pill .ha-title {
