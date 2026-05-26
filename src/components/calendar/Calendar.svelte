@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getDayInfo, formatLunarKo } from "../../lib/date";
+  import { holidayName } from "../../lib/holidays";
   import Icon from "../Icon.svelte";
   import {
     type CalendarEvent,
@@ -200,6 +201,8 @@
     chineseDay: string | null;
     jeolgiName: string | null;
     jeolgiHanja: string | null;
+    /** 한국 공휴일/명절 이름 (신정·설날·추석·부처님오신날 등). 없으면 null. */
+    holiday: string | null;
     /** 그 날 표시할 occurrence 들 (사용자 일정 + 공개 일정 전개 후) */
     events: OccurrenceEvent[];
   };
@@ -227,6 +230,12 @@
         chineseDay: chineseDayGanji(info.lunar?.chinese_gapja),
         jeolgiName: info.jeolgi.daysSince === 0 ? info.jeolgi.current.name : null,
         jeolgiHanja: info.jeolgi.daysSince === 0 ? info.jeolgi.current.hanja : null,
+        holiday: holidayName(
+          d.getMonth() + 1,
+          d.getDate(),
+          info.lunar?.month ?? null,
+          info.lunar?.day ?? null,
+        ),
         events: occurrencesByDate.get(iso) ?? [],
       });
     }
@@ -240,6 +249,7 @@
     lunar: string | null; // "4월 11일"
     gapja: string | null; // "丙午년 癸巳월 甲辰일"
     jeolgi: { name: string; hanja: string } | null;
+    holiday: string | null;
     isToday: boolean;
   };
 
@@ -261,6 +271,12 @@
         info.jeolgi.daysSince === 0
           ? { name: info.jeolgi.current.name, hanja: info.jeolgi.current.hanja }
           : null,
+      holiday: holidayName(
+        selectedDate.getMonth() + 1,
+        selectedDate.getDate(),
+        info.lunar?.month ?? null,
+        info.lunar?.day ?? null,
+      ),
       isToday: !!today && sameDay(selectedDate, today),
     };
   });
@@ -337,6 +353,9 @@
         {#if detail.jeolgi}
           <span class="d-jeolgi" title={detail.jeolgi.hanja}>{detail.jeolgi.name}</span>
         {/if}
+        {#if detail.holiday}
+          <span class="d-holiday">{detail.holiday}</span>
+        {/if}
       </div>
       {#if detail.gapja}
         <div class="detail-line gapja">{detail.gapja}</div>
@@ -391,6 +410,9 @@
             {/if}
             {#if c.jeolgiName}
               <span class="jeolgi" title={c.jeolgiHanja ?? ""}>{c.jeolgiName}</span>
+            {/if}
+            {#if c.holiday}
+              <span class="holiday">{c.holiday}</span>
             {/if}
             {#if c.events.length > 0}
               <div class="ev-titles" aria-label={`일정 ${c.events.length}건`}>
@@ -570,6 +592,21 @@
     background: rgba(168, 53, 42, 0.18);
     color: #8b2a20;
   }
+  /* 공휴일·명절 라벨 — d-jeolgi 와 동일 톤이되 청록. */
+  .d-holiday {
+    margin-left: 0.35rem;
+    padding: 0.08rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-secondary, #1e6e6e) 14%, transparent);
+    color: var(--color-secondary, #1e6e6e);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .detail-box.is-today .d-holiday {
+    background: rgba(30, 110, 110, 0.18);
+    color: #16585a;
+  }
   .gapja {
     color: var(--color-muted, #8a807a);
     letter-spacing: 0.02em;
@@ -711,6 +748,22 @@
     background: color-mix(in srgb, var(--color-primary, #a8352a) 8%, transparent);
     color: color-mix(in srgb, var(--color-primary, #a8352a) 65%, var(--color-muted, #8a807a));
   }
+  /* 공휴일·명절 — 절기와 같은 슬롯, 청록 톤. */
+  .holiday {
+    align-self: flex-start;
+    margin-top: 0.15rem;
+    padding: 0.08rem 0.45rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-secondary, #1e6e6e) 14%, transparent);
+    color: var(--color-secondary, #1e6e6e);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .cell.out .holiday {
+    background: color-mix(in srgb, var(--color-secondary, #1e6e6e) 8%, transparent);
+    color: color-mix(in srgb, var(--color-secondary, #1e6e6e) 65%, var(--color-muted, #8a807a));
+  }
   /* ─── Cell event titles (replace dots) ─────────────── */
   .ev-titles {
     margin-top: auto;
@@ -847,7 +900,8 @@
     .lunar {
       font-size: 0.62rem;
     }
-    .jeolgi {
+    .jeolgi,
+    .holiday {
       font-size: 0.58rem;
       padding: 0.03rem 0.32rem;
     }
