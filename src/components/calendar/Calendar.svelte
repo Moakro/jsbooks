@@ -9,7 +9,6 @@
     monthRange,
     categoryBadgeClass,
     categoryFullLabel,
-    lunarShortFromSource,
   } from "../../lib/calendar-events";
 
   interface Props {
@@ -234,10 +233,6 @@
     return out;
   });
 
-  // '오늘' 버튼 active: 현재 표시 월에 오늘이 포함될 때만. (선택 날짜와 무관 — 다른 달 이동 시 무조건 비활성)
-  const todayInDisplay = $derived(
-    !!today && today.getFullYear() === year && today.getMonth() + 1 === month,
-  );
 
   type DetailView = {
     solar: string;        // "2026년 5월 30일"
@@ -279,12 +274,13 @@
       .sort((a, b) => (a.occursOn < b.occursOn ? -1 : a.occursOn > b.occursOn ? 1 : 0)),
   );
 
-  /** 오늘 ISO — 상세박스에서 오늘 발생 기념일 마킹용. */
+  /** 오늘 ISO — 상세박스에서 오늘 발생 기념일 마킹용 + '오늘' 버튼 active 판정. */
   const todayIsoStr = $derived(today ? isoFor(today) : "");
-  function shortDate(iso: string): string {
-    const [, m, d] = iso.split("-").map(Number);
-    return `${m}.${d}`;
-  }
+
+  /** '오늘' 버튼 active: 실제로 오늘 날짜가 선택되어 있을 때만 (단순히 오늘 달이 표시 중 ≠ active). */
+  const selectedIsToday = $derived(
+    !!today && !!selectedDate && sameDay(selectedDate, today),
+  );
 </script>
 
 <div class="calendar">
@@ -308,7 +304,7 @@
     <button
       type="button"
       class="today-btn"
-      class:active={todayInDisplay}
+      class:active={selectedIsToday}
       onclick={goToday}
     >오늘</button>
     <div class="nav-group">
@@ -348,7 +344,6 @@
       {#if detailEvents.length > 0}
         <div class="detail-events">
           {#each detailEvents as occ (occ.source.id + "@" + occ.occursOn)}
-            {@const lunar = lunarShortFromSource(occ.source)}
             {@const isToday = occ.occursOn === todayIsoStr}
             <span
               class="ev-pill {categoryBadgeClass(occ.source.category)}"
@@ -358,7 +353,6 @@
               {#if isToday}
                 <span class="ev-check" aria-label="오늘"><Icon icon="badge-check" size={13} strokeWidth={2} /></span>
               {/if}
-              <span class="ev-date">{shortDate(occ.occursOn)}{#if lunar}<span class="ev-lunar">(음{lunar})</span>{/if}</span>
               <span class="ev-title">{occ.source.title}</span>
             </span>
           {/each}
@@ -751,12 +745,13 @@
   }
 
   /* ─── Detail-box events list — 홈 배너(HomeAgenda) 와 동일 톤 ─── */
-  /* 일정/기념일/기타 모두 column stack, 둥근 알약. */
+  /* 제목 알약을 row 가로 wrap. 폭 모자라면 다음 줄. */
   .detail-events {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
     margin-top: 0.15rem;
     padding-top: 0.45rem;
     border-top: 1px dashed color-mix(in srgb, var(--color-rule, #e8dfd9) 80%, transparent);
@@ -781,25 +776,8 @@
     color: inherit;
     flex-shrink: 0;
   }
-  .ev-pill .ev-date {
-    font-size: 0.74rem;
-    font-variant-numeric: tabular-nums;
-    opacity: 0.85;
-    flex-shrink: 0;
-  }
-  .ev-pill .ev-cat {
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    opacity: 0.85;
-  }
   .ev-pill .ev-title {
     font-weight: 600;
-  }
-  .ev-pill .ev-lunar {
-    font-size: 0.7rem;
-    opacity: 0.78;
-    margin-left: 0.1rem;
   }
 
   /* ─── Category palette — 셀·상세박스 통일 ─────────── */
