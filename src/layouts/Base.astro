@@ -214,7 +214,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         flashEl.classList.remove("flash");
         void flashEl.offsetWidth;
         flashEl.classList.add("flash");
-        window.setTimeout(() => flashEl.classList.remove("flash"), 2500);
+        window.setTimeout(() => flashEl.classList.remove("flash"), 5500);
       }
       function flashHashTarget() {
         const id = decodeURIComponent(location.hash.slice(1));
@@ -380,10 +380,12 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       .verse {
         scroll-margin-top: 110px;
       }
-      /* Outline-only flash: 단심 테두리만 짧게 깜빡 */
+      /* Outline-only flash: 단심 테두리. 스크롤이 끝난 후에도 충분히 보이도록
+         5.5s. 0~70% 은 또렷, 70~100% 만 페이드 — 긴 페이지에서 도착 후
+         "여기다" 인지에 충분한 시간 확보. */
       @keyframes jsb-flash {
         0%,
-        40% {
+        70% {
           box-shadow: 0 0 0 3px var(--color-primary);
         }
         100% {
@@ -391,14 +393,15 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         }
       }
       .verse.flash {
-        animation: jsb-flash 2.5s ease-out;
+        animation: jsb-flash 5.5s ease-out;
         border-radius: 4px;
       }
       /* Wikilink target highlight — SideCard "이 페이지에서 등장" 클릭 시
        * 절 안의 해당 카드 wikilink만 더 강하게 강조. 절 box-shadow 깜빡임과
        * 함께 한 번 등장한 뒤 사라진다. */
       @keyframes jsb-wikilink-flash {
-        0% {
+        0%,
+        70% {
           background: var(--color-primary-bg);
           outline-color: var(--color-primary);
         }
@@ -412,7 +415,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         outline: 2px solid var(--color-primary);
         outline-offset: 2px;
         border-radius: 3px;
-        animation: jsb-wikilink-flash 2.5s ease-out forwards;
+        animation: jsb-wikilink-flash 5.5s ease-out forwards;
       }
       /* Pagefind highlight — applied via ?q=검색어 URL param */
       mark.pagefind-highlight,
