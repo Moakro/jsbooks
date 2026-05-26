@@ -7,6 +7,7 @@ import { renderWikilinks } from "../../../../lib/wikilink";
 import { parseVerses } from "../../../../lib/verse-parser";
 import { correspondencesFor } from "../../../../lib/correspondences";
 import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
+import VerseCopyButton from "../../../../components/VerseCopyButton.astro";
 import AdminGate from "../../../../components/AdminGate.astro";
 import ScriptureChapterNav from "../../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../../components/ScriptureStickyBar.astro";
@@ -77,6 +78,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
           <div class="verse-label" data-pagefind-ignore>
             <a href={`#${v.id}`}>{v.num}절</a>
             <span style="margin-left: 0.5rem; opacity: 0.5">^{v.id}</span>
+            <VerseCopyButton anchor={v.id} />
             <CorrespondenceBadges matches={correspondencesFor("cheonjigaebyeokgyeong-hangeul", v.id)} />
           </div>
           <div class="verse-body" set:html={v.html} />

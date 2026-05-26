@@ -6,6 +6,7 @@ import { renderWikilinks } from "../../../lib/wikilink";
 import { parseVerseGroups } from "../../../lib/verse-parser";
 import { correspondencesFor } from "../../../lib/correspondences";
 import CorrespondenceBadges from "../../../components/CorrespondenceBadges.astro";
+import VerseCopyButton from "../../../components/VerseCopyButton.astro";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 import ScriptureVersionTag from "../../../components/ScriptureVersionTag.astro";
@@ -77,6 +78,7 @@ const groups: Group[] = parseVerseGroups(verses_entry.body ?? "").map((g) => ({
             <div class="verse-label" data-pagefind-ignore>
               <span class="verse-label-meta">
                 <a href={`#${s.anchor}`}>^{s.anchor}</a>
+                <VerseCopyButton anchor={s.anchor} />
                 <CorrespondenceBadges matches={correspondencesFor("donggokbiseo", s.anchor)} />
               </span>
             </div>

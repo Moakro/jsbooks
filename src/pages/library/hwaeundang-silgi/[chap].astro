@@ -7,6 +7,7 @@ import { renderWikilinks } from "../../../lib/wikilink";
 import { parseVerseGroups } from "../../../lib/verse-parser";
 import { correspondencesFor } from "../../../lib/correspondences";
 import CorrespondenceBadges from "../../../components/CorrespondenceBadges.astro";
+import VerseCopyButton from "../../../components/VerseCopyButton.astro";
 import ScriptureChapterNav from "../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../components/ScriptureStickyBar.astro";
 
@@ -89,6 +90,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
             <div class="verse-label" data-pagefind-ignore>
               <span class="verse-label-meta">
                 <a href={`#${s.anchor}`}>^{s.anchor}</a>
+                <VerseCopyButton anchor={s.anchor} />
                 <CorrespondenceBadges matches={correspondencesFor("hwaeundang-silgi", s.anchor)} />
               </span>
             </div>
