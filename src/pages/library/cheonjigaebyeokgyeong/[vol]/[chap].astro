@@ -7,6 +7,7 @@ import { parseVerseGroups } from "../../../../lib/verse-parser";
 import { getMapping } from "../../../../lib/canonical-mapping";
 import { correspondencesFor } from "../../../../lib/correspondences";
 import CorrespondenceBadges from "../../../../components/CorrespondenceBadges.astro";
+import VerseCopyButton from "../../../../components/VerseCopyButton.astro";
 import History from "../../../../components/History.astro";
 import ScriptureChapterNav from "../../../../components/ScriptureChapterNav.astro";
 import ScriptureStickyBar from "../../../../components/ScriptureStickyBar.astro";
@@ -137,6 +138,7 @@ const historyPath = `content/scripture/${entry.id}.md`;
             <div class="verse-label" data-pagefind-ignore>
               <span class="verse-label-meta">
                 <a href={`#${s.anchor}`}>^{s.anchor}</a>
+                <VerseCopyButton anchor={s.anchor} />
                 {!s.hangeulHTML && (
                   <span class="badge unmapped">한글 미매핑</span>
                 )}

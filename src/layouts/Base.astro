@@ -3,6 +3,7 @@ import SideCard from "../components/SideCard.svelte";
 import SearchBox from "../components/SearchBox.svelte";
 import AuthLink from "../components/AuthLink.svelte";
 import ConfirmDialog from "../components/ConfirmDialog.svelte";
+import Toast from "../components/Toast.svelte";
 import FooterContact from "../components/FooterContact.svelte";
 import Sidebar from "../components/Sidebar.astro";
 import { HEADER_NAV, resolveSection } from "../data/site-nav";
@@ -114,6 +115,7 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
       chapterLabel={chapterLabel}
     />
     <ConfirmDialog client:load />
+    <Toast client:load />
     <script>
       // Sidebar toggle: mobile slide-in / desktop optional collapse.
       const btn = document.getElementById("sidebar-toggle");
@@ -237,6 +239,45 @@ const sidebarVisible = shouldShowSidebar(path) && activeSection !== null;
         e.preventDefault();
         history.pushState(null, "", `#${id}`);
         jumpAndFlash(id);
+      });
+
+      // 절 anchor 옆 [URL 복사] 버튼 — 현재 path + #anchor 를 clipboard 에 복사하고 토스트 안내.
+      // hash 는 변경하지 X (스크롤 점프 없음). VerseCopyButton.astro 가 [data-verse-copy] 발급.
+      document.addEventListener("click", (e) => {
+        const target = e.target as HTMLElement | null;
+        const btn = target?.closest?.("[data-verse-copy]") as HTMLElement | null;
+        if (!btn) return;
+        e.preventDefault();
+        const anchor = btn.getAttribute("data-verse-copy") || "";
+        const url = `${location.origin}${location.pathname}#${anchor}`;
+        const toast = (text: string) => {
+          window.dispatchEvent(
+            new CustomEvent("jsbooks:toast", { detail: { text } }),
+          );
+        };
+        const fallback = () => {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = url;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand && document.execCommand("copy");
+            document.body.removeChild(ta);
+            toast(ok ? "현재 구절의 URL이 복사되었습니다." : "복사에 실패했습니다.");
+          } catch {
+            toast("복사에 실패했습니다.");
+          }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard
+            .writeText(url)
+            .then(() => toast("현재 구절의 URL이 복사되었습니다."))
+            .catch(fallback);
+        } else {
+          fallback();
+        }
       });
     </script>
     <style is:global>
