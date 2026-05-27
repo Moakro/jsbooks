@@ -1,10 +1,10 @@
 <script lang="ts">
   /**
    * /news/:slug/ 상세 — `/api/news/:slug` fetch 후 body_html(워커 렌더 캐시) 그대로 표시.
-   * 운영자 로그인 시 상단에 [수정][삭제] 액션 노출.
+   * 운영자 로그인 시 상단 toolbar 에 [+ 새 글][수정][삭제] + 우측 끝 '고정' 체크박스.
    */
   import { onMount } from "svelte";
-  import { categoryLabel, fmtNewsDate, type NewsItem } from "../../lib/news";
+  import { fmtNewsDate, type NewsItem } from "../../lib/news";
 
   interface Props {
     slug: string;
@@ -17,6 +17,7 @@
   let error = $state<string | null>(null);
   let isAdmin = $state(false);
   let deleting = $state(false);
+  let pinning = $state(false);
 
   onMount(async () => {
     const [newsRes, meRes] = await Promise.all([
@@ -54,6 +55,34 @@
     loading = false;
   });
 
+  function toast(text: string) {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("jsbooks:toast", { detail: { text } }));
+  }
+
+  async function togglePin(e: Event) {
+    if (!item) return;
+    const target = e.target as HTMLInputElement;
+    const next = target.checked ? 1 : 0;
+    pinning = true;
+    try {
+      const res = await fetch(`/api/news/${item.id}`, {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      item = { ...item, pinned: next };
+      toast(next === 1 ? "리스트 상단에 고정되었습니다." : "고정이 해제되었습니다.");
+    } catch (err) {
+      target.checked = !target.checked; // revert
+      toast(`고정 변경 실패: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      pinning = false;
+    }
+  }
+
   async function handleDelete() {
     if (!item) return;
     if (!confirm(`"${item.title}" 글을 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return;
@@ -77,8 +106,8 @@
 {:else if notFound}
   <div class="not-found">
     <h1>찾을 수 없는 글입니다</h1>
-    <p>요청하신 뉴스가 존재하지 않거나 발행되지 않았습니다.</p>
-    <p><a href="/news/">← 뉴스 목록</a></p>
+    <p>요청하신 소식이 존재하지 않거나 발행되지 않았습니다.</p>
+    <p><a href="/news/">← 소식 목록</a></p>
   </div>
 {:else if error}
   <p class="status error">불러오지 못했습니다: {error}</p>
@@ -99,19 +128,31 @@
         {#if item.draft === 1}
           <span class="draft-badge">드래프트</span>
         {/if}
+        <span class="spacer"></span>
+        <label class="pin-toggle">
+          <input
+            type="checkbox"
+            checked={item.pinned === 1}
+            disabled={pinning}
+            onchange={togglePin}
+          />
+          <span>고정</span>
+        </label>
       </div>
     {/if}
     <div class="news-meta">
-      <a class="cat" href={`/news/category/${item.category}/`}>{categoryLabel(item.category)}</a>
       <time datetime={item.published_at ?? item.created_at}>
         {fmtNewsDate(item.published_at ?? item.created_at)}
       </time>
+      {#if item.pinned === 1}
+        <span class="pinned-badge" title="상단 고정">📌</span>
+      {/if}
     </div>
     <h1>{item.title}</h1>
     <div class="prose-body">
       {@html item.body_html}
     </div>
-    <p class="back"><a href="/news/">← 뉴스 목록</a></p>
+    <p class="back"><a href="/news/">← 소식 목록</a></p>
   </article>
 {/if}
 
@@ -129,6 +170,16 @@
     border-radius: 8px;
     background: color-mix(in srgb, var(--color-muted, #8a807a) 4%, transparent);
   }
+  .spacer { flex: 1; }
+  .pin-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--color-muted, #8a807a);
+    cursor: pointer;
+  }
+  .pin-toggle input { cursor: pointer; }
   .btn {
     padding: 0.3rem 0.7rem;
     border: 1px solid var(--color-rule, #e8dfd9);
@@ -175,19 +226,12 @@
   .news-meta {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.5rem;
     font-size: 0.82rem;
     color: var(--color-muted, #8a807a);
     margin-bottom: 0.4rem;
   }
-  .cat {
-    padding: 0.05rem 0.55rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--color-primary, #a8352a) 12%, transparent);
-    color: var(--color-primary, #a8352a);
-    font-weight: 600;
-    text-decoration: none;
-  }
+  .pinned-badge { font-size: 0.9rem; }
   .news-detail h1 {
     margin: 0 0 1.2rem;
     font-size: 1.55rem;

@@ -14,10 +14,7 @@
    */
   import { onMount } from "svelte";
   import {
-    categoryLabel,
     extractSummary,
-    NEWS_CATEGORIES,
-    type NewsCategory,
     type NewsItem,
   } from "../../lib/news";
 
@@ -26,9 +23,8 @@
   let mode = $state<Mode>("new");
   let editingId = $state<string | null>(null);
 
-  // form state
+  // form state — 카테고리는 UI 제거. 모든 글은 schema 호환 위해 'notice' 로 고정 저장.
   let title = $state("");
-  let category = $state<NewsCategory>("notice");
   let bodyMd = $state("");
   let draftFlag = $state(false);
 
@@ -61,7 +57,6 @@
       mode = "edit";
       editingId = target.id;
       title = target.title;
-      category = target.category;
       bodyMd = target.body_md;
       draftFlag = target.draft === 1;
       lastSavedSlug = target.slug;
@@ -81,7 +76,7 @@
       // summary 자동 추출 — 비어 있어도 worker 가 받아주지만, 목록 카드에 노출되므로 채워서 보낸다.
       const payload: Record<string, unknown> = {
         title: title.trim(),
-        category,
+        category: "notice", // 카테고리 UI 제거 — schema 호환을 위해 고정값.
         body_md: bodyMd,
         summary: extractSummary(bodyMd) || null,
         draft: draftFlag ? 1 : 0,
@@ -160,15 +155,7 @@
   <form class="form" onsubmit={(e) => { e.preventDefault(); save(); }}>
     <label class="field">
       <span class="label">제목 *</span>
-      <input type="text" bind:value={title} placeholder="공지 제목" maxlength="200" />
-    </label>
-    <label class="field">
-      <span class="label">카테고리 *</span>
-      <select bind:value={category}>
-        {#each NEWS_CATEGORIES as cat (cat)}
-          <option value={cat}>{categoryLabel(cat)}</option>
-        {/each}
-      </select>
+      <input type="text" bind:value={title} placeholder="소식 제목" maxlength="200" />
     </label>
     <label class="field">
       <span class="label">본문 (마크다운) *</span>

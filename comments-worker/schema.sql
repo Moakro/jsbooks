@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS news (
   body_html    TEXT NOT NULL DEFAULT '',
   summary      TEXT,
   draft        INTEGER NOT NULL DEFAULT 0,                 -- 0=published, 1=draft
+  pinned       INTEGER NOT NULL DEFAULT 0,                 -- 1=리스트 상단 고정
   published_at TEXT,                                       -- ISO 'YYYY-MM-DDTHH:MM:SSZ' (draft 면 NULL)
   author_id    TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
@@ -173,6 +174,7 @@ CREATE TABLE IF NOT EXISTS news (
 );
 CREATE INDEX IF NOT EXISTS idx_news_published ON news(draft, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_news_category ON news(category, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_pinned ON news(pinned DESC, published_at DESC);
 
 -- ──────────────── sessions ────────────────
 -- Auth.js 세션 (JWT 사용 시엔 비워둠. DB 세션 모드 대비)

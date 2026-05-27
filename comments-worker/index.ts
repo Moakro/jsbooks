@@ -1862,6 +1862,7 @@ interface NewsRow {
   body_html: string;
   summary: string | null;
   draft: number;
+  pinned: number;
   published_at: string | null;
   author_id: string;
   created_at: string;
@@ -1874,7 +1875,7 @@ interface NewsRowWithAuthor extends NewsRow {
 
 const NEWS_SELECT = `
   SELECT n.id, n.slug, n.title, n.category, n.body_md, n.body_html, n.summary,
-         n.draft, n.published_at, n.author_id, n.created_at, n.updated_at,
+         n.draft, n.pinned, n.published_at, n.author_id, n.created_at, n.updated_at,
          u.display_name AS author_name
     FROM news n
     LEFT JOIN users u ON u.id = n.author_id
@@ -1898,6 +1899,7 @@ interface NewsInput {
   summary?: string | null;
   slug?: string;
   draft?: number;
+  pinned?: number;
   error?: string;
 }
 
@@ -1943,6 +1945,7 @@ function normalizeNewsInput(raw: unknown): NewsInput {
     out.slug = s;
   }
   if (b.draft !== undefined) out.draft = b.draft ? 1 : 0;
+  if (b.pinned !== undefined) out.pinned = b.pinned ? 1 : 0;
   return out;
 }
 
@@ -1983,7 +1986,9 @@ async function listNews(req: Request, env: Env): Promise<Response> {
 
   const sql = `${NEWS_SELECT}
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
-    ORDER BY COALESCE(n.published_at, n.updated_at) DESC, n.created_at DESC
+    ORDER BY n.pinned DESC,
+             COALESCE(n.published_at, n.updated_at) DESC,
+             n.created_at DESC
     LIMIT ?`;
   const rs = await env.DB.prepare(sql).bind(...binds, limit).all<NewsRowWithAuthor>();
   return json({ news: rs.results ?? [] });
@@ -2074,6 +2079,7 @@ async function updateNews(req: Request, env: Env, id: string): Promise<Response>
       sets.push("published_at=NULL");
     }
   }
+  if (parsed.pinned !== undefined) { sets.push("pinned=?"); binds.push(parsed.pinned); }
   if (sets.length === 0) return json({ error: "nothing to update" }, 400);
   sets.push("updated_at=datetime('now')");
   binds.push(id);

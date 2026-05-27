@@ -1,21 +1,17 @@
 ---
 /**
- * /news/ — 발행된 뉴스 목록. D1 (`/api/news`) 에서 client-fetch.
+ * /소식/ — 발행된 글 목록. D1 (`/api/news`) 에서 client-fetch.
+ * 카테고리·안내문 제거. 운영자 '+ 새 글' 은 우측상단 absolute (NewsAdminBar).
  */
 import Base from "../../layouts/Base.astro";
 import NewsList from "../../components/news/NewsList.svelte";
-import { NEWS_CATEGORIES, categoryLabel } from "../../lib/news";
+import NewsAdminBar from "../../components/news/NewsAdminBar.svelte";
 ---
 
-<Base title="뉴스 — jsbooks">
+<Base title="소식 — jsbooks">
   <header class="news-header">
-    <h1>뉴스</h1>
-    <p class="news-sub">jsbooks의 공지·업데이트·릴리스·로드맵을 알립니다.</p>
-    <nav class="cat-nav" aria-label="뉴스 카테고리">
-      {NEWS_CATEGORIES.map((cat) => (
-        <a href={`/news/category/${cat}/`}>{categoryLabel(cat)}</a>
-      ))}
-    </nav>
+    <h1>소식</h1>
+    <NewsAdminBar client:load />
   </header>
 
   <NewsList client:load />
@@ -23,33 +19,11 @@ import { NEWS_CATEGORIES, categoryLabel } from "../../lib/news";
 
 <style>
   .news-header {
-    margin-bottom: 1.4rem;
+    position: relative;
+    margin-bottom: 1.2rem;
   }
   .news-header h1 {
-    margin: 0 0 0.3rem;
+    margin: 0;
     font-size: 1.6rem;
-  }
-  .news-sub {
-    margin: 0 0 0.7rem;
-    color: var(--color-muted, #8a807a);
-    font-size: 0.92rem;
-  }
-  .cat-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-  .cat-nav a {
-    padding: 0.25rem 0.7rem;
-    border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 999px;
-    font-size: 0.82rem;
-    color: var(--color-fg, #1f1c1a);
-    text-decoration: none;
-    transition: border-color 0.15s ease, color 0.15s ease;
-  }
-  .cat-nav a:hover {
-    border-color: var(--color-primary, #a8352a);
-    color: var(--color-primary, #a8352a);
   }
 </style>

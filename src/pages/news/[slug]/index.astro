@@ -12,6 +12,6 @@ import NewsArticle from "../../../components/news/NewsArticle.svelte";
 const { slug } = Astro.params as { slug: string };
 ---
 
-<Base title="뉴스 — jsbooks">
+<Base title="소식 — jsbooks">
   <NewsArticle slug={slug} client:load />
 </Base>
