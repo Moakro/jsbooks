@@ -1,72 +1,17 @@
 ---
-import { render } from "astro:content";
+/**
+ * /news/:slug/ — 단일 뉴스 상세. slug 가 D1 동적 키이므로 SSR(prerender=false).
+ * 페이지 자체는 빈 shell 만 렌더하고 본문·메타·운영자 액션은 `<NewsArticle>` 가
+ * client-fetch 한다(404 도 클라이언트에서 표시).
+ */
+export const prerender = false;
+
 import Base from "../../../layouts/Base.astro";
-import { getPublishedNews, categoryLabel } from "../../../lib/news";
+import NewsArticle from "../../../components/news/NewsArticle.svelte";
 
-export async function getStaticPaths() {
-  const all = await getPublishedNews();
-  return all.map((entry) => ({
-    params: { slug: entry.id },
-    props: { entry },
-  }));
-}
-
-const { entry } = Astro.props as { entry: Awaited<ReturnType<typeof getPublishedNews>>[number] };
-const { Content } = await render(entry);
-
-function fmtDate(d: Date): string {
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
-}
+const { slug } = Astro.params as { slug: string };
 ---
 
-<Base title={`${entry.data.title} — 뉴스 — jsbooks`} description={entry.data.summary}>
-  <article class="news-detail">
-    <div class="news-meta">
-      <a class="cat" href={`/news/category/${entry.data.category}/`}>{categoryLabel(entry.data.category)}</a>
-      <time datetime={entry.data.date.toISOString()}>{fmtDate(entry.data.date)}</time>
-    </div>
-    <h1>{entry.data.title}</h1>
-    <div class="prose-body">
-      <Content />
-    </div>
-    <p class="back"><a href="/news/">← 뉴스 목록</a></p>
-  </article>
+<Base title="뉴스 — jsbooks">
+  <NewsArticle slug={slug} client:load />
 </Base>
-
-<style>
-  .news-detail {
-    max-width: 42rem;
-  }
-  .news-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    font-size: 0.82rem;
-    color: var(--color-muted, #8a807a);
-    margin-bottom: 0.4rem;
-  }
-  .cat {
-    padding: 0.05rem 0.55rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--color-primary, #a8352a) 12%, transparent);
-    color: var(--color-primary, #a8352a);
-    font-weight: 600;
-    text-decoration: none;
-  }
-  .news-detail h1 {
-    margin: 0 0 1.2rem;
-    font-size: 1.55rem;
-  }
-  .prose-body :global(p),
-  .prose-body :global(li) {
-    line-height: 1.85;
-  }
-  .prose-body :global(h2),
-  .prose-body :global(h3) {
-    margin-top: 1.6rem;
-  }
-  .back {
-    margin-top: 2.5rem;
-    font-size: 0.9rem;
-  }
-</style>

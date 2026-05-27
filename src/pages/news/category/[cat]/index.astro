@@ -1,27 +1,22 @@
 ---
+/**
+ * /news/category/:cat/ — 카테고리별 뉴스 목록. 4개 카테고리 정적 path.
+ * 본문은 D1 (`/api/news?category=:cat`) 에서 client-fetch.
+ */
 import Base from "../../../../layouts/Base.astro";
+import NewsList from "../../../../components/news/NewsList.svelte";
 import {
-  getPublishedNews,
-  categoryLabel,
   NEWS_CATEGORIES,
+  categoryLabel,
   type NewsCategory,
 } from "../../../../lib/news";
 
 export async function getStaticPaths() {
-  const all = await getPublishedNews();
-  return NEWS_CATEGORIES.map((cat) => ({
-    params: { cat },
-    props: { items: all.filter((e) => e.data.category === cat) },
-  }));
+  return NEWS_CATEGORIES.map((cat) => ({ params: { cat } }));
 }
 
 const { cat } = Astro.params;
-const { items } = Astro.props as { items: Awaited<ReturnType<typeof getPublishedNews>> };
 const label = categoryLabel(cat as NewsCategory);
-
-function fmtDate(d: Date): string {
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
-}
 ---
 
 <Base title={`${label} — 뉴스 — jsbooks`}>
@@ -35,23 +30,7 @@ function fmtDate(d: Date): string {
     </nav>
   </header>
 
-  {items.length === 0 ? (
-    <p class="empty">이 카테고리에는 아직 소식이 없습니다.</p>
-  ) : (
-    <ul class="news-list">
-      {items.map((item) => (
-        <li class="news-item">
-          <a href={`/news/${item.id}/`} class="news-link">
-            <div class="news-meta">
-              <time datetime={item.data.date.toISOString()}>{fmtDate(item.data.date)}</time>
-            </div>
-            <h2 class="news-title">{item.data.title}</h2>
-            {item.data.summary && <p class="news-summary">{item.data.summary}</p>}
-          </a>
-        </li>
-      ))}
-    </ul>
-  )}
+  <NewsList category={cat} client:load />
 </Base>
 
 <style>
@@ -84,45 +63,5 @@ function fmtDate(d: Date): string {
   .cat-nav a.active {
     background: color-mix(in srgb, var(--color-primary, #a8352a) 10%, transparent);
     font-weight: 600;
-  }
-  .news-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-  }
-  .news-link {
-    display: block;
-    padding: 0.9rem 1.1rem;
-    border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 10px;
-    background: var(--color-surface, #fff);
-    text-decoration: none;
-    color: inherit;
-    transition: border-color 0.15s ease, transform 0.15s ease;
-  }
-  .news-link:hover {
-    border-color: var(--color-primary, #a8352a);
-    transform: translateY(-1px);
-  }
-  .news-meta {
-    font-size: 0.78rem;
-    color: var(--color-muted, #8a807a);
-    margin-bottom: 0.3rem;
-  }
-  .news-title {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-  }
-  .news-summary {
-    margin: 0.3rem 0 0;
-    font-size: 0.88rem;
-    color: var(--color-muted, #8a807a);
-  }
-  .empty {
-    color: var(--color-muted, #8a807a);
   }
 </style>

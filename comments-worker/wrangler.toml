@@ -40,6 +40,10 @@ zone_name = "jsbooks.wiki"
 pattern = "jsbooks.wiki/api/events*"
 zone_name = "jsbooks.wiki"
 
+[[routes]]
+pattern = "jsbooks.wiki/api/news*"
+zone_name = "jsbooks.wiki"
+
 [observability]
 enabled = true
 
@@ -95,6 +99,10 @@ zone_name = "jsbooks.wiki"
 
 [[env.staging.routes]]
 pattern = "stage.jsbooks.wiki/api/events*"
+zone_name = "jsbooks.wiki"
+
+[[env.staging.routes]]
+pattern = "stage.jsbooks.wiki/api/news*"
 zone_name = "jsbooks.wiki"
 
 [env.staging.vars]

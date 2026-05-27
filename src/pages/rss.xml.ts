@@ -1,6 +1,7 @@
 import rss from "@astrojs/rss";
 import type { APIContext } from "astro";
-import { getPublishedNews, categoryLabel } from "../lib/news";
+import { categoryLabel } from "../lib/news";
+import { getPublishedNews } from "../lib/news-vault";
 
 /**
  * 사이트 RSS 피드 — 공개 콘텐츠만.
