@@ -1,4 +1,9 @@
 <script lang="ts">
+  /**
+   * 홈 Sitemap 의 '피드' 섹션 — 사이트 전체 최근 댓글 5건을 client-fetch (D1).
+   * 시간순 누적 컨텐츠이므로 스레드형: 단일 카드 안에 항목 리스트 stack
+   * (Changelog.astro 패턴 동일).
+   */
   import { onMount } from "svelte";
   import { relativeTime } from "../lib/relative-time";
   import { isUserVisibleScripture } from "../lib/scripture-visibility";
@@ -78,7 +83,7 @@
   <ol class="recent-list">
     {#each items as item (item.id)}
       {@const ctx = verseContext(item)}
-      <li class="recent-card">
+      <li>
         <div class="head">
           {#if item.author.avatar_url}
             <img class="avatar" src={item.author.avatar_url} alt="" loading="lazy" />
@@ -103,12 +108,19 @@
 {/if}
 
 <style>
+  .state,
+  .recent-list {
+    grid-column: 1 / -1;
+    background: linear-gradient(180deg, #ffffff 0%, var(--color-bg, #fbf8f4) 100%);
+    border: 1px solid var(--color-rule, #e8dfd9);
+    border-radius: 10px;
+    box-shadow:
+      0 1px 2px rgba(60, 40, 25, 0.04),
+      0 2px 8px rgba(60, 40, 25, 0.06);
+  }
   .state {
     margin: 0;
     padding: 0.9rem 1rem;
-    border: 1px dashed var(--color-rule, #e8dfd9);
-    border-radius: 10px;
-    background: var(--color-bg, #fbf8f4);
     font-size: 0.9rem;
     text-align: center;
   }
@@ -116,22 +128,18 @@
   .error { color: var(--color-primary, #a8352a); }
 
   .recent-list {
-    grid-column: 1 / -1;
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 0.4rem 1.1rem 0.3rem;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
   }
-  .recent-card {
-    background: linear-gradient(180deg, #ffffff 0%, var(--color-bg, #fbf8f4) 100%);
-    border: 1px solid var(--color-rule, #e8dfd9);
-    border-radius: 10px;
-    padding: 0.6rem 0.85rem;
-    box-shadow:
-      0 1px 2px rgba(60, 40, 25, 0.04),
-      0 2px 8px rgba(60, 40, 25, 0.06);
+  .recent-list li {
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--color-rule, #e8dfd9);
+  }
+  .recent-list li:last-child {
+    border-bottom: none;
   }
 
   .head {
@@ -142,8 +150,8 @@
     font-size: 0.85rem;
   }
   .avatar {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     object-fit: cover;
     background: var(--color-bg, #fbf8f4);
@@ -184,7 +192,8 @@
   }
 
   .preview {
-    margin: 0.35rem 0 0;
+    margin: 0.3rem 0 0;
+    padding-left: calc(22px + 0.45rem);
     color: var(--color-fg, #1f1c1a);
     font-size: 0.85rem;
     line-height: 1.45;
@@ -192,13 +201,20 @@
     overflow-wrap: anywhere;
   }
 
+  @media (max-width: 640px) {
+    .preview {
+      padding-left: 0;
+    }
+  }
   @media (max-width: 1023px) {
-    .recent-card {
+    .state,
+    .recent-list {
       box-shadow: 0 1px 2px rgba(60, 40, 25, 0.05);
     }
   }
   @media (prefers-color-scheme: dark) {
-    .recent-card {
+    .state,
+    .recent-list {
       background: linear-gradient(180deg, #2c2418 0%, var(--color-bg, #1f1c1a) 100%);
       box-shadow:
         0 1px 2px rgba(0, 0, 0, 0.25),
