@@ -76,6 +76,12 @@ type SitemapSection = {
 
 const SECTIONS: SitemapSection[] = [
   {
+    slug: "news",
+    label: "소식",
+    href: "/news/",
+    // 카드는 SitemapNewsCards island 가 D1 fetch — 최근 3개. 빌드 시 정의 X.
+  },
+  {
     slug: "scripture",
     label: "서재",
     href: "/library/",
@@ -99,12 +105,6 @@ const SECTIONS: SitemapSection[] = [
     href: "/feed/",
     // 카드 자리에 FeedRecent 컴포넌트 마운트 (사이트 전체 최근 댓글 5건).
     // 섹션 헤더 "피드 →" 클릭으로 전체 /feed/ 진입.
-  },
-  {
-    slug: "news",
-    label: "소식",
-    href: "/news/",
-    // 카드는 SitemapNewsCards island 가 D1 fetch — 최근 3개. 빌드 시 정의 X.
   },
 ];
 ---
