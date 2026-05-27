@@ -106,6 +106,25 @@ export default {
         if (req.method === "DELETE") return deleteEvent(req, env, id);
       }
 
+      // ──── News (사이트 공지/업데이트/릴리스/로드맵) ────
+      // GET /api/news        → 발행 글 목록 (admin 은 ?include_drafts=1)
+      // GET /api/news/:slug  → 단일 글 (slug)
+      // POST /api/news       → admin 생성
+      // PUT /api/news/:id    → admin 수정 (id 기준)
+      // DELETE /api/news/:id → admin 삭제 (id 기준)
+      if (path === "/api/news" && req.method === "GET") return listNews(req, env);
+      if (path === "/api/news" && req.method === "POST") return createNews(req, env);
+      const newsMatch = path.match(/^\/api\/news\/([^/]+)$/);
+      if (newsMatch) {
+        // 한글 slug 는 URL.pathname 에서 percent-encoded 로 반환되므로 디코드.
+        let idOrSlug: string;
+        try { idOrSlug = decodeURIComponent(newsMatch[1]); }
+        catch { idOrSlug = newsMatch[1]; }
+        if (req.method === "GET") return getNews(req, env, idOrSlug);
+        if (req.method === "PUT") return updateNews(req, env, idOrSlug);
+        if (req.method === "DELETE") return deleteNews(req, env, idOrSlug);
+      }
+
       return json({ error: "not found" }, 404);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1822,4 +1841,361 @@ async function deleteEvent(req: Request, env: Env, id: string): Promise<Response
   if (existing.user_id !== uid) return json({ error: "forbidden" }, 403);
   await env.DB.prepare("DELETE FROM events WHERE id=?").bind(id).run();
   return json({ ok: true });
+}
+
+// ───────────────────── news ─────────────────────
+// 사이트 공지/업데이트/릴리스/로드맵 — 운영자(level>=4) CMS.
+// body_md 원본 + body_html 캐시(생성·수정 시 갱신). 일반 회원·비회원은 발행본만 조회.
+
+const NEWS_CATEGORIES = new Set(["notice", "update", "release", "roadmap"]);
+const NEWS_TITLE_MAX = 200;
+const NEWS_SUMMARY_MAX = 500;
+const NEWS_BODY_MAX = 200_000;
+const NEWS_SLUG_RE = /^[A-Za-z0-9가-힣_\-]+$/;
+
+interface NewsRow {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  body_md: string;
+  body_html: string;
+  summary: string | null;
+  draft: number;
+  published_at: string | null;
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface NewsRowWithAuthor extends NewsRow {
+  author_name: string | null;
+}
+
+const NEWS_SELECT = `
+  SELECT n.id, n.slug, n.title, n.category, n.body_md, n.body_html, n.summary,
+         n.draft, n.published_at, n.author_id, n.created_at, n.updated_at,
+         u.display_name AS author_name
+    FROM news n
+    LEFT JOIN users u ON u.id = n.author_id
+`;
+
+function slugifyNews(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9가-힣\-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+interface NewsInput {
+  title?: string;
+  category?: string;
+  body_md?: string;
+  summary?: string | null;
+  slug?: string;
+  draft?: number;
+  error?: string;
+}
+
+function normalizeNewsInput(raw: unknown): NewsInput {
+  if (!raw || typeof raw !== "object") return { error: "body must be JSON object" };
+  const b = raw as Record<string, unknown>;
+  const out: NewsInput = {};
+  if (b.title !== undefined) {
+    if (typeof b.title !== "string") return { error: "title must be string" };
+    const t = b.title.trim();
+    if (!t) return { error: "title required" };
+    if (t.length > NEWS_TITLE_MAX) return { error: `title too long (max ${NEWS_TITLE_MAX})` };
+    out.title = t;
+  }
+  if (b.category !== undefined) {
+    if (typeof b.category !== "string" || !NEWS_CATEGORIES.has(b.category)) {
+      return { error: `category must be one of: ${[...NEWS_CATEGORIES].join(", ")}` };
+    }
+    out.category = b.category;
+  }
+  if (b.body_md !== undefined) {
+    if (typeof b.body_md !== "string") return { error: "body_md must be string" };
+    if (b.body_md.length > NEWS_BODY_MAX) return { error: `body_md too long (max ${NEWS_BODY_MAX})` };
+    out.body_md = b.body_md;
+  }
+  if (b.summary !== undefined) {
+    if (b.summary === null) {
+      out.summary = null;
+    } else if (typeof b.summary === "string") {
+      const s = b.summary.trim();
+      if (s.length > NEWS_SUMMARY_MAX) return { error: `summary too long (max ${NEWS_SUMMARY_MAX})` };
+      out.summary = s || null;
+    } else {
+      return { error: "summary must be string or null" };
+    }
+  }
+  if (b.slug !== undefined) {
+    if (typeof b.slug !== "string") return { error: "slug must be string" };
+    const s = b.slug.trim();
+    if (!s) return { error: "slug must not be empty" };
+    if (s.length > 120) return { error: "slug too long (max 120)" };
+    if (!NEWS_SLUG_RE.test(s)) return { error: "slug 형식이 잘못되었습니다 (영문/숫자/한글/_-)" };
+    out.slug = s;
+  }
+  if (b.draft !== undefined) out.draft = b.draft ? 1 : 0;
+  return out;
+}
+
+// 충돌 없는 slug 확보 — base, base-2, base-3 ... excludeId 는 수정 시 자기 자신 제외.
+async function ensureUniqueSlug(env: Env, base: string, excludeId: string | null): Promise<string> {
+  for (let i = 0; i < 100; i++) {
+    const cand = i === 0 ? base : `${base}-${i + 1}`;
+    const row = excludeId
+      ? await env.DB.prepare("SELECT 1 FROM news WHERE slug = ? AND id <> ?").bind(cand, excludeId).first()
+      : await env.DB.prepare("SELECT 1 FROM news WHERE slug = ?").bind(cand).first();
+    if (!row) return cand;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+// GET /api/news?category=notice&include_drafts=1&limit=100
+async function listNews(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const cat = url.searchParams.get("category");
+  const includeDrafts = url.searchParams.get("include_drafts") === "1";
+  const limitRaw = parseInt(url.searchParams.get("limit") ?? "100", 10);
+  const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 100, 1), 500);
+
+  let isAdmin = false;
+  if (includeDrafts) {
+    const uid = await currentUserId(req, env);
+    if (!uid) return json({ error: "unauthenticated" }, 401);
+    const me = await loadUser(env, uid);
+    if (!me || me.level < 4) return json({ error: "forbidden" }, 403);
+    isAdmin = true;
+  }
+  if (cat && !NEWS_CATEGORIES.has(cat)) return json({ error: "invalid category" }, 400);
+
+  const where: string[] = [];
+  const binds: unknown[] = [];
+  if (!isAdmin) where.push("n.draft = 0");
+  if (cat) { where.push("n.category = ?"); binds.push(cat); }
+
+  const sql = `${NEWS_SELECT}
+    ${where.length ? "WHERE " + where.join(" AND ") : ""}
+    ORDER BY COALESCE(n.published_at, n.updated_at) DESC, n.created_at DESC
+    LIMIT ?`;
+  const rs = await env.DB.prepare(sql).bind(...binds, limit).all<NewsRowWithAuthor>();
+  return json({ news: rs.results ?? [] });
+}
+
+// GET /api/news/:slug — 발행본만 일반 노출, 드래프트는 admin 만.
+async function getNews(req: Request, env: Env, slug: string): Promise<Response> {
+  const row = await env.DB.prepare(`${NEWS_SELECT} WHERE n.slug = ? LIMIT 1`)
+    .bind(slug)
+    .first<NewsRowWithAuthor>();
+  if (!row) return json({ error: "not found" }, 404);
+  if (row.draft === 1) {
+    const uid = await currentUserId(req, env);
+    if (!uid) return json({ error: "not found" }, 404);
+    const me = await loadUser(env, uid);
+    if (!me || me.level < 4) return json({ error: "not found" }, 404);
+  }
+  return json({ news: row });
+}
+
+// POST /api/news (admin level>=4)
+async function createNews(req: Request, env: Env): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "unauthenticated" }, 401);
+  const me = await loadUser(env, uid);
+  if (!me || me.level < 4) return json({ error: "forbidden" }, 403);
+
+  const raw = await req.json().catch(() => null);
+  const parsed = normalizeNewsInput(raw);
+  if (parsed.error) return json({ error: parsed.error }, 400);
+  if (!parsed.title || !parsed.category || parsed.body_md === undefined) {
+    return json({ error: "title, category, body_md required" }, 400);
+  }
+
+  const base = parsed.slug ?? slugifyNews(parsed.title) ?? `news-${Date.now()}`;
+  const slug = await ensureUniqueSlug(env, base || `news-${Date.now()}`, null);
+  const id = uuid();
+  const draft = parsed.draft ?? 0;
+  const publishedAt = draft === 0 ? new Date().toISOString().replace(/\.\d+Z$/, "Z") : null;
+  const html = renderNewsMarkdown(parsed.body_md);
+
+  await env.DB.prepare(
+    `INSERT INTO news (id, slug, title, category, body_md, body_html, summary, draft, published_at, author_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    id, slug, parsed.title, parsed.category, parsed.body_md, html,
+    parsed.summary ?? null, draft, publishedAt, uid,
+  ).run();
+
+  const row = await env.DB.prepare(`${NEWS_SELECT} WHERE n.id = ?`).bind(id).first<NewsRowWithAuthor>();
+  return json({ news: row }, 201);
+}
+
+// PUT /api/news/:id (admin)
+async function updateNews(req: Request, env: Env, id: string): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "unauthenticated" }, 401);
+  const me = await loadUser(env, uid);
+  if (!me || me.level < 4) return json({ error: "forbidden" }, 403);
+
+  const existing = await env.DB.prepare(
+    "SELECT id, slug, draft FROM news WHERE id = ?",
+  ).bind(id).first<{ id: string; slug: string; draft: number }>();
+  if (!existing) return json({ error: "not found" }, 404);
+
+  const raw = await req.json().catch(() => null);
+  const parsed = normalizeNewsInput(raw);
+  if (parsed.error) return json({ error: parsed.error }, 400);
+
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  if (parsed.title !== undefined) { sets.push("title=?"); binds.push(parsed.title); }
+  if (parsed.category !== undefined) { sets.push("category=?"); binds.push(parsed.category); }
+  if (parsed.body_md !== undefined) {
+    sets.push("body_md=?"); binds.push(parsed.body_md);
+    sets.push("body_html=?"); binds.push(renderNewsMarkdown(parsed.body_md));
+  }
+  if (parsed.summary !== undefined) { sets.push("summary=?"); binds.push(parsed.summary); }
+  if (parsed.slug !== undefined && parsed.slug !== existing.slug) {
+    const newSlug = await ensureUniqueSlug(env, parsed.slug, id);
+    sets.push("slug=?"); binds.push(newSlug);
+  }
+  if (parsed.draft !== undefined) {
+    sets.push("draft=?"); binds.push(parsed.draft);
+    if (parsed.draft === 0 && existing.draft === 1) {
+      sets.push("published_at=?"); binds.push(new Date().toISOString().replace(/\.\d+Z$/, "Z"));
+    } else if (parsed.draft === 1) {
+      sets.push("published_at=NULL");
+    }
+  }
+  if (sets.length === 0) return json({ error: "nothing to update" }, 400);
+  sets.push("updated_at=datetime('now')");
+  binds.push(id);
+
+  await env.DB.prepare(`UPDATE news SET ${sets.join(", ")} WHERE id=?`).bind(...binds).run();
+
+  const row = await env.DB.prepare(`${NEWS_SELECT} WHERE n.id = ?`).bind(id).first<NewsRowWithAuthor>();
+  return json({ news: row });
+}
+
+// DELETE /api/news/:id (admin) — hard delete
+async function deleteNews(req: Request, env: Env, id: string): Promise<Response> {
+  const uid = await currentUserId(req, env);
+  if (!uid) return json({ error: "unauthenticated" }, 401);
+  const me = await loadUser(env, uid);
+  if (!me || me.level < 4) return json({ error: "forbidden" }, 403);
+  const existing = await env.DB.prepare("SELECT id FROM news WHERE id = ?").bind(id).first();
+  if (!existing) return json({ error: "not found" }, 404);
+  await env.DB.prepare("DELETE FROM news WHERE id = ?").bind(id).run();
+  return json({ ok: true });
+}
+
+// ── Minimal markdown renderer (block + inline) ──
+// Block: heading (#~####), unordered list (- *), ordered list (N.), blockquote (>),
+//        fenced code (```), horizontal rule (---), paragraph.
+// Inline: `code`, **bold**, *italic*, [text](url). 모든 텍스트는 HTML 이스케이프 후 변환.
+// 대형 의존성 없이 운영자 작성 뉴스 톤에 충분한 수준.
+function escapeHtmlNews(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderNewsInline(s: string): string {
+  let out = escapeHtmlNews(s);
+  // inline code 먼저 (안의 * 등 보호)
+  out = out.replace(/`([^`]+)`/g, (_m, code) => `<code>${code}</code>`);
+  // 링크 [text](url) — 안전 URL 만 (http/https/site-relative)
+  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, text, url) => {
+    const safe = /^(https?:\/\/|\/)/i.test(url) ? url : "#";
+    return `<a href="${safe}" rel="noopener">${text}</a>`;
+  });
+  // bold **text**
+  out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  // italic *text* (단독 *, ** 와 충돌 회피)
+  out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
+  return out;
+}
+
+function renderNewsMarkdown(md: string): string {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const blocks: string[] = [];
+  let buf: string[] = [];
+  let fence: string[] | null = null;
+
+  const flush = () => {
+    if (buf.length) { blocks.push(renderBlock(buf.join("\n"))); buf = []; }
+  };
+
+  for (const line of lines) {
+    if (fence !== null) {
+      if (/^```\s*$/.test(line)) {
+        blocks.push(`<pre><code>${escapeHtmlNews(fence.join("\n"))}</code></pre>`);
+        fence = null;
+      } else {
+        fence.push(line);
+      }
+      continue;
+    }
+    if (/^```/.test(line)) {
+      flush();
+      fence = [];
+      continue;
+    }
+    if (line.trim() === "") {
+      flush();
+    } else {
+      buf.push(line);
+    }
+  }
+  if (fence !== null) {
+    blocks.push(`<pre><code>${escapeHtmlNews(fence.join("\n"))}</code></pre>`);
+  }
+  flush();
+  return blocks.join("\n");
+}
+
+function renderBlock(block: string): string {
+  const lines = block.split("\n");
+
+  // Heading (단일 라인만)
+  if (lines.length === 1) {
+    const h = lines[0].match(/^(#{1,4})\s+(.+)$/);
+    if (h) {
+      const lvl = h[1].length;
+      return `<h${lvl}>${renderNewsInline(h[2])}</h${lvl}>`;
+    }
+    if (/^(---|\*\*\*|___)\s*$/.test(lines[0])) return "<hr>";
+  }
+
+  // Unordered list
+  if (lines.every((l) => /^[-*]\s+/.test(l))) {
+    const items = lines.map((l) => `<li>${renderNewsInline(l.replace(/^[-*]\s+/, ""))}</li>`).join("");
+    return `<ul>${items}</ul>`;
+  }
+
+  // Ordered list
+  if (lines.every((l) => /^\d+\.\s+/.test(l))) {
+    const items = lines.map((l) => `<li>${renderNewsInline(l.replace(/^\d+\.\s+/, ""))}</li>`).join("");
+    return `<ol>${items}</ol>`;
+  }
+
+  // Blockquote
+  if (lines.every((l) => /^>\s?/.test(l))) {
+    const inner = lines.map((l) => l.replace(/^>\s?/, "")).join("\n");
+    return `<blockquote><p>${renderNewsInline(inner.replace(/\n/g, " "))}</p></blockquote>`;
+  }
+
+  // Paragraph (soft break = <br>)
+  const inner = lines.map((l) => renderNewsInline(l)).join("<br>\n");
+  return `<p>${inner}</p>`;
 }

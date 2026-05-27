@@ -152,6 +152,28 @@ CREATE INDEX IF NOT EXISTS idx_events_user_month ON events(user_id, start_date);
 CREATE INDEX IF NOT EXISTS idx_events_public_month ON events(is_public, start_date) WHERE is_public = 1;
 CREATE INDEX IF NOT EXISTS idx_events_user_annual ON events(user_id, is_annual) WHERE is_annual = 1;
 
+-- ──────────────── news ────────────────
+-- 사이트 공지/업데이트/릴리스/로드맵. 운영자(level>=4) 가 CMS UI 에서 작성·수정·발행.
+-- 일반 회원·비회원은 발행된(draft=0) 글만 조회.
+-- body_md = 마크다운 원문 (편집 시 원본 유지).
+-- body_html = 워커 inline renderer 가 생성·수정 시 갱신하는 캐시 (출력 즉시 사용).
+CREATE TABLE IF NOT EXISTS news (
+  id           TEXT PRIMARY KEY,
+  slug         TEXT NOT NULL UNIQUE,
+  title        TEXT NOT NULL,
+  category     TEXT NOT NULL,                              -- notice|update|release|roadmap
+  body_md      TEXT NOT NULL,
+  body_html    TEXT NOT NULL DEFAULT '',
+  summary      TEXT,
+  draft        INTEGER NOT NULL DEFAULT 0,                 -- 0=published, 1=draft
+  published_at TEXT,                                       -- ISO 'YYYY-MM-DDTHH:MM:SSZ' (draft 면 NULL)
+  author_id    TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_news_published ON news(draft, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_category ON news(category, published_at DESC);
+
 -- ──────────────── sessions ────────────────
 -- Auth.js 세션 (JWT 사용 시엔 비워둠. DB 세션 모드 대비)
 CREATE TABLE IF NOT EXISTS sessions (
