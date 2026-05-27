@@ -62,7 +62,7 @@ export const HEADER_NAV: SectionDef[] = [
   },
   {
     slug: "news",
-    label: "뉴스",
+    label: "소식",
     href: "/news/",
     prefixes: ["/news/"],
   },
