@@ -43,6 +43,35 @@ export interface NewsItem {
   updated_at: string;
 }
 
+/**
+ * 본문 마크다운 첫 단락에서 한 줄 요약 자동 추출.
+ * heading(`#`), 리스트(`-`,`*`,숫자.), blockquote(`>`), code fence 라인은 skip.
+ * 마크다운 강조 표식 제거 후 빈 줄까지 한 단락 → 200자까지.
+ */
+export function extractSummary(bodyMd: string | null | undefined): string {
+  if (!bodyMd) return "";
+  const lines = bodyMd.split("\n");
+  const para: string[] = [];
+  let inCode = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.startsWith("```")) { inCode = !inCode; continue; }
+    if (inCode) continue;
+    if (!line) {
+      if (para.length > 0) break;
+      continue;
+    }
+    if (/^(#{1,6}\s|[-*]\s|\d+\.\s|>\s)/.test(line)) continue;
+    para.push(line);
+  }
+  const joined = para.join(" ")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  return joined.slice(0, 200);
+}
+
 /** 'YYYY-MM-DDTHH:MM:SSZ' 또는 'YYYY-MM-DD HH:MM:SS' → 'YYYY.MM.DD'. */
 export function fmtNewsDate(s: string | null | undefined): string {
   if (!s) return "";
