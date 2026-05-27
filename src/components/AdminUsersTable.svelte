@@ -26,6 +26,13 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
+  /** Google 로그인만 허용 — 도메인 부분(`@gmail.com`)은 항상 같아 절약. */
+  function shortEmail(email: string | null | undefined): string {
+    if (!email) return "—";
+    const at = email.indexOf("@");
+    return at > 0 ? `${email.slice(0, at)}@` : email;
+  }
+
   function fmtDate(s: string | null): string {
     if (!s) return "—";
     // SQLite datetime("now") = "YYYY-MM-DD HH:MM:SS" UTC
@@ -102,7 +109,7 @@
             </td>
             <td>{u.display_name ?? "—"}</td>
             <td><span class={`level-badge level-${u.level}`}>{LEVEL_LABEL[u.level] ?? u.level}</span></td>
-            <td class="email">{u.email}</td>
+            <td class="email" title={u.email}>{shortEmail(u.email)}</td>
             <td>{fmtDate(u.last_seen_at)}</td>
             <td class="num">{u.comments_count}</td>
             <td class="num" class:flagged={u.flags_received > 0}>{u.flags_received}</td>

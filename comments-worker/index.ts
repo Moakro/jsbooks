@@ -237,6 +237,11 @@ interface UserRow {
 }
 
 async function loadUser(env: Env, userId: string): Promise<UserRow | null> {
+  // 회원관리 '최근 접속' 이 OAuth 재로그인 없이도 매 API 호출에 갱신되도록.
+  // (이전엔 OAuth callback 에서만 update → 한 번 로그인 후엔 영원히 stale.)
+  await env.DB.prepare(
+    "UPDATE users SET last_seen_at=datetime('now') WHERE id=?",
+  ).bind(userId).run();
   return env.DB.prepare(
     "SELECT id, google_id, email, display_name, avatar_url, affiliation, level FROM users WHERE id=?",
   ).bind(userId).first<UserRow>();
@@ -452,10 +457,7 @@ async function adminListUsers(req: Request, env: Env): Promise<Response> {
          JOIN comments c ON c.id = f.comment_id
         WHERE c.user_id = u.id AND f.status = 'open') AS flags_received
     FROM users u
-    ORDER BY
-      CASE WHEN u.last_seen_at IS NULL THEN 1 ELSE 0 END,
-      u.last_seen_at DESC,
-      u.created_at DESC
+    ORDER BY u.created_at DESC, u.id DESC
     `,
   ).all<AdminUserRow>();
 
