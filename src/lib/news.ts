@@ -36,6 +36,7 @@ export interface NewsItem {
   body_html: string;
   summary: string | null;
   draft: number;            // 0=published, 1=draft
+  pinned: number;           // 1=리스트 상단 고정 (운영자 토글)
   published_at: string | null;
   author_id: string;
   author_name: string | null;

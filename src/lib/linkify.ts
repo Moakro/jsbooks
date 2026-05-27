@@ -115,7 +115,7 @@ function readableInternalLabel(rawUrl: string): string {
   if (segments.length === 0) return "홈";
   const SECTION: Record<string, string> = {
     calendar: "달력",
-    news: "뉴스",
+    news: "소식",
     feed: "피드",
     history: "변경 내역",
     admin: "관리자",

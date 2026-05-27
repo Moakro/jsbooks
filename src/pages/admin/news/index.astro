@@ -10,10 +10,10 @@ import AdminGate from "../../../components/AdminGate.astro";
 import NewsAdmin from "../../../components/admin/NewsAdmin.svelte";
 ---
 
-<Base title="뉴스 관리 — jsbooks">
+<Base title="소식 관리 — jsbooks">
   <AdminGate redirect="/login">
     <header class="admin-header">
-      <h1>뉴스 관리</h1>
+      <h1>소식 관리</h1>
       <p class="hint">새 글 작성·수정·삭제, 드래프트 토글. 발행 글은 즉시 사이트에 노출됩니다.</p>
     </header>
     <NewsAdmin client:only="svelte" />

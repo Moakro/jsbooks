@@ -71,16 +71,6 @@ export const SIDEBAR_BY_SECTION: Record<SectionSlug, SidebarBlock[]> = {
   news: [
     {
       type: "section",
-      label: "카테고리",
-      items: [
-        { label: "공지", path: "/news/category/notice/" },
-        { label: "업데이트", path: "/news/category/update/" },
-        { label: "릴리스", path: "/news/category/release/" },
-        { label: "로드맵", path: "/news/category/roadmap/" },
-      ],
-    },
-    {
-      type: "section",
       label: "최근",
       items: [
         { label: "1주", path: "/news/?since=7d" },
