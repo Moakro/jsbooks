@@ -86,6 +86,7 @@
   <article class="news-detail">
     {#if isAdmin}
       <div class="admin-actions" role="toolbar" aria-label="운영자 액션">
+        <a class="btn btn-primary" href="/admin/news/">+ 새 글</a>
         <a class="btn" href={`/admin/news/?edit=${item.id}`}>수정</a>
         <button
           class="btn btn-danger"
@@ -141,6 +142,16 @@
   .btn:hover {
     border-color: var(--color-primary, #a8352a);
     color: var(--color-primary, #a8352a);
+  }
+  .btn-primary {
+    border-color: var(--color-primary, #a8352a);
+    color: var(--color-primary, #a8352a);
+    background: color-mix(in srgb, var(--color-primary, #a8352a) 7%, transparent);
+    font-weight: 600;
+  }
+  .btn-primary:hover {
+    background: var(--color-primary, #a8352a);
+    color: #fff;
   }
   .btn-danger {
     border-color: color-mix(in srgb, var(--color-primary, #a8352a) 40%, transparent);
