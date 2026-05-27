@@ -15,7 +15,7 @@
 import { getCollection } from "astro:content";
 import Icon from "./Icon.svelte";
 import FeedRecent from "./FeedRecent.svelte";
-import { getPublishedNews } from "../lib/news-vault";
+import SitemapNewsCards from "./SitemapNewsCards.svelte";
 import scriptureVersionsRaw from "../../content/_data/scripture-versions.json";
 
 // Frontmatter 에서 타이핑 (template `{...}` 안에서 \`as Record<...>\` generic 캐스팅하면
@@ -49,8 +49,7 @@ const scriptures = SCRIPTURE_ORDER
   .filter((s) => presentSlugs.has(s.slug))
   .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
-// 뉴스 — 발행된 글 최신 3개 (draft 제외, date 내림차순).
-const latestNews = (await getPublishedNews()).slice(0, 3);
+// 소식 카드는 D1 client-fetch (SitemapNewsCards island) — vault 의존 X.
 
 // 자료 카드별 항목 수 (각 archive collection 크기)
 const [peopleCount, placesCount, dosuCount, termsCount, datesCount] = await Promise.all([
@@ -105,10 +104,7 @@ const SECTIONS: SitemapSection[] = [
     slug: "news",
     label: "소식",
     href: "/news/",
-    // 최신 발행 소식 3개를 카드로 노출. 글이 없으면 카드 없이 섹션 헤더만.
-    cards: latestNews.length
-      ? latestNews.map((n) => ({ label: n.data.title, href: `/news/${n.id}/` }))
-      : [],
+    // 카드는 SitemapNewsCards island 가 D1 fetch — 최근 3개. 빌드 시 정의 X.
   },
 ];
 ---
@@ -145,6 +141,8 @@ const SECTIONS: SitemapSection[] = [
           })
         ) : sec.slug === "feed" ? (
           <FeedRecent client:load limit={5} />
+        ) : sec.slug === "news" ? (
+          <SitemapNewsCards client:load />
         ) : (
           sec.cards?.map((c) => (
             <a class:list={["sm-card", { placeholder: c.placeholder }]} href={c.href}>
