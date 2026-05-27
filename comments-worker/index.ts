@@ -399,8 +399,11 @@ async function setNickname(req: Request, env: Env): Promise<Response> {
   const old = await env.DB.prepare("SELECT display_name FROM users WHERE id=?").bind(uid).first<{ display_name: string | null }>();
   const oldName = old?.display_name ?? null;
 
+  // 닉네임이 채워지면 자동 승급: 대기(0) → 일반(1). 이미 그 이상이면 유지.
+  // (이전엔 D1 직접 UPDATE 로 등급 변경해야 했음 — 닉네임 흐름 자체에 자동 승급
+  // 합의가 있었으나 코드 누락. 신규 가입자도 닉네임 등록 즉시 일반.)
   await env.DB.prepare(
-    "UPDATE users SET display_name=?, affiliation=?, updated_at=datetime('now') WHERE id=?",
+    "UPDATE users SET display_name=?, affiliation=?, level=MAX(level, 1), updated_at=datetime('now') WHERE id=?",
   ).bind(nickname, body.affiliation ?? null, uid).run();
 
   if (oldName !== nickname) {
