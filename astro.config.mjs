@@ -5,6 +5,7 @@ import canonicalMappingDev from './scripts/vite-canonical-mapping.mjs';
 import notePromotionDev from './scripts/vite-note-promotion.mjs';
 import wikilinkQueueDev from './scripts/vite-wikilink-queue.mjs';
 import placesCoordinatesDev from './scripts/vite-places-coordinates.mjs';
+import archiveCandidatesDev from './scripts/vite-archive-candidates.mjs';
 
 import cloudflare from '@astrojs/cloudflare';
 
@@ -26,7 +27,7 @@ export default defineConfig({
   ],
 
   vite: {
-    plugins: [canonicalMappingDev(), notePromotionDev(), wikilinkQueueDev(), placesCoordinatesDev()],
+    plugins: [canonicalMappingDev(), notePromotionDev(), wikilinkQueueDev(), placesCoordinatesDev(), archiveCandidatesDev()],
     server: {
       // Allow Tailscale magic-DNS names + localhost in dev so we can preview
       // builds running on the home server (azgianlab) from any device on the
@@ -41,6 +42,8 @@ export default defineConfig({
           '**/content/scripture/cheonjigaebyeokgyeong/**',
           '**/content/scripture/cheonjigaebyeokgyeong-hangeul/**',
           '**/content/places/**',
+          '**/content/people/**',
+          '**/content/_data/archive-candidate-queue.md',
           '**/content/.bak/**',
         ],
       },
