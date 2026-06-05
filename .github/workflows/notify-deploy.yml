@@ -1,0 +1,79 @@
+name: Deploy notify (Discord)
+
+# main 머지 → Cloudflare Workers가 자동 빌드·배포하는 구조.
+# 이 워크플로는 배포를 하지 않는다(중복 배포 방지). Cloudflare가 GitHub에 보고하는
+# 'Workers Builds' 체크런이 완료될 때까지 기다렸다가, 머지된 PR 번호·제목과 함께
+# 배포 완료/실패를 Discord webhook으로 알린다. (Cloudflare API 토큰 불필요)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+concurrency:
+  group: deploy-notify-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Cloudflare build, then notify Discord
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_JSBOOKS }}
+          OWNER_ID: ${{ vars.DISCORD_OWNER_ID }}
+          SITE_URL: https://jsbooks.wiki
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK:-}" ]; then echo "DISCORD_WEBHOOK_JSBOOKS 미설정 — 건너뜀"; exit 0; fi
+
+          # 1) Cloudflare 'Workers Builds' 체크런 완료까지 폴링 (최대 ~15분)
+          status=""; conclusion=""; details=""
+          for i in $(seq 1 60); do
+            line=$(gh api "repos/$REPO/commits/$SHA/check-runs" \
+              --jq '.check_runs[] | select(.app.slug=="cloudflare-workers-and-pages") | "\(.status)\t\(.conclusion)\t\(.details_url)"' | head -1 || true)
+            status=$(printf '%s' "$line" | cut -f1)
+            conclusion=$(printf '%s' "$line" | cut -f2)
+            details=$(printf '%s' "$line" | cut -f3)
+            echo "attempt $i: status='$status' conclusion='$conclusion'"
+            [ "$status" = "completed" ] && break
+            sleep 15
+          done
+          if [ "$status" != "completed" ]; then
+            echo "Cloudflare 빌드가 제한 시간 내 완료되지 않음 — 알림 생략(거짓 완료 방지)"; exit 0
+          fi
+
+          # 2) 이 커밋에 연결된 PR 번호/제목
+          prnum=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty' || true)
+          prtitle=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].title // empty' || true)
+
+          # 3) 메시지 구성
+          if [ "$conclusion" = "success" ]; then
+            emoji="✅"; color=2605637; head="배포 완료! 운영 사이트에 반영됐습니다."
+          else
+            emoji="❌"; color=15158332; head="배포 실패 (Cloudflare 빌드: $conclusion)"
+          fi
+          desc=$(printf '**[jsbooks]** %s %s' "$emoji" "$head")
+          if [ -n "$prnum" ]; then
+            desc=$(printf '%s\n📦 #%s %s\nhttps://github.com/%s/pull/%s' "$desc" "$prnum" "$prtitle" "$REPO" "$prnum")
+          fi
+          if [ "$conclusion" = "success" ]; then
+            desc=$(printf '%s\n🔗 %s' "$desc" "$SITE_URL")
+          elif [ -n "$details" ]; then
+            desc=$(printf '%s\n🔗 %s' "$desc" "$details")
+          fi
+
+          mention=""
+          [ -n "${OWNER_ID:-}" ] && mention="<@$OWNER_ID>"
+
+          payload=$(jq -n --arg content "$mention" --arg description "$desc" --argjson color "$color" \
+            '{content:$content, embeds:[{description:$description, color:$color, footer:{text:"deploy"}}], allowed_mentions:{parse:["users"]}}')
+          curl -sS -X POST -H "Content-Type: application/json" --max-time 15 -d "$payload" "$WEBHOOK" >/dev/null
+          echo "Discord 알림 전송 완료."
