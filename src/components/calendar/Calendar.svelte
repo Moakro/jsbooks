@@ -32,12 +32,18 @@
   onMount(() => {
     const now = new Date();
     today = now;
-    // URL query 우선 — 새로고침 후에도 동일 월 유지.
+    // 빌드 시점 prop(initialYear/Month) 은 정적 HTML 에 박혀 마지막 배포 월로
+    // 고정된다 → client 의 실제 오늘로 덮어써서 항상 현재 월에서 시작.
+    year = now.getFullYear();
+    month = now.getMonth() + 1;
+    // URL query 가 있으면 그게 더 우선 — 사용자가 명시한 월/새로고침 후 동일 월 유지.
     const params = new URLSearchParams(location.search);
     const qy = Number(params.get("y"));
     const qm = Number(params.get("m"));
     if (Number.isInteger(qy) && qy >= 1800 && qy <= 2100) year = qy;
     if (Number.isInteger(qm) && qm >= 1 && qm <= 12) month = qm;
+    // 빌드 시점 월로 박힌 <title> 도 실제 표시 월로 보정 (탭 제목 stale 방지).
+    document.title = `달력 — ${year}년 ${month}월`;
     selectedDate = startOfDay(now);
     void fetchMonthEvents();
     window.addEventListener("jsbooks:events-updated", onEventsUpdated);
