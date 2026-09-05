@@ -16,7 +16,9 @@
   let year = $state(new Date().getFullYear());
   let month = $state(new Date().getMonth() + 1);
   let events = $state<CalendarEvent[]>([]);
-  let loading = $state(false);
+  // 첫 조회 전까지는 「불러오는 중」이다. false 로 두면 그 사이 「등록된 일정이
+  // 없습니다」가 잠깐 떴다가 목록으로 바뀌어 깜빡인다.
+  let loading = $state(true);
   let isAuthed = $state<boolean | null>(null);
 
   let modalOpen = $state(false);
@@ -36,11 +38,9 @@
     }
   }
 
+  // 로그인하지 않아도 부른다 — 서버가 공개 일정(기념일)만 골라 준다.
+  // 종전에는 여기서 먼저 끊어, 서버를 고쳐도 이 목록은 비어 있었다.
   async function fetchEvents() {
-    if (isAuthed === false) {
-      events = [];
-      return;
-    }
     loading = true;
     try {
       const { from, to } = monthRange(year, month);
@@ -131,11 +131,9 @@
     {/if}
   </div>
 
-  {#if isAuthed === null}
-    <p class="cme-empty">불러오는 중…</p>
-  {:else if isAuthed === false}
-    <p class="cme-empty">로그인하시면 개인 일정을 등록·조회할 수 있습니다.</p>
-  {:else if loading && occurrences.length === 0}
+  <!-- 로그인 안내 분기를 두지 않는다. 비로그인에게도 공개 기념일이 서고,
+       로그인 자리는 헤더에 이미 있다. -->
+  {#if loading && occurrences.length === 0}
     <p class="cme-empty">불러오는 중…</p>
   {:else if occurrences.length === 0}
     <p class="cme-empty">등록된 일정이 없습니다.</p>

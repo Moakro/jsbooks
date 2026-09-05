@@ -1724,9 +1724,14 @@ const EVENT_SELECT_WITH_OWNER = `
 // 응답: { events } — 사용자 own + scope=all 시 공개 일정도 포함.
 // is_annual 인 일정은 from/to 범위 무시하고 항상 반환 (클라이언트가 매년 발생일 계산).
 // is_lunar=1 이면 start_date 가 음력 'YYYY-MM-DD' 로 저장됨. 양력 변환·전개는 클라이언트 책임.
+//
+// **로그인하지 않아도 공개 일정은 보인다.** 기념일은 저장할 때부터 is_public=1 로
+// 강제되므로(normalizeEventInput — "기념일: 항상 전체 공개") 교단 기념일은 로그인
+// 없이 달력에 서야 한다. 종전에는 여기서 401 로 막아 그 의도가 실현되지 않았다.
+// 비로그인에게 나가는 것은 is_public=1 인 행뿐이고, is_mine 은 전부 0 이라
+// 화면이 편집 UI 를 세우지 않는다(CalendarMonthEvents 가 이미 그렇게 갈린다).
 async function listEvents(req: Request, env: Env): Promise<Response> {
   const uid = await currentUserId(req, env);
-  if (!uid) return json({ error: "not authenticated" }, 401);
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
@@ -1734,9 +1739,18 @@ async function listEvents(req: Request, env: Env): Promise<Response> {
   if (from && !EVENT_DATE_RE.test(from)) return json({ error: "from must be YYYY-MM-DD" }, 400);
   if (to && !EVENT_DATE_RE.test(to)) return json({ error: "to must be YYYY-MM-DD" }, 400);
 
+  // scope=mine 은 「내 일정」이다. 로그인하지 않았으면 내 것이 없다 —
+  // 401 이 아니라 빈 목록이다. 부르는 쪽이 「없음」과 「막힘」을 구분할 필요가 없다.
+  if (!uid && scope === "mine") return json({ events: [] });
+
   const conds: string[] = [];
-  const binds: unknown[] = [uid]; // CASE WHEN ev.user_id = ? 용
-  if (scope === "mine") {
+  // CASE WHEN ev.user_id = ? 용. 비로그인이면 null 이라 is_mine 이 전부 0 이 된다.
+  const binds: unknown[] = [uid ?? null];
+  if (!uid) {
+    // ⚠ 조건을 명시적으로 쓴다. uid 가 null 일 때 `ev.user_id = NULL` 이 NULL 로
+    // 평가되는 3값 논리에 기대면, 나중에 조건이 하나 붙는 날 조용히 어긋난다.
+    conds.push("ev.is_public = 1");
+  } else if (scope === "mine") {
     conds.push("ev.user_id = ?");
     binds.push(uid);
   } else {
@@ -1759,7 +1773,13 @@ async function listEvents(req: Request, env: Env): Promise<Response> {
   const sql = `${EVENT_SELECT_WITH_OWNER} WHERE ${conds.join(" AND ")} ORDER BY ev.start_date ASC, ev.created_at ASC LIMIT 1000`;
 
   const rs = await env.DB.prepare(sql).bind(...binds).all<EventRowWithOwner>();
-  return json({ events: rs.results ?? [] });
+  const rows = rs.results ?? [];
+  // 익명에게는 작성자 이름을 주지 않는다. 화면이 쓰지 않는 값이고(owner_name 은
+  // 타입에만 있다), 안 쓰는 개인정보를 로그인도 하지 않은 쪽에 내보낼 이유가 없다.
+  const events = uid
+    ? rows
+    : rows.map((r: EventRowWithOwner) => ({ ...r, owner_name: null }));
+  return json({ events });
 }
 
 async function createEvent(req: Request, env: Env): Promise<Response> {
